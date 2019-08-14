@@ -1,0 +1,25 @@
+
+;      --------------
+;      INPUT CREATION
+;      --------------
+;      How to run:
+;      qforce input_traj dipolefitting.inp 
+;      Input file:
+
+ coord_file   = trajectory.pdb 
+
+
+;      ----------------------------------
+;      Run the G09 input files created...
+;      ----------------------------------
+
+
+;      DIPOLE FITTING
+;      --------------
+;      How to run:
+;      qforce dipolefitting dipole.inp 
+;      Input:
+
+; If "coord_file" keyword is not in the file, give the name of the directory containing all the outputs:
+
+traj_dir = directory_name 

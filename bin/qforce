@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+
+import sys, os
+from qforce.modified_seminario.modified_Seminario import modified_Seminario_method
+from qforce.read_input  import Input
+import qforce.dihedral_scan as dihedral_scan
+import qforce.make_qm_input as make_qm_input
+import qforce.dipole_fitting as dipole_fitting
+from qforce.hessian import fit_hessian
+from qforce.polarize import polarize
+
+print("""\n
+   ____         ______                 
+  / __ \       |  ____|                
+ | |  | |______| |__ ___  _ __ ___ ___ 
+ | |  | |______|  __/ _ \| '__/ __/ _ \\
+ | |__| |      | | | (_) | | | (_|  __/
+  \___\_\      |_|  \___/|_|  \___\___|
+  
+Written by: Selim Sami 
+University of Groningen - 2019
+==============================                            
+""")
+
+usage = """
+Usage: qforce <job_type> <input_file>
+
+Possible job types are:
+- dihedralfitting
+- dipolefitting
+- bondangle
+- input_dihedral
+- input_hessian
+- input_traj
+
+Check github.com/selimsami/qforce for more information.
+
+"""
+
+if len(sys.argv) != 3:
+    sys.exit(usage)
+elif not os.path.isfile(sys.argv[2]):
+    sys.exit('ERROR: Input file with the name "{}" does not exist.\n{}'
+             .format(sys.argv[2], usage))
+
+inp = Input(sys.argv[1], sys.argv[2])
+
+if inp.job_type == "dihedralfitting":
+    dihedral_scan.scan_each_dihedral(inp)
+elif inp.job_type in ["input_dihedral", "input_hessian", "input_traj"]:
+    make_qm_input.make_qm_input(inp)
+elif inp.job_type == "bondangle":
+    modified_Seminario_method(inp)
+elif inp.job_type == "dipolefitting":
+    dipole_fitting.fit_dipoles(inp)
+elif inp.job_type == "hessianfitting":
+    fit_hessian(inp)
+elif inp.job_type == "polarize":
+    polarize(inp)
+    
+else:
+    sys.exit('ERROR: "{}" is not a valid job name.\n{}'
+             .format(sys.argv[1], usage))
+print("\n")

@@ -1,0 +1,54 @@
+; Default energy minimization MDP file for the qforce package
+
+integrator              = steep             ; 
+nsteps                  = 50000              ; total time: 2500 ps
+emtol                   = 0.001             ; max force for convergence
+comm-mode               = Angular           ; center of mass removal
+nstcomm                 = 100               ; freq. for center of mass motion removal
+
+; Bond constraints
+constraints             = none              ; constrain bond lengths
+constraint_algorithm    = lincs             ; default
+lincs_order             = 4                 ; default
+
+; X/V/F/E outputs
+nstxout                 = 500000            ; write positions every 1000  ps
+nstvout                 = 500000            ; write velocities every 1000  ps
+nstfout                 = 0                 ; write forces -- no
+nstlog                  = 10000             ; write energies to log every 20 ps
+nstenergy               = 10000             ; write energies to energy file
+nstxtcout               = 10000             ; xtc portable trajectory file, every 10 ps
+xtc_precision           = 1000
+
+; Neighbour list
+cutoff-scheme           = group             ; necessary for pbc=no
+ns_type                 = simple            ; neighlist type - necessary for pbc=no
+nstlist                 = 0                 ; Freq. to update neighbour list
+rlist                   = 0.0               ; nm (cutoff for short-range NL)
+pbc                     = no                ; turn off periodic boundary conditions
+
+; Coulomb interactions
+coulombtype             = Cut-off           ; necessary for pbc=no
+epsilon_rf              = 3.9               ; PTEG (Jahani, 2014)
+rcoulomb                = 0.0               ; nm (direct space sum cut-off)
+optimize_fft            = yes               ; optimal FFT plan for the grid
+
+; van der Waals interactions
+vdwtype                 = Cut-off           ; Van der Waals interactions
+rvdw                    = 0.0               ; nm (LJ cut-off)
+DispCorr                = no                ; can not have disp. corr. with pbc=no
+
+; Temperature coupling 
+Tcoupl                  = Berendsen         ; This is ignored with sd integrator
+tc-grps                 = System            ; 
+tau_t                   = 0.1               ; ps, recommended value for sd
+ref_t                   = 298.15            ; K
+
+; Energy monitoring
+energygrps              = System
+
+; Generate velocites in the beginning
+gen_vel                 = yes               ;
+gen_temp                = 298.0             ;
+gen_seed                = -1                ; -1 = the seed is calculated from the process ID number
+
