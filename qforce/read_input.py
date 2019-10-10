@@ -1,5 +1,4 @@
-import shutil
-import os
+import shutil, os
 from . import qforce_data
 
 class Input():
@@ -27,8 +26,8 @@ class Input():
         self.scan_step = "10.0"
         self.charge = "0"
         self.multi = "1"
-        self.method = "wB97XD"
-        self.basis = "6-31G(d,p)"
+        self.method = "WB97XD"
+        self.basis = "6-31G(D,P)"
         self.disp = ""
         self.nproc = ""
         self.mem = ""
@@ -58,6 +57,8 @@ class Input():
         self.n_equiv = 4
         # related to hessianfitting
         self.urey = False
+        #related to fragment
+        self.frag_lib = os.path.expanduser("~/qforce_fragments") 
         
         self.read_input(input_file)
         self.check_compulsory_settings()
@@ -70,7 +71,7 @@ class Input():
             for line in inp:
                 line = line.strip()
                 low_line = line.lower().replace("="," = ")
-                if low_line is "" or low_line[0] == ";":
+                if low_line == "" or low_line[0] == ";":
                     continue
                 elif len(low_line.split()) > 1 and low_line.split()[1] == "=":
                     prop = low_line.split()[0]
@@ -79,6 +80,7 @@ class Input():
                     #related to file creation
                     if prop == "coord_file":
                         self.coord_file = value
+                        self.job_name = value.split('.')[0]
                     elif prop == "scan_no":
                         self.scan_no = str(value) 
                     elif prop == "scan_step":
@@ -88,11 +90,11 @@ class Input():
                     elif prop == "multiplicity":
                         self.multi = value
                     elif prop == "method":
-                        self.method = value
+                        self.method = value.upper()
                     elif prop == "basis_set":
-                        self.basis = value
+                        self.basis = value.upper()
                     elif prop == "dispersion":
-                        self.set_disp(value)
+                        self.disp = value.upper()
                     elif prop == "n_procs":
                         self.set_nproc(value)
                     elif prop == "memory":
@@ -133,6 +135,9 @@ class Input():
                     #related to hessianfitting
                     elif prop == "urey" and value == "yes":
                         self.urey = True
+                    #related to fragment
+                    elif prop == "frag_dir":
+                        self.frag_lib = value
                         
                 elif "[" in low_line and "]" in low_line:
                     no_space = low_line.replace(" ","")
@@ -158,11 +163,6 @@ class Input():
         dihedral = list(map(str, dihedral))
         self.dihedrals.append(dihedral)
 
-    def set_disp(self,dispersion):
-        if dispersion == "no":
-            self.disp = ""
-        else:
-            self.disp = ("EmpiricalDispersion=" + dispersion)
     def set_nproc(self,nprocs):
         if nprocs != "no":
             self.nproc = ("%nprocshared=" + nprocs + "\n")
@@ -200,6 +200,16 @@ class Input():
             if self.coord_file == "":
                 raise NameError({miss.format("coordinate", "one-line",
                                                  '"coord_file = "')})
+        if self.job_type == "fragment" or self.job_type == "hessian":
+            self.relevant_files.append([self.fchk_file, self.qm_freq_out])
+            self.check_exe("obabel")
+            if self.fchk_file == "":
+                raise NameError({miss.format("QM fchk file",
+                                             "one-line", '"fchk_file = "')})
+            if self.qm_freq_out == "":
+                raise NameError({miss.format("QM frequency calc. output file",
+                                             "one-line", '"qm_freq_out"')})
+            
         if self.job_type == "dihedralfitting":
             self.set_mdp()
             self.relevant_files.append([self.itp_file, self.top_file, 

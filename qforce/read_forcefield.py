@@ -22,6 +22,7 @@ class Forcefield():
         self.dihedrals = []
         self.impropers = []
         self.flexible = []
+        self.constrained = []
         self.coords = []
         self.atomids = []
         self.symbols = []

@@ -1,53 +1,38 @@
 import os, subprocess, shutil
 
-def make_dihedral_scan_input(inp, frag_id, id_no):
-    out_dir = f'{inp.job_name}_qforce/fragments'
-    out_file = f'{out_dir}/{frag_id}~{id_no}.com'
-    xyz_file = f'{inp.frag_lib}/{frag_id}/coords_{id_no}.xyz'
-
-    os.makedirs(out_dir, exist_ok=True)
-    run_obabel(xyz_file, f'{out_dir}/{out_file}', "gzmat")
-
-    
-    
-
-
-
-
-
-
-
-
-def make_hessian_input(inp, inp_file = None, out_file = None):
+def make_qm_input(inp):
     """
     Scope:
     ------
+    Make QM (so far, only Gaussian 09/16) input for various different
+    calculations.
     
     Output:
     -------
     
     
     """
-#    inp, out, out_path = get_names(inp)
-#    if not os.path.exists(out[0]):
-#        os.makedirs(out[0])
+    inp, out, out_path = get_names(inp)
+    if not os.path.exists(out[0]):
+        os.makedirs(out[0])
     # for each different input type, create the necessary formatting
-
-    out_dir = f'{inp.job_name}_qforce'
-    os.makedirs(out_dir, exist_ok=True)
-#    
-#    if inp.job_type == "input_hessian":
-#        out_file = f'{inp.job_name}_hessian'
-#        run_obabel(inp.coord_file, f'{out_dir}/{out_file}', "com")
-#        change_run_settings(inp, out, out_path)
-#    if inp.job_type == "fragment":
-#        out_dir =  f'{out_dir}/fragments'
-#        os.makedirs(out_dir, exist_ok=True)
-#        run_obabel(inp_file, f'{out_dir}/{out_file}', "gzmat")
-#        
-        
-#        add_dihedrals(inp, out, out_path)
-
+    if inp.job == "traj":
+        run_obabel(inp, out_path, "com", "-m")
+        for file in os.listdir(out[0]):
+            name, ext = os.path.splitext(file)
+            if ext == ".com" or ext == ".inp":
+                out[1] = name
+                out_path = "{}{}{}".format(*out)
+                change_run_settings(inp, out, out_path)
+                inp.key["traj"] = ""
+    elif inp.job == "dihedral":
+        run_obabel(inp, out_path, "gzmat", "-unique")
+        add_dihedrals(inp, out, out_path)
+    
+    else:
+        run_obabel(inp, out_path, "com", "-unique")
+        change_run_settings(inp, out, out_path)
+    print(f"Input files are in the directory:\n{out[0]}")
     
 def get_names(inp):
     inp.job = inp.job_type.split("_")[1]
@@ -66,9 +51,9 @@ def get_names(inp):
     out_path = "{}{}{}".format(*out)
     return inp, out, out_path
        
-def run_obabel(inp_file, out_file, out_type):
-    obabel = subprocess.Popen(['obabel', inp_file, "-o", out_type, "-O",
-                               out_file, "-unique"], stdout=subprocess.PIPE,
+def run_obabel(inp, out_path, out_type, arg):
+    obabel = subprocess.Popen(['obabel', inp.coord_file, "-o", out_type, "-O",
+                               out_path, arg], stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
     obabel.wait()
 
@@ -87,7 +72,10 @@ def add_dihedrals(inp, out, out_path):
 def change_run_settings(inp, out, out_path):
     with open(out_path, "r") as file:
         coord =  file.readlines()
-    title = (f"{out[1]}\n")
+    if inp.job == "traj":
+        title = coord[2]
+    else:
+        title = (f"{out[1]}\n")
     if inp.disp != "":
         disp = f'EmpiricalDispersion={inp.disp}'   
     

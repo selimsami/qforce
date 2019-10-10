@@ -1,30 +1,27 @@
 import numpy as np
+
 """
     Calculation of forces on x, y, z directions and also seperately on
     term_ids. So forces are grouped seperately for each unique FF
     parameter.
 """
-def calc_bonds(coords, bonds, energy, force):
+def calc_bonds(coords, bonds, force):
     for a, r0, t in zip(bonds.atoms, bonds.minima, bonds.term_ids):
-        vec12, r12 = get_dist(coords[a[0]], coords[a[1]])
-        
-        energy[t] += 0.5 * (r12-r0)**2
-        
+        vec12, r12 = get_dist(coords[a[0]], coords[a[1]]) 
+#        energy[t] += 0.5 * (r12-r0)**2 
         f =  - vec12 * (r12-r0) / r12
         force[a[0], :, t] += f
         force[a[1], :, t] -= f
-    return energy, force
+    return force
 
-def calc_angles(coords, angles, energy, force):
+def calc_angles(coords, angles, force):
     for a, theta0, t in zip(angles.atoms, angles.minima, angles.term_ids):
         vec12, r12 = get_dist(coords[a[0]], coords[a[1]])
         vec32, r32 = get_dist(coords[a[2]], coords[a[1]])
         theta = get_angle(vec12, vec32)
         cos_theta = np.cos(theta)
-        dtheta = theta - theta0
-        
-        energy[t] += 0.5 * dtheta**2
-        
+        dtheta = theta - theta0  
+#        energy[t] += 0.5 * dtheta**2
         st = - dtheta / np.sqrt(1 - cos_theta**2)
         sth = st * cos_theta
         c13 = st / r12 / r32
@@ -36,16 +33,16 @@ def calc_angles(coords, angles, energy, force):
         force[a[0], :, t] += f1
         force[a[2], :, t] += f3
         force[a[1], :, t] += - f1 - f3
-    return energy, force
+    return force
 
-def calc_g96angles(coords, angles, energy, force):
+def calc_g96angles(coords, angles, force):
     for a, theta0, t in zip(angles.atoms, angles.minima, angles.term_ids):
         r_ij, r12 = get_dist(coords[a[0]], coords[a[1]])
         r_kj, r32 = get_dist(coords[a[2]], coords[a[1]])
         theta = get_angle(r_ij, r_kj)
         cos_theta = np.cos(theta)
         dtheta = theta - theta0
-        energy[t] += 0.5 * dtheta**2
+#        energy[t] += 0.5 * dtheta**2
         
         rij_1    = 1 / np.sqrt(np.inner(r_ij, r_ij))
         rkj_1    = 1 / np.sqrt(np.inner(r_kj, r_kj))
@@ -60,78 +57,43 @@ def calc_g96angles(coords, angles, energy, force):
         force[a[0], :, t] += f1;
         force[a[1], :, t] += f2;
         force[a[2], :, t] += f3;
-    return energy, force
+    return force
 
-#def calc_quartic_angles(coords, angles, energy, force):
+#def calc_quartic_angles(coords, angles, force):
 #    for a, theta0, t in zip(angles.atoms, angles.minima, angles.term_ids):
 
         # QUARTIC : SAME AS ANGLES BUT 5 TIMES. LOOP OVER!
         
         
-#    return energy, force
+#    return force
 
-def calc_dihedrals(coords, stiff, improper, energy, force): 
+def calc_dihedrals(coords, stiff, improper, force): 
     for a, phi0, n in zip(stiff.atoms + improper.atoms , stiff.minima + 
                           improper.minima, stiff.term_ids + improper.term_ids):
 
         phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(*coords[a])
-        energy, force = calc_imp_dih(energy, force, a, phi, phi0, vec_ij,
-                                    vec_kj, vec_kl, cross1, cross2, n)
-    return energy, force
-
-#def calc_pairs(coords, natoms, mol.connect, mol.types, energy, force, pair, ff):
-#    eps = 1389.35458
-#
-#    for i in range(natoms): 
-#        for j in range(i+1, natoms):
-#            if all([j not in mol.connect[c][i] for c in range(2)]):
-#                types = [mol.types[i], mol.types[j]]
-#                pair = parameters(', '.join('{}_{}'.format(t, z) for t in 
-#                                            ["q", "c6", "c12"] for z in types))
-#                qi, qj, c6i, c6j, c12i, c12j = pair
-#                
-#                vec, r = get_dist(coords[i], coords[j])
-#                q12er = qi*qj*eps/r
-#                r2 = 1/r**2
-#                r6 = r2**3
-#                c6r6 = sqrt(c6i*c6j) * r6
-#                c12r12 = sqrt(c12i*c12j) * r6**2
-#    
-#                energy += q12er + c12r12 - c6r6
-#                f = q12er * r2 + (12*c12r12 - 6*c6r6) * r2
-#                
-#                #small numerical disagreement with gromacs for lj forces
-#                for k in range(3):
-#                    fk = f * vec[k]
-#                    force[i,k] += fk
-#                    force[j,k] -= fk
-#    return energy, force
-
+        force = calc_imp_dih(force, a, phi, phi0, vec_ij, vec_kj, vec_kl, 
+                             cross1, cross2, n)
+    return force
     
-def calc_imp_dih(energy, force, a, phi, phi0, vec_ij, vec_kj, vec_kl, cross1,
-                 cross2, n):
+def calc_imp_dih(force, a, phi, phi0, vec_ij, vec_kj, vec_kl, cross1, cross2, n):
     dphi = phi - phi0
     dphi = (dphi + np.pi) % (2 * np.pi) - np.pi # dphi between -pi to pi
-    
-    energy[n] += 0.5 * dphi**2
-    
+#    energy[n] += 0.5 * dphi**2
     force = calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2,
                            dphi, n)
-    return energy, force
+    return force
 
-def calc_per_dih(energy, force, a, phi, phi0, vec_ij, vec_kj, vec_kl, cross1,
-                 cross2, n):
-    mult = 2
-    mdphi = mult*phi - phi0
-    ddphi = mult * np.sin(mdphi)
-    
-    energy[n] = 1 + np.cos(mdphi)
-
+def calc_per_dih(force, a, phi, phi0, vec_ij, vec_kj, vec_kl, cross1, cross2, n):
+    mult = 3
+    mdphi = mult * phi - phi0
+    ddphi =  mult * np.sin(mdphi)
+#    energy[n] = 1 + np.cos(mdphi)
     force = calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2,
                            ddphi, n)
-    return energy, force
+    return force
 
-#def calc_rb_dih(energy, force, a, phi, vec_ij, vec_kj, vec_kl, cross1, cross2,
+#def calc_rb_dih(force, a, phi, vec_ij, vec_kj, vec_kl, cross1, cross2,
 #                n):
 #    kd = [1, 0, -1, 0, 0, 0]
 #    phi += np.pi
@@ -142,16 +104,16 @@ def calc_per_dih(energy, force, a, phi, phi0, vec_ij, vec_kj, vec_kl, cross1,
 #        if i == 0:
 #            cos_factor = 1
 #            ddphi = 0
-#            energy += kd[0]
+##            energy += kd[0]
 #            continue
 #        ddphi += i * cos_factor * c 
 #        cos_factor *= cos_phi
-#        energy += c * cos_factor
+##        energy += c * cos_factor
 #        
 #    ddphi *= - sin_phi
 #    force = calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2, 
 #                           ddphi)
-#    return energy, force
+#    return force
 
 def calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi, n):
     inner1  = np.inner(cross1, cross1)
@@ -178,6 +140,44 @@ def calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi, n):
     force[a[1],:,n] -= f_j
     force[a[2],:,n] -= f_k
     force[a[3],:,n] += f_l
+    return force
+
+def calc_pairs(coords, natoms, neighbors, force):
+    eps = 1389.35458
+
+    q =  [0.041, -0.066, 0.041, -0.066, 0.041, 0.041, -0.017, 0.063, 0.063, 
+          -0.279, -0.017, 0.063, 0.063, -0.388, 0.139, 0.139, 0.139]
+    
+    c6 = [ 8.464e-05, 0.0023406244, 8.464e-05, 0.0023406244, 8.464e-05, 
+          8.464e-05, 0.0023406244, 8.464e-05, 8.464e-05, 0.00863041,
+          0.0023406244, 8.464e-05, 8.464e-05, 0.002025, 8.464e-05, 8.464e-05,
+          8.464e-05]
+    c12 = [1.5129e-08, 4.937284e-06, 1.5129e-08, 4.937284e-06, 1.5129e-08, 
+           1.5129e-08, 4.937284e-06, 1.5129e-08, 1.5129e-08, 2.025e-05,
+           4.937284e-06, 1.5129e-08, 1.5129e-08, 1e-06, 1.5129e-08, 1.5129e-08, 
+           1.5129e-08]
+    
+    c6 = np.array(c6) * 1e6
+    c12 = np.array(c12) * 1e12
+    for i in range(natoms): 
+        for j in range(i+1, natoms):
+            if all([j not in neighbors[c][i] for c in range(2)]):
+                vec, r = get_dist(coords[i], coords[j])
+                
+                q12er = q[i]*q[j]*eps/r
+                r_2 = 1/r**2
+                
+                r_6 = r_2**3
+                c6_r6 = np.sqrt(c6[i]*c6[j]) * r_6
+                c12_r12 = np.sqrt(c12[i]*c12[j]) * r_6**2
+#                energy += q12er + c12_r12 - c6_r6
+                f = q12er * r_2 + (12*c12_r12 - 6*c6_r6) * r_2
+                #tiny numerical disagreement with gromacs for lj forces??
+                # double check!
+                for k in range(3):
+                    fk = f * vec[k]
+                    force[i,k,-1] -= fk
+                    force[j,k,-1] += fk
     return force
 
 def get_dist(coord1, coord2):

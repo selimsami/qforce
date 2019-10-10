@@ -1,6 +1,7 @@
 import numpy as np
 import os
-from .molecule import Molecule
+import networkx as nx
+from .elements import elements
 from .read_forcefield import Forcefield
 from .write_forcefield import write_itp
 from .write_forcefield import write_gro
@@ -12,7 +13,11 @@ def polarize(inp):
     """
     polar_coords = []
     ff = Forcefield(itp_file = inp.itp_file, gro_file = inp.coord_file)
-    mol = Molecule(np.array(ff.coords)*10, ff.atomids[0:ff.natom], inp)
+    
+    
+    G = make_graph(ff.atomids[0:ff.natom], np.array(ff.coords)*10)
+    neighbors = find_neighbors(G, ff.natom)
+    
     ff.exclu = [[] for i in range(ff.natom)]
 
 #    polar_dict = { 1: 0.000413835,  6: 0.00145,  7: 0.000971573, 
@@ -38,9 +43,9 @@ def polarize(inp):
     for i in range(ff.natom):
 
         # add exclusions for nrexcl=3
-        for n3 in mol.neighbors[1][i]:
+        for n3 in neighbors[1][i]:
             ff.exclu[i].extend([n3+ff.natom+1])
-        for n4 in mol.neighbors[2][i]:
+        for n4 in neighbors[2][i]:
             if sorted([i+1, n4+1]) not in ff.pairs:
                 ff.exclu[i].extend([n4+ff.natom+1, n4+1])
                 
@@ -62,7 +67,7 @@ def polarize(inp):
         ff.polar.append([i+1, i+1+ff.natom, 1, polar_dict[ff.atomids[i]]])
         
         # add thole
-        for a in mol.neighbors[0][i]+mol.neighbors[1][i]+mol.neighbors[2][i]:
+        for a in neighbors[0][i]+neighbors[1][i]+neighbors[2][i]:
             if i < a:
                 ff.thole.append([i+1, i+ff.natom+1, a+1, a+ff.natom+1, "2", 
                                  "2.6", polar_dict[ff.atomids[i]],
@@ -76,3 +81,34 @@ def polarize(inp):
     print("Done!")
     print(f"Polarizable coordinate file in: {polar_gro}")
     print(f"Polarizable force field file in: {polar_itp}")
+    
+    
+def find_neighbors(G, n_atoms):
+    all_neighbors = [[[] for j in range(n_atoms)] for i in range(3)]
+    for i in range(n_atoms):
+        neighbors = nx.bfs_tree(G, source=i,  depth_limit=3).nodes
+        for n in neighbors:
+            paths = nx.all_shortest_paths(G, i, n)
+            for path in paths:
+                if len(path) == 2:
+                    all_neighbors[0][i].append(path[-1])
+                elif len(path) == 3:
+                    if path[-1] not in all_neighbors[1][i]:
+                        all_neighbors[1][i].append(path[-1])
+                elif len(path) == 4:
+                    if path[-1] not in all_neighbors[2][i]:
+                        all_neighbors[2][i].append(path[-1])
+    return all_neighbors
+
+def make_graph(atomids, coords):
+    e = elements()
+    G = nx.Graph()
+    for i, i_id in enumerate(atomids):
+        G.add_node(i, elem = i_id)
+        for j, j_id in enumerate(atomids):
+            id1, id2 = sorted([i_id, j_id])
+            vec = coords[i] - coords[j]
+            dist = np.sqrt((vec**2).sum())
+            if dist > 0.4 and dist < e.cov[i_id] + e.cov[j_id] + 0.45:
+                G.add_edge(i, j, vector = vec, length = dist)
+    return G

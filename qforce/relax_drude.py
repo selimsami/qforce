@@ -75,8 +75,7 @@ def minimize_drude(coords, k, mol, q_a, pair_list, field):
                         s_atom[d] = s_scale_min*s_atom[d] + (s_scale_incr * 
                               min(s_scale_mult*s_atom[d], max(k_est[i][d], 0)))
                     else:
-                        s_atom[d] *= s_scale_max
-                       
+                        s_atom[d] *= s_scale_max            
         f_old = force
         xyz_old = xyz
         dx = f_old * step_size

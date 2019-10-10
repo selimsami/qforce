@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from symfit import Fit, cos, pi, parameters, variables
 import seaborn as sns
-from .read_qm_out import QM
+from .old_read_qm_out import QM
 
 def scan_each_dihedral(inp):
     """
@@ -104,7 +104,7 @@ def find_scanned_dihedral(qm, itp):
     with open(itp.temp,"w") as temp_itp, open(itp.opt, "r") as opt_itp:
             for line in opt_itp:
                 low_line = line.strip().lower()
-                if low_line is "" or low_line[0] == ";":
+                if low_line == "" or low_line[0] == ";":
                     temp_itp.write(line)   
                 elif "[" in low_line and "]" in low_line:
                     no_space = low_line.replace(" ","")
@@ -216,16 +216,14 @@ def do_fitting(qm, inp, dihedral_fitting):
    
     elif inp.fitting_function == "periodic":
            
-        k1, f1, k2, f2, k3, f3, k4, f4, k6, f6 = parameters (
-                    'k1, f1, k2, f2, k3, f3, k4, f4, k6, f6') 
-        for p in k1, f1, k2, f2, k3, f3, k4, f4, k6, f6:
-            p.min = 0
+        k3, = parameters (
+                    'k3') 
 
-        model = {y: k1 * (1 + cos(1 * angle_rad - f1)) + 
-                    k2 * (1 + cos(2 * angle_rad - f2)) + 
-                    k3 * (1 + cos(3 * angle_rad - f3)) + 
-                    k4 * (1 + cos(4 * angle_rad - f4)) + 
-                    k6 * (1 + cos(6 * angle_rad - f6))}
+        k3.min = 0
+
+        model = {y:
+                    k3 * (1 + cos(3 * angle_rad ))  
+                    }
 
     elif inp.fitting_function == "improper":
         k, f = parameters ('k, f')
@@ -267,9 +265,9 @@ def write_opt_dihedral(dir_name, in_dihedrals, inp, qm, c, r_squared):
         elif inp.fitting_function == "periodic":
                 n_funct = int(len(c)/2)
                 count = 0
-                for multi in [1, 2, 3, 4, 6]:
+                for multi in [3]:
                     if c[n_funct + count] > 1.0:
-                        angle = np.round(np.rad2deg(c[0 + count]) % 360,0)
+                        angle = 0
                         force_k = c[n_funct + count]
                         opt_itp.write(perio.format(*qm.scanned_atoms, 
                                                    angle, force_k, multi))

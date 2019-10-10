@@ -18,7 +18,7 @@ def write_itp(ff, itp_file, urey):
     form_urey = "{:>6}{:>6}{:>6}{:>6}{:>10.4f}{:>13.3f}{:>10.4f}{:>13.3f}\n"
     form_diheds = "{:>6}{:>6}{:>6}{:>6}{:>6}{:>10.4f}{:>13.3f}\n"
     form_thole = "{:>6}{:>6}{:>6}{:>6}{:>6}{:>9}{:>14.8f}{:>14.8f}\n"
-    form_flex = ";{:>6}{:>6}{:>6}{:>6}{:>6}{:>10.4f}\n"
+    form_unfit = ";{:>6}{:>6}{:>6}{:>6}{:>6}   -   Type: {:>6}\n"
 
     with open(itp_file, "w") as itp:
         
@@ -103,7 +103,14 @@ def write_itp(ff, itp_file, urey):
         itp.write(";   ai    aj    ak    al   f       th0         kth\n")
         itp.write("; flexible dihedrals - fit manually for now\n")
         for flexible in ff.flexible:
-            itp.write(form_flex.format(*flexible))                 
+            itp.write(form_unfit.format(*flexible))                 
+
+        #flexible dihedrals
+        itp.write("\n;[ dihedrals ]\n")
+        itp.write(";   ai    aj    ak    al   f       th0         kth\n")
+        itp.write("; constrained dihedrals - fit manually for now\n")
+        for constrained in ff.constrained:
+            itp.write(form_unfit.format(*constrained))
 
         #exclusions
         if ff.exclu != []:

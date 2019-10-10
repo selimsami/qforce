@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from .read_qm_out import QM
+from .old_read_qm_out import QM
 from .elements import elements
 from .molecule import Molecule
 from symfit import Fit, parameters, variables, Equality

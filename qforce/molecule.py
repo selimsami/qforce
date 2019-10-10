@@ -1,11 +1,12 @@
 import numpy as np
 import networkx as nx
+import itertools
 from .elements import elements
 from .forces import get_dist, get_angle, get_dihed
 
 class Terms():
     
-    def __init__(self,):
+    def __init__(self):
         self.atoms = []
         self.types = []
         self.minima = []
@@ -19,21 +20,61 @@ class Terms():
             self.n_terms += 1
         else:
             self.term_ids.append(self.types.index(t_type))
-        
         self.atoms.append(atoms)
         self.minima.append(minimum)
 
-class Atoms():
-    pass ## atoms.types , atoms.ids, atoms, elements, etc
+#class Atoms():
+#    def add(self, atom, atom_id):
+#        self.graph.add_node(atom, atom_id)
+    ## atoms.types , atoms.ids, atoms, elements, etc
 
 class Angles(Terms):
-    urey = Terms()
+    def __init__(self):    
+        Terms.__init__(self)
+        self.urey = Terms()
 
 class Dihedrals(Terms):
-    stiff = Terms()
-    improper = Terms()
-    flexible = Terms()
+    def __init__(self):
+        Terms.__init__(self)
+        self.rigid = Terms()
+        self.flex = Terms()
+        self.imp = Terms()
+        self.constr = Terms()
 
+    def add_rigid(self, mol, atoms):
+        phi = get_dihed(*mol.coords[atoms])[0]
+        d_type = self.get_type(mol, *atoms)
+        self.rigid.add_term(atoms, phi, d_type)
+
+    def add_constr(self, atoms, phi, d_type):
+        # find multiplicity - QM - MD (LJ/charges) profile to get minima ?
+        self.constr.add_term(atoms, phi, d_type)
+
+    def add_flex(self, mol, atoms_combin):
+        e = elements()
+        heaviest = 0
+        for a1, a2, a3, a4 in atoms_combin:
+            mass = e.mass[mol.atomids[a1]] + e.mass[mol.atomids[a4]]
+            if mass > heaviest:
+                atoms = [a1, a2, a3, a4]
+                heaviest = mass
+        self.flex.add_term(atoms, 0, mol.edge(a2, a3)['vers'])
+
+    def get_type(self, mol, a1, a2, a3, a4):
+        b12 = mol.edge(a1, a2)["vers"]
+        b23 = mol.edge(a2, a3)["vers"]
+        b43 = mol.edge(a4, a3)["vers"]
+        t23 = [mol.types[a2], mol.types[a3]]
+        t12 = f"{mol.types[a1]}({b12}){mol.types[a2]}"            
+        t43 = f"{mol.types[a4]}({b43}){mol.types[a3]}"    
+        d_type = [t12, t43]
+    
+        if  t12 > t43:
+            d_type.reverse()
+            t23.reverse()
+        d_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"    
+        return d_type
+        
 class Molecule():
     """
     Scope:
@@ -41,24 +82,24 @@ class Molecule():
     self.list : atom numbers of unique atoms grouped together
     self.atoms : unique atom numbers of each atom
     self.types : atom types of each atom
-    self.connect : First 3 neighbors of each atom    
+    self.neighbors : First 3 neighbors of each atom    
     
     
     To do:
     -----
-    - 180 degree angle = NO DIHEDRAL!
-    - In future: Make a different type for in-ring with shorter scan
-    - Flexible dihedrals should be treated differently:
-        For type only A2 and A3 matters. Relevant when scanning is added.
-
+    - 180 degree angle = NO DIHEDRAL! (can/should avoid this in impropers?)
+        
+    - Since equivalent rigid dihedrals not necessarily have the same angle,
+      can't average angles? Like in C60. But is it a bug or a feature? :)
+    
+    - Improper scan requires removal of relevant proper dihedrals from 
+      Redundant Coordinates in Gaussian
 
     """
-    def __init__(self, coords, atomids, inp):
+    def __init__(self, coords, atomids, inp, qm = None):
         self.n_atoms = len(atomids)
-        self.no = [[[i] for i in range(self.n_atoms)]]
         self.atomids = atomids
         self.coords = coords
-        self.id = [atomids]
         self.atoms = np.zeros(self.n_atoms, dtype='int8')
         self.list = []
         self.conj = []
@@ -68,95 +109,94 @@ class Molecule():
         self.neighbors = [[[] for j in range(self.n_atoms)] for i in range(3)]
         self.thole = []
         self.polar = []
+        self.fragments = []
         
         self.bonds = Terms()
         self.angles = Angles()
-        self.dihedrals = Dihedrals() 
+        self.dih = Dihedrals() 
 
-        self.find_bonds_and_rings()
+        self.find_bonds_and_rings(qm)
         self.find_atom_types(inp.n_equiv)
         self.find_neighbors()
         self.find_parameter_types(inp.urey)
         self.prepare()
         self.polarize()
-
-
-    def find_bonds_and_rings(self):
-        bond_id, bond = [], []
+            
+    def find_bonds_and_rings(self, qm):
         e = elements()
         self.graph = nx.Graph()
-        for i, i_id in enumerate(self.id[0]):
-            b, b_id = [], []
-            self.graph.add_node(i, element=i_id)
-            for j, j_id in enumerate(self.id[0]):
-                order = 's'
-                vector = self.coords[i] - self.coords[j]
-                dist = np.sqrt((vector**2).sum())
-                if dist > 0.4 and dist < e.cov[i_id] + e.cov[j_id] + 0.45:
-                    b.append(j)
-                    b_id.append(j_id)
-                    cov_len = e.cov[self.id[0][i]]+e.cov[self.id[0][j]]
-                    sorted_a = sorted([i,j])
-                    if dist < cov_len - 0.04 and sorted_a not in self.conj:
-                        self.conj.append(sorted_a)
-                    if dist < cov_len - 0.15 and sorted_a not in self.double:
-                        self.double.append(sorted_a)
-                        
-
-                    if dist < cov_len - 0.15:
-                        order = 'd'
-                    elif dist < cov_len - 0.04:
-                        order = 'c'
-                    ids = sorted([i_id, j_id])
-                    self.graph.add_edge(i,j, b_type=f"{ids[0]}{order}{ids[1]}",
-                                        b_vector = vector, b_length = dist)
-            bond.append(sorted(b))
-            bond_id.append(sorted(b_id))
-            if len(bond[-1]) > e.maxb[i_id]:
-                print("WARNING: Atom {} ({}) has too many ({}) neighbors?"
-                      .format(i+1, e.sym[i_id], len(bond[-1])))
-        self.no.append(bond)
-        self.id.append(bond_id)
-
+        for i, i_id in enumerate(self.atomids):
+            self.graph.add_node(i, elem = i_id, n_bonds = qm.n_bonds[i],
+                                lone_e = qm.lone_e[i], q = qm.cm5[i],
+                                coords = self.coords[i])
+            # Check electronegativity difference to H to see if breakable
+            eneg_diff = abs(e.eneg[i_id] - e.eneg[1])            
+            if eneg_diff > 0.5 or eneg_diff == 0:
+                self.node(i)['breakable'] = False
+            else:
+                self.node(i)['breakable'] = True
+            # add bonds
+            for j, j_id in enumerate(self.atomids):
+                order = qm.b_orders[i,j]
+                if order > 0:
+                    id1, id2 = sorted([i_id, j_id])
+                    vec = self.coords[i] - self.coords[j]
+                    dist = np.sqrt((vec**2).sum())
+                    self.graph.add_edge(i, j, vector = vec, length = dist,
+                                        order = order,
+                                        type=f'{id1}({order}){id2}')
+            if qm.n_bonds[i] > e.maxb[i_id]:
+                print(f"WARNING: Atom {i+1} ({e.sym[i_id]}) has too many",
+                      " ({qm.n_bonds[i]}) bonds?")
+            elif qm.n_bonds[i] == 0:
+                print(f"WARNING: Atom {i+1} ({e.sym[i_id]}) has no bonds")
+        # add rings
         self.rings = nx.minimum_cycle_basis(self.graph)
         self.rings3 = [r for r in self.rings if len(r) == 3]
-        
+        for i in range(self.n_atoms):
+            self.node(i)['n_ring'] = sum([i in ring for ring in self.rings])
+            
+        for atoms in self.graph.edges:
+            self.edge(*atoms)['in_ring'] = any(set(atoms).issubset(set(ring)) 
+                                              for ring in self.rings)
+            self.edge(*atoms)['in_ring3'] = any(set(atoms).issubset(set(ring)) 
+                                               for ring in self.rings3)
+            
     def find_atom_types(self, n_eq):
-
-        atom_ids = [[] for n in range(self.n_atoms)]
+        e = elements()
+        atom_ids = [[] for _ in range(self.n_atoms)]
 
         for i in range(self.n_atoms):
             neighbors = nx.bfs_tree(self.graph, i, depth_limit=n_eq).nodes
             for n in neighbors:
                 paths = nx.all_simple_paths(self.graph, i, n, cutoff=n_eq)
                 for path in map(nx.utils.pairwise, paths):
-                    types = [self.graph.edges[edge]['b_type'] for edge in path]
+                    types = [self.edge(*edge)['type'] for edge in path]
                     atom_ids[i].append("-".join(types))
                 atom_ids[i].sort()
-                
+
         if n_eq < 0:
             atom_ids = [i for i in range(self.n_atoms)]
                 
         for n in range(self.n_atoms):
             if n in [item for sub in self.list for item in sub]:
-                continue
+                continue 
             eq = [i for i, a_id in enumerate(atom_ids) if atom_ids[n] == a_id]
             self.list.append(eq)
             self.atoms[eq] = self.n_types
             self.n_types += 1
 
-        e = elements()
         types = {i : 1 for i in set(self.atomids)}
-        self.types = [None] * len(self.atomids)
+        self.types = [None for _ in self.atomids]
         for eq in self.list:
             for i in eq:
                 self.types[i] = "{}{}".format(e.sym[self.atomids[i]],
                                               types[self.atomids[i]])
             types[self.atomids[eq[0]]] += 1
+            
     
     def find_parameter_types(self, urey):
         bonds, angles, dihedrals = [], [], []
-        bond_dict = {}
         
         for i in range(self.n_atoms):
             neighbors = nx.bfs_tree(self.graph, source=i,  depth_limit=3).nodes
@@ -172,24 +212,23 @@ class Molecule():
         dihedrals.sort(key=lambda x: [x[1], x[2], x[0], x[3]])
 
         for a1, a2 in bonds:
-            dist = self.graph.edges[a1, a2]['b_length']
-
-            b_type = tuple(sorted([self.types[a1], self.types[a2]]))
-            if b_type not in bond_dict or abs(dist - bond_dict[b_type]) < 0.03:
-                bond_dict[b_type] = dist
-                t = 1
+            bond = self.edge(a1, a2)
+            dist = bond['length']
+            type1, type2 = sorted([self.types[a1], self.types[a2]])
+            bond['vers'] = f"{type1}({bond['order']}){type2}"            
+            if bond['order'] > 1.5 or bond["in_ring"]:
+                bond['breakable'] = False
             else:
-                t = 2
-            self.graph.edges[a1, a2]['type'] = t
-            self.bonds.add_term([a1, a2], dist, f"{b_type[0]}({t}){b_type[1]}")
+                bond['breakable'] = True
+            self.bonds.add_term([a1, a2], dist, bond['vers'])
 
         for a1, a2, a3 in angles:
             vec12, _ = get_dist(self.coords[a1], self.coords[a2])
             vec32, _ = get_dist(self.coords[a3], self.coords[a2])
             theta = get_angle(vec12, vec32)
             
-            b21 = self.graph.edges[a2, a1]['type']
-            b23 = self.graph.edges[a2, a3]['type']
+            b21 = self.edge(a2, a1)['vers']
+            b23 = self.edge(a2, a3)['vers']
             a_type = sorted([f"{self.types[a2]}({b21}){self.types[a1]}",
                              f"{self.types[a2]}({b23}){self.types[a3]}"])
             a_type = f"{a_type[0]}_{a_type[1]}"      
@@ -197,44 +236,44 @@ class Molecule():
             
             if urey:
                 dist = get_dist(self.coords[a1], self.coords[a3])[1]
-                self.angles.urey.add_term([a1, a3], dist, a_type)
-
-        n_ring = [sum(a in r for r in self.rings) for a in range(self.n_atoms)]
-        
-        for a1, a2, a3, a4 in dihedrals:
-            phi = get_dihed(self.coords[a1], self.coords[a2], 
-                            self.coords[a3], self.coords[a4])[0]
-             
+                self.angles.urey.add_term([a1, a3], dist, a_type)   
+                
+        # dihedrals
+        for a2, a3 in bonds:
+            central = self.edge(a2,a3)
+            a1s = [a1 for a1 in self.neighbors[0][a2] if a1 != a3]
+            a4s = [a4 for a4 in self.neighbors[0][a3] if a4 != a2]
             
-            b12 = self.graph.edges[a1, a2]["type"]
-            b23 = self.graph.edges[a2, a3]["type"]
-            b43 = self.graph.edges[a4, a3]["type"]
-            t23 = [self.types[a2], self.types[a3]]
-            t12 = f"{self.types[a1]}({b12}){self.types[a2]}"            
-            t43 = f"{self.types[a4]}({b43}){self.types[a3]}"    
-            d_type = [t12, t43]
-        
-            if  t12 > t43:
-                d_type.reverse()
-                t23.reverse()
-            
-            d_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
-            
-            in_ring = any(set([a2, a3]).issubset(set(r)) for r in self.rings)
-            in_ring3 = any(set([a2, a3]).issubset(set(r)) for r in self.rings3)
-            multi_ring = sum([n_ring[a] > 2 for a in [a1,a2,a3,a4]]) > 2
-            
-            if in_ring3:
+            if a1s == [] or a4s == []:
                 continue
-            elif [a2, a3] in self.double or ([a2, a3] in self.conj 
-                                             and in_ring) or multi_ring:
-                self.dihedrals.stiff.add_term([a1, a2, a3, a4], phi, d_type)   
-#            elif in_ring: 
-#                self.dihedrals.flexible.add_term([a1, a2, a3, a4], phi, d_type)
+            
+            atoms_comb = [list(d) for d in itertools.product(a1s,[a2],[a3],a4s)
+                          if d[0] != d[-1]]
+            if (central['order'] > 1.5 or central["in_ring3"]
+                or (central['in_ring'] and central['order'] > 1) 
+                or all([self.node(a)['n_ring'] > 2 for a in [a2, a3]])):
+                for atoms in atoms_comb:
+                    self.dih.add_rigid(self, atoms)
+            elif central['in_ring']:
+                atoms_r = [a for a in atoms_comb if any(set(a).issubset(set(r)) 
+                           for r in self.rings)][0]
+                phi = get_dihed(*self.coords[atoms_r])[0]
+                if abs(phi) < 0.07:
+                    for atoms in atoms_comb:
+                        self.dih.add_rigid(self, atoms)
+                else:
+                    d_type = self.dih.get_type(self, *atoms_r)
+                    self.dih.add_constr(atoms_r, phi, d_type)
+
             else:
-                a23 = [[a[1], a[2]] for a in self.dihedrals.flexible.atoms]
-                if [a2, a3] not in a23:
-                    self.dihedrals.flexible.add_term([a1, a2, a3, a4], phi, d_type)
+                self.dih.add_flex(self, atoms_comb)
+
+#        Test for cyclohex
+#        for i in range(6):
+#            atoms = [i] + self.neighbors[0][i][:3]
+#            phi = get_dihed(*self.coords[atoms])[0]           
+#            d_type = f"ki_{self.types[i]}"
+#            self.dih.rigid.add_term(atoms, phi, d_type)
 
         # find improper dihedrals
         for i in range(self.n_atoms):
@@ -243,24 +282,30 @@ class Molecule():
                 continue
             atoms = [i,-1,-1,-1]
             n_bond = [len(list(self.graph.neighbors(b))) for b in bonds]
-            atoms[3] = bonds[n_bond.index(min(n_bond))]
+            non_ring = [a for a in bonds if not self.edge(i, a)['in_ring']]
+            
+            if len(non_ring) == 1:
+                atoms[3] = non_ring[0]
+            else:
+                atoms[3] = bonds[n_bond.index(min(n_bond))]
+
             for b in bonds:
                 if b not in atoms:
                     atoms[atoms.index(-1)] = b
 
-            phi = get_dihed(self.coords[atoms[0]], self.coords[atoms[1]],
-                            self.coords[atoms[2]], self.coords[atoms[3]])[0]
-            if abs(phi) > 0.035: #check planarity <2 degrees
-                continue
-            
-            bonds = [sorted([b,i]) for b in bonds]
+            phi = get_dihed(*self.coords[atoms])[0]
             
             # Only add improper dihedrals if there is no stiff dihedral
-            # on the central improper atom and one of the neighbors
-            if not any(b == a[1:3] for a in self.dihedrals.stiff.atoms 
-                       for b in bonds):
-                imp_type = f"ki_{self.types[i]}"
-                self.dihedrals.improper.add_term(atoms, phi, imp_type)
+            # on the central improper atom and one of the neighbors            
+            bonds = [sorted([b,i]) for b in bonds]
+            if any(b == a[1:3] for a in self.dih.rigid.atoms 
+                   for b in bonds):
+                continue
+            imp_type = f"ki_{self.types[i]}"
+            if abs(phi) < 0.07: #check planarity <4 degrees
+                self.dih.imp.add_term(atoms, phi, imp_type)
+            else:
+                self.dih.add_constr(atoms, phi, imp_type)
 
     def find_neighbors(self):
         for i in range(self.n_atoms):
@@ -279,7 +324,7 @@ class Molecule():
         
     def prepare(self):
         for term in [self.bonds, self.angles.urey, self.angles, 
-                     self.dihedrals.stiff, self.dihedrals.improper]:
+                     self.dih.rigid, self.dih.imp]:
             term.term_ids = [i + self.n_terms for i in term.term_ids]
             self.n_terms += term.n_terms
                  
@@ -301,3 +346,9 @@ class Molecule():
                 if i < a:
                     a1, a2 = polar_dict[self.atomids[i]], polar_dict[self.atomids[a]]
                     self.thole.append([i, a, a_const / (a1*a2)**(1./6.)])
+
+    def node(self, i):
+        return self.graph.node[i]
+        
+    def edge(self, i, j):
+        return self.graph.edges[i, j]
