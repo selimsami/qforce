@@ -270,4 +270,3 @@ class Input():
                     break
             else:
                 raise FileNotFoundError({error})
-

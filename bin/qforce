@@ -1,48 +1,55 @@
 #!/usr/bin/env python3
 
 from qforce.modified_seminario.modified_Seminario import modified_Seminario_method
-from qforce.read_input  import Input
 from qforce.dihedral_scan import scan_each_dihedral
-from qforce.make_qm_input_old import make_qm_input as make_qm_input_old
-from qforce.make_qm_input import make_hessian_input
 from qforce.dipole_fitting import fit_dipoles
+from qforce.initialize import Initialize
+from qforce.make_qm_input import make_hessian_input
 from qforce.hessian import fit_hessian
 from qforce.polarize import polarize
 from qforce.fragment import fragment
 from qforce.parser import parse
+from qforce.old_make_qm_input import make_qm_input as old_make_qm_input
+from qforce.old_read_input import Input as old_Input
 
 print("""\n
-   ____         ______                 
-  / __ \       |  ____|                
- | |  | |______| |__ ___  _ __ ___ ___ 
+   ____         ______
+  / __ \       |  ____|
+ | |  | |______| |__ ___  _ __ ___ ___
  | |  | |______|  __/ _ \| '__/ __/ _ \\
  | |__| |      | | | (_) | | | (_|  __/
   \___\_\      |_|  \___/|_|  \___\___|
-  
-Written by: Selim Sami 
+
+Written by: Selim Sami
 University of Groningen - 2019
-==============================                            
+==============================
 """)
 
-job_type, input_file = parse()
-inp = Input(job_type, input_file)
+input_file, options_file, start, depriciated = parse()
 
-if inp.job_type == "dihedralfitting":
+if depriciated:
+    inp = old_Input(start, options_file)
+else:
+    inp = Initialize(input_file, start, options_file)
+
+#if inp.job_type == "init":
+#    make_hessian_input(inp)
+#elif inp.job_type == 'fragment':
+#    fragment(inp)
+#elif inp.job_type == "fit":
+#    fit_hessian(inp)
+### DEPRECIATING ###
+if inp.job_type == "dipolefitting":
+    fit_dipoles(inp)
+elif inp.job_type == "dihedralfitting":
     scan_each_dihedral(inp)
-if inp.job_type == 'fragment':
-    fragment(inp)
-elif inp.job_type == "input_hessian":
-    make_hessian_input(inp)
 elif inp.job_type in ["input_dihedral", "input_traj"]:
-    make_qm_input_old(inp)
+    old_make_qm_input(inp)
 elif inp.job_type == "bondangle":
     modified_Seminario_method(inp)
-elif inp.job_type == "dipolefitting":
-    fit_dipoles(inp)
-elif inp.job_type == "hessianfitting":
-    fit_hessian(inp)
 elif inp.job_type == "polarize":
     polarize(inp)
+###################
 
 print("\n")
 

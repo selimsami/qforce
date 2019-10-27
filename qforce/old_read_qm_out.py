@@ -130,7 +130,7 @@ class QM():
             step = 0
             for line in gaussout:
                 line = line.strip()
-                
+
                 #read job specs and find job type
                 if found_job_specs == False and "--" in line:
                     line = gaussout.readline().strip()
@@ -145,7 +145,7 @@ class QM():
                         if ("nosymm" in job_specs or "symmetry=none"
                             in job_specs):
                             orientation = "Input orientation:"      
-                            
+
                 #find atom names and number of atoms
                 elif orientation in line:
                     coord = []

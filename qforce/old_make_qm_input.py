@@ -77,7 +77,9 @@ def change_run_settings(inp, out, out_path):
     else:
         title = (f"{out[1]}\n")
     if inp.disp != "":
-        disp = f'EmpiricalDispersion={inp.disp}'   
+        disp = f'EmpiricalDispersion={inp.disp}'
+    else:
+        disp = ''
     
     coord = coord[5:]
     with open(out_path, "w") as file:

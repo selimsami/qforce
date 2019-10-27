@@ -6,8 +6,8 @@ def input_data_processing(inp):
     #Function extracts input coords and hessian from .fchk file, bond and angle
     #lists from .log file and atom names if a z-matrix is supplied
 
-    from ..read_qm_out import QM
-    from ..molecule import Molecule
+    from ..old_read_qm_out import QM
+    from ..old_molecule import Molecule
     
     qm = QM(out_files = [inp.qm_freq_out], job_type = "freq")
     bond_list = [bond for bond in qm.bond_atoms]

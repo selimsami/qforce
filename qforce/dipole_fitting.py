@@ -2,8 +2,8 @@ import os
 import numpy as np
 from .old_read_qm_out import QM
 from .elements import elements
-from .molecule import Molecule
-from symfit import Fit, parameters, variables, Equality
+from .old_molecule import Molecule
+#from symfit import Fit, parameters, variables, Equality
 import matplotlib.pyplot as plt
 
 def fit_dipoles(inp):

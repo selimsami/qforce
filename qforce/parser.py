@@ -1,21 +1,33 @@
-import argparse, os, sys
+import argparse
+import os
+import sys
 
-def check_input_file(file):
-    if not os.path.isfile(file):
-        sys.exit(f'ERROR: Input file with the name "{file}" does not exist.\n')
+
+def check_if_file_exists(file):
+    if not os.path.exists(file) and not os.path.exists(f'{file}_qforce'):
+        sys.exit(f'ERROR: "{file}" does not exist.\n')
     return file
 
+
 def parse():
-    options = ["dihedralfitting", "fragment", "input_hessian", "input_traj",
-               "input_dihedral", "bondangle", "dipolefitting","polarize",
-               "hessianfitting"]
-    opt_help = 'Possible job types for Q-Force:\n - ' + '\n - '.join(options)
+    depr = False
+    options = ["init", "fragment", "fit"]
+    opt_depr = ["dihedralfitting", "dipolefitting", "bondangle", "polarize",
+                "input_traj", "input_dihedral"]
+    opt_help = ('Optionally start the job at a specfic step:\n - '
+                + '\n - '.join(options) + '\nOr use one of the depreciating' +
+                ' options:\n - ' + '\n - '.join(opt_depr) + '\n\n\n')
 
     parser = argparse.ArgumentParser(formatter_class=
                                      argparse.RawTextHelpFormatter)
-    parser.add_argument('job_type', metavar='job_type', choices=options,
+    parser.add_argument('-f', type=check_if_file_exists, metavar='file',
+                        help=('Input coordinate file (PBB, XYZ, GRO, ...)\n'
+                              'or directory (job/job_qforce) name.'))
+    parser.add_argument('-o', type=check_if_file_exists, metavar='options',
+                        help='File name for the optional options.')
+    parser.add_argument('-s', metavar='start', choices=options + opt_depr,
                         help=opt_help)
-    parser.add_argument('input_file', type=check_input_file, 
-                        help='Input file name. (PBB/GRO)')
     args = parser.parse_args()
-    return args.job_type, args.input_file
+    if args.s in opt_depr:
+        depr = True
+    return args.f, args.o, args.s, depr
