@@ -6,15 +6,19 @@ import numpy as np
 from .molecule import Molecule
 from .read_qm_out import QM
 from .read_forcefield import Forcefield
-from .write_forcefield import write_itp
+from .write_forcefield import write_ff
+from .dihedral_scan import scan_dihedral
 from .dftd4 import run_dftd4
-from .forces import calc_bonds, calc_angles, calc_dihedrals, calc_pairs
+from .fragment import fragment
+from .forces import (calc_bonds, calc_angles, calc_pairs, calc_imp_diheds,
+                     calc_rb_diheds)
 # , calc_g96angles
 from .elements import elements
+
 # from .decorators import timeit, print_timelog
 
 
-def fit_hessian(inp, from_frag=False, qm=None, mol=None):
+def fit_forcefield(inp, qm=None, mol=None):
     """
     Scope:
     ------
@@ -33,15 +37,17 @@ def fit_hessian(inp, from_frag=False, qm=None, mol=None):
     hessian, hes_for_freq = [], []
     non_fit = []
 
-    if inp.job_type != 'fragment':
-        qm = QM("freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)
-        mol = Molecule(qm.coords, qm.atomids, inp, qm=qm)
-
-    qm.q, qm.alpha, qm.c6 = run_dftd4(inp, mol)
+    qm = QM("freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)
+    mol = Molecule(qm.coords, qm.atomids, inp, qm=qm)
+    run_dftd4(inp, mol, qm)
+    if not inp.nofrag:
+        fragment(inp, mol, qm)
 
     print("Calculating the MD hessian matrix elements...")
     full_hessian = calc_hessian(qm.coords, mol)
     qm_freq, qm_vec = calc_vibrational_frequencies(qm.hessian, qm)
+
+    print(max((full_hessian.flatten())))
 
     count = 0
     print("Fitting the MD hessian parameters to QM hessian values")
@@ -58,16 +64,33 @@ def fit_hessian(inp, from_frag=False, qm=None, mol=None):
                 non_fit.append(hes[-1])
     print("Done!\n")
     difference = qm.hessian - np.array(non_fit)
-    fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf))
+    fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
     # la.lstsq nnls
-    fit = np.array(fit.x)
-
     hes_for_freq = np.sum(hes_for_freq * fit, axis=1)
     md_freq, md_vec = calc_vibrational_frequencies(hes_for_freq, qm)
     write_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp)
-    make_ff_params_from_fit(mol, fit, inp, qm.atomids, qm.cm5, inp.urey)
+    make_ff_params_from_fit(mol, fit, inp, qm)
+
+#    fit_dihedrals(inp, mol, qm)
 
 #    print_timelog()
+
+
+def fit_dihedrals(inp, mol, qm):
+    if inp.job_type != 'fragment':
+
+        for atoms in mol.dih.flex.atoms:
+            frag_name, have_data, _ = check_one_fragment(inp, mol, atoms)
+            # print(frag_name, have_data)
+
+    elif inp.job_type == 'fragment':
+        from .fragment import check_one_fragment
+        for atoms in mol.dih.flex.atoms:
+            frag_name, _, _ = check_one_fragment(inp, mol, atoms)
+            scan_dihedral(inp, mol, atoms, frag_name)
+        for atoms in mol.dih.flex.atoms:
+            frag_name, _, _ = check_one_fragment(inp, mol, atoms)
+            scan_dihedral(inp, mol, atoms, frag_name)
 
 
 def calc_hessian(coords, mol):
@@ -104,18 +127,22 @@ def calc_forces(coords, mol):
                                mol.bonds.minima + mol.angles.urey.minima,
                                mol.bonds.term_ids + mol.angles.urey.term_ids):
         force = calc_bonds(coords, np.array(atoms), r0, term, force)
-
     for atoms, t0, term in zip(mol.angles.atoms, mol.angles.minima,
                                mol.angles.term_ids):
         force = calc_angles(coords, np.array(atoms), t0, term, force)  # g96
-
     for atoms, p0, term in zip(mol.dih.rigid.atoms + mol.dih.imp.atoms,
                                mol.dih.rigid.minima + mol.dih.imp.minima,
                                mol.dih.rigid.term_ids + mol.dih.imp.term_ids):
-        force = calc_dihedrals(coords, np.array(atoms), p0, term, force)
+        force = calc_imp_diheds(coords, np.array(atoms), p0, term, force)
+
+    for i, j, c6, c12, qq in mol.pair_list:
+        force = calc_pairs(coords, i, j, c6, c12, qq, force)
+
+#    for atoms, params in zip(mol.dih.flex.atoms, mol.dih.flex.params):
+#        force = calc_rb_diheds(coords, atoms, params, force)
 
     force = np.swapaxes(force, 1, 2)
-#    force = calc_pairs(coords, mol.n_atoms, mol.neighbors, force)
+
     return force
 
 
@@ -168,6 +195,7 @@ def write_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
     e = elements()
     freq_file = f"{inp.job_dir}/{inp.job_name}_qforce.freq"
     nmd_file = f"{inp.job_dir}/{inp.job_name}_qforce.nmd"
+
     with open(freq_file, "w") as f:
         f.write(" mode  QM-Freq   MD-Freq     Diff.  %Error\n")
         for i, (q, m) in enumerate(zip(qm_freq, md_freq)):
@@ -182,7 +210,7 @@ def write_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
                 f.write("{:>8.3f}{:>8.3f}{:>8.3f}{:>10.3f}{:>8.3f}{:>8.3f}\n"
                         .format(*qm2, *md2))
     with open(nmd_file, "w") as nmd:
-        nmd.write(f"nmwiz_load {nmd_file}\n")
+        nmd.write(f"nmwiz_load {inp.job_name}_qforce.nmd\n")
         nmd.write(f"title {inp.job_name}\n")
         nmd.write("names")
         for ids in qm.atomids:
@@ -201,10 +229,10 @@ def write_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
             for c in m:
                 nmd.write(f" {c[0]:.3f} {c[1]:.3f} {c[2]:.3f}")
     print(f"QM vs MD vibrational frequencies can be found in: {freq_file}")
-    print(f"Vibrational modes (can be run in VMD) is located in: {nmd_file}")
+    print(f"Vibrational modes (can be run in VMD) is located in: {nmd_file}\n")
 
 
-def make_ff_params_from_fit(mol, fit, inp, atomids, charges, urey):
+def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
     """
     Scope:
     -----
@@ -213,14 +241,66 @@ def make_ff_params_from_fit(mol, fit, inp, atomids, charges, urey):
     """
     ff = Forcefield()
     e = elements()
+    bohr2nm = 0.052917721067
     ff.mol_type = inp.job_name
-    ff.charges = charges
-    mass = [round(e.mass[i], 5) for i in atomids]
+    ff.natom = mol.n_atoms
+    ff.box = [10., 10., 10.]
+    ff.n_mol = 1
+    ff.coords = list(qm.coords/10)
+    mass = [round(e.mass[i], 5) for i in qm.atomids]
     atom_no = range(1, mol.n_atoms + 1)
-    atoms = [e.sym[i] for i in atomids]
+    atoms = []
+    atom_dict = {}
 
-    for n, at, a, q, m in zip(atom_no, mol.types, atoms, ff.charges, mass):
-        ff.atoms.append([n, at, 1, "MOL", a, n, q, m])
+    for i, a in enumerate(qm.atomids):
+        sym = e.sym[a]
+        if sym not in atom_dict:
+            atom_dict[sym] = 1
+        else:
+            atom_dict[sym] += 1
+        atoms.append(f'{sym}{atom_dict[sym]}')
+
+    for i, (sigma, epsilon) in enumerate(zip(qm.sigma, qm.epsilon)):
+        unique = mol.types[mol.list[i][0]]
+        ff.atom_types.append([unique, 0, 0, "A", sigma*0.1, epsilon])
+
+    for n, at, a_uniq, a, m in zip(atom_no, mol.types, mol.atoms, atoms, mass):
+        ff.atoms.append([n, at, 1, "MOL", a, n, qm.q[a_uniq], m])
+
+    if polar:
+        alphas = qm.alpha*bohr2nm**3
+        drude = {}
+        n_drude = 1
+        ff.atom_types.append(["DP", 0, 0, "S", 0, 0])
+
+        for i, alpha in enumerate(alphas):
+            if alpha > 0:
+                drude[i] = mol.n_atoms+n_drude
+                ff.atoms[i][6] += 8
+                # drude atoms
+                ff.atoms.append([drude[i], 'DP', 2, 'MOL', f'D{atoms[i]}',
+                                 i+1, -8., 0.])
+                ff.coords.append(ff.coords[i])
+                # polarizability
+                ff.polar.append([i+1, drude[i], 1, alpha])
+                n_drude += 1
+        ff.exclu = [[] for _ in ff.atoms]
+        ff.natom = len(ff.atoms)
+        for i, alpha in enumerate(alphas):
+            if alpha > 0:
+                # exclusions for balancing the drude particles
+                for j in mol.neighbors[inp.nrexcl-2][i]+mol.neighbors[inp.nrexcl-1][i]:
+                    if alphas[j] > 0:
+                        ff.exclu[drude[i]-1].extend([drude[j]])
+                for j in mol.neighbors[inp.nrexcl-1][i]:
+                    ff.exclu[drude[i]-1].extend([j+1])
+                ff.exclu[drude[i]-1].sort()
+                # thole polarizability
+                for neigh in [mol.neighbors[n][i] for n in range(inp.nrexcl)]:
+                    for j in neigh:
+                        if i < j and alphas[j] > 0:
+                            ff.thole.append([i+1, drude[i], j+1, drude[j], "2",
+                                             2.6, alpha, alphas[j]])
 
     for i, term in enumerate(mol.bonds.term_ids):
         atoms = [a+1 for a in mol.bonds.atoms[i]]
@@ -236,7 +316,7 @@ def make_ff_params_from_fit(mol, fit, inp, atomids, charges, urey):
         minimum = np.degrees(np.array(mol.angles.minima)[eq].mean())
         ff.angles.append(atoms + [1, minimum, param])
 
-    if urey:
+    if inp.urey:
         for i, term in enumerate(mol.angles.urey.term_ids):
             param = fit[term] * 100
             eq = np.where(np.array(mol.angles.urey.term_ids) == term)
@@ -268,27 +348,6 @@ def make_ff_params_from_fit(mol, fit, inp, atomids, charges, urey):
         atoms = [a+1 for a in mol.dih.constr.atoms[i]]
         ff.constrained.append(atoms + [1, term+1])
 
-    out_file = f"{inp.job_dir}/{inp.job_name}_qforce.itp"
-    write_itp(ff, out_file, urey)
-    print(f"Q-Force parameters can be found in: {out_file}")
-
-
-def round_average_charges(mol, q):
-    charges, n_eq = [], []
-    for l in mol.list:
-        c = 0
-        n_eq.append(len(l))
-        for a in l:
-            c += q[a]
-        charges.append(round(c/n_eq[-1], 5))
-
-    sum_c = sum([charges[i]*n_eq[i] for i in range(mol.n_types)])
-    extra = 100000 * round(sum_c - round(sum_c, 0), 5)
-    min_eq = min(n_eq)
-    min_ind = n_eq.index(min_eq)
-    div, rem = divmod(extra, min_eq)
-    charges[min_ind] -= div / 100000
-
-    rounded = [charges[i] for i in mol.atoms]
-    rounded -= rem / 100000
-    return rounded
+    write_ff(ff, inp, polar)
+    print("Q-Force force field parameters (.itp, .top) can be found in the "
+          f"directory: {inp.job_dir}/")

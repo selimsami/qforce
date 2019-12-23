@@ -1,24 +1,29 @@
 import shutil, os
 from . import qforce_data
+from qforce.modified_seminario.modified_Seminario import modified_Seminario_method
+from qforce.old_dihedral_scan import scan_each_dihedral
+from qforce.dipole_fitting import fit_dipoles
+from qforce.polarize import polarize
+from qforce.old_make_qm_input import make_qm_input as old_make_qm_input
 
 class Input():
     """
     Scope:
     ------
-    Read the Q-Force input file containing all necessary and optional 
+    Read the Q-Force input file containing all necessary and optional
     the commands.
-    
+
     Input file has single line commands such as:
         one_line = value
     and multi-line commands such as:
         [multi_line]
         value1
         value2
-        
+
     Also checks if all necessary files and software are present.
     """
-    def __init__(self, job_type, input_file):
-        self.job_type = job_type
+    def __init__(self, args):
+        self.job_type = args.s
         self.relevant_files = []
         #related input creation
         self.coord_file = ""
@@ -58,13 +63,25 @@ class Input():
         # related to hessianfitting
         self.urey = False
         #related to fragment
-        self.frag_lib = os.path.expanduser("~/qforce_fragments") 
-        
-        self.read_input(input_file)
+        self.nrexcl = 2
+        self.frag_lib = os.path.expanduser("~/qforce_fragments")
+
+        self.read_input(args.o)
         self.check_compulsory_settings()
         self.check_if_files_exist(self.relevant_files)
 
-        
+        if self.job_type == "dipolefitting":
+            fit_dipoles(self)
+        elif self.job_type == "dihedralfitting":
+            scan_each_dihedral(self)
+        elif self.job_type in ["input_dihedral", "input_traj"]:
+            old_make_qm_input(self)
+        elif self.job_type == "bondangle":
+            modified_Seminario_method(self)
+        elif self.job_type == "polarize":
+            polarize(self)
+
+
     def read_input(self,input_file):
         with open(input_file, "r") as inp:
             in_section = None
@@ -82,7 +99,7 @@ class Input():
                         self.coord_file = value
                         self.job_name = value.split('.')[0]
                     elif prop == "scan_no":
-                        self.scan_no = str(value) 
+                        self.scan_no = str(value)
                     elif prop == "scan_step":
                         self.scan_step = str(value)
                     elif prop == "charge":
@@ -103,7 +120,7 @@ class Input():
                         self.charge_method = value
                     #related to dihedral scanning
                     elif prop == "fitting_function":
-                        self.fitting_function = value    
+                        self.fitting_function = value
                     elif prop == "itp_file":
                         self.itp_file = value
                     elif prop == "top_file":
@@ -116,7 +133,7 @@ class Input():
                     elif prop == "qm_freq_out":
                         self.qm_freq_out = value
                     elif prop == "vibrational_coef":
-                        self.vibr_coef = float(value)   
+                        self.vibr_coef = float(value)
                     elif prop == "polar_scan":
                         if value == "yes":
                             self.polar_scan = True
@@ -138,7 +155,7 @@ class Input():
                     #related to fragment
                     elif prop == "frag_dir":
                         self.frag_lib = value
-                        
+
                 elif "[" in low_line and "]" in low_line:
                     no_space = low_line.replace(" ","")
                     open_bra = no_space.index("[") + 1
@@ -166,7 +183,7 @@ class Input():
     def set_nproc(self,nprocs):
         if nprocs != "no":
             self.nproc = ("%nprocshared=" + nprocs + "\n")
-            
+
     def set_mem(self,memory):
         if memory != "no":
             self.mem = ("%mem=" + memory + "\n")
@@ -181,7 +198,7 @@ class Input():
             return [a for i in x for a in self.flatten(i)]
         else:
             return [x]
-        
+
     def check_if_files_exist(self, files):
         not_exist = "{} file does not exist"
         files = self.flatten(files)
@@ -193,9 +210,9 @@ class Input():
 
     def check_compulsory_settings(self):
         miss = "Missing the name of the {} with the {} option {}"
-    
+
         if "input_" in self.job_type:
-            self.relevant_files.append(self.coord_file) 
+            self.relevant_files.append(self.coord_file)
             self.check_exe("obabel")
             if self.coord_file == "":
                 raise NameError({miss.format("coordinate", "one-line",
@@ -209,16 +226,16 @@ class Input():
             if self.qm_freq_out == "":
                 raise NameError({miss.format("QM frequency calc. output file",
                                              "one-line", '"qm_freq_out"')})
-            
+
         if self.job_type == "dihedralfitting":
             self.set_mdp()
-            self.relevant_files.append([self.itp_file, self.top_file, 
-                                       self.mdp_file, self.qm_scan_out, 
-                                       self.extra_files]) 
+            self.relevant_files.append([self.itp_file, self.top_file,
+                                       self.mdp_file, self.qm_scan_out,
+                                       self.extra_files])
             self.check_exe("gmx")
             if self.qm_scan_out == []:
                 raise NameError({miss.format("QM scan output file",
-                                             "multi-line", "[qm_scan_out]")}) 
+                                             "multi-line", "[qm_scan_out]")})
             if self.itp_file == "":
                 raise NameError({miss.format("GROMACS .itp file", "one-line",
                                                 '"itp_file = "')})
@@ -242,7 +259,7 @@ class Input():
             elif self.traj_dir == "" and self.coord_file == "":
                 raise NameError({miss
                                  .format("either trajectory directory or "
-                                         "coordinate file", "one-line", 
+                                         "coordinate file", "one-line",
                                          '"traj_dir = " or "coord_file = "')})
             self.relevant_files.append([self.traj_dir])
         if self.job_type == "polarize":
@@ -253,9 +270,9 @@ class Input():
             if self.itp_file == "":
                 raise NameError({miss.format("GROMACS .itp file", "one-line",
                                                 '"itp_file = "')})
-    
+
     def check_exe(self, exe):
-        
+
         if exe == "obabel":
             error = ('To create QM input files, you need the OpenBabel '
                      'software installed and the "obabel" executable in PATH')

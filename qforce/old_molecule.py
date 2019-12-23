@@ -41,9 +41,9 @@ class Molecule():
     self.list : atom numbers of unique atoms grouped together
     self.atoms : unique atom numbers of each atom
     self.types : atom types of each atom
-    self.connect : First 3 neighbors of each atom    
-    
-    
+    self.connect : First 3 neighbors of each atom
+
+
     To do:
     -----
     - 180 degree angle = NO DIHEDRAL!
@@ -69,7 +69,7 @@ class Molecule():
 
         self.bonds = Terms()
         self.angles = Angles()
-        self.dihedrals = Dihedrals() 
+        self.dihedrals = Dihedrals()
 
         self.find_bonds_and_rings()
         self.find_atom_types(inp.n_equiv)
@@ -190,7 +190,7 @@ class Molecule():
             b23 = self.graph.edges[a2, a3]['type']
             a_type = sorted([f"{self.types[a2]}({b21}){self.types[a1]}",
                              f"{self.types[a2]}({b23}){self.types[a3]}"])
-            a_type = f"{a_type[0]}_{a_type[1]}"      
+            a_type = f"{a_type[0]}_{a_type[1]}"
             self.angles.add_term([a1, a2, a3], theta, a_type)
 
             if urey:
@@ -200,19 +200,17 @@ class Molecule():
         n_ring = [sum(a in r for r in self.rings) for a in range(self.n_atoms)]
 
         for a1, a2, a3, a4 in dihedrals:
-            phi = get_dihed(self.coords[a1], self.coords[a2], 
-                            self.coords[a3], self.coords[a4])[0]
-
+            phi = get_dihed(self.coords[a1, a2, a3, a4])[0]
 
             b12 = self.graph.edges[a1, a2]["type"]
             b23 = self.graph.edges[a2, a3]["type"]
             b43 = self.graph.edges[a4, a3]["type"]
             t23 = [self.types[a2], self.types[a3]]
-            t12 = f"{self.types[a1]}({b12}){self.types[a2]}"            
-            t43 = f"{self.types[a4]}({b43}){self.types[a3]}"    
+            t12 = f"{self.types[a1]}({b12}){self.types[a2]}"
+            t43 = f"{self.types[a4]}({b43}){self.types[a3]}"
             d_type = [t12, t43]
 
-            if  t12 > t43:
+            if t12 > t43:
                 d_type.reverse()
                 t23.reverse()
 
@@ -224,10 +222,10 @@ class Molecule():
 
             if in_ring3:
                 continue
-            elif [a2, a3] in self.double or ([a2, a3] in self.conj 
+            elif [a2, a3] in self.double or ([a2, a3] in self.conj
                                              and in_ring) or multi_ring:
-                self.dihedrals.stiff.add_term([a1, a2, a3, a4], phi, d_type)   
-#            elif in_ring: 
+                self.dihedrals.stiff.add_term([a1, a2, a3, a4], phi, d_type)
+#            elif in_ring:
 #                self.dihedrals.flexible.add_term([a1, a2, a3, a4], phi, d_type)
             else:
                 a23 = [[a[1], a[2]] for a in self.dihedrals.flexible.atoms]
@@ -246,8 +244,7 @@ class Molecule():
                 if b not in atoms:
                     atoms[atoms.index(-1)] = b
 
-            phi = get_dihed(self.coords[atoms[0]], self.coords[atoms[1]],
-                            self.coords[atoms[2]], self.coords[atoms[3]])[0]
+            phi = get_dihed(self.coords[atoms])[0]
             if abs(phi) > 0.035: #check planarity <2 degrees
                 continue
 
@@ -255,7 +252,7 @@ class Molecule():
 
             # Only add improper dihedrals if there is no stiff dihedral
             # on the central improper atom and one of the neighbors
-            if not any(b == a[1:3] for a in self.dihedrals.stiff.atoms 
+            if not any(b == a[1:3] for a in self.dihedrals.stiff.atoms
                        for b in bonds):
                 imp_type = f"ki_{self.types[i]}"
                 self.dihedrals.improper.add_term(atoms, phi, imp_type)
@@ -276,7 +273,7 @@ class Molecule():
                             self.neighbors[2][i].append(path[-1])
 
     def prepare(self):
-        for term in [self.bonds, self.angles.urey, self.angles, 
+        for term in [self.bonds, self.angles.urey, self.angles,
                      self.dihedrals.stiff, self.dihedrals.improper]:
             term.term_ids = [i + self.n_terms for i in term.term_ids]
             self.n_terms += term.n_terms

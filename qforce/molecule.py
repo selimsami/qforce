@@ -6,7 +6,7 @@ from .forces import get_dist, get_angle, get_dihed
 
 
 class Terms():
-    def __init__(self):
+    def __init__(self, scan=False):
         self.atoms = []
         self.types = []
         self.minima = []
@@ -14,6 +14,7 @@ class Terms():
         self.n_terms = 0
 
     def add_term(self, atoms, minimum, t_type):
+        print(t_type)
         if t_type not in self.types:
             self.term_ids.append(self.n_terms)
             self.types.append(t_type)
@@ -39,13 +40,12 @@ class Dihedrals(Terms):
     def __init__(self):
         Terms.__init__(self)
         self.rigid = Terms()
-        self.flex = Terms()
+        self.flex = Terms(scan=True)
         self.imp = Terms()
         self.constr = Terms()
 
     def add_rigid(self, mol, atoms):
-        phi = get_dihed(mol.coords[atoms[0]], mol.coords[atoms[1]],
-                        mol.coords[atoms[2]], mol.coords[atoms[3]])[0]
+        phi = get_dihed(mol.coords[atoms])[0]
         d_type = self.get_type(mol, *atoms)
         self.rigid.add_term(atoms, phi, d_type)
 
@@ -99,6 +99,8 @@ class Molecule():
     - Improper scan requires removal of relevant proper dihedrals from
       Redundant Coordinates in Gaussian
 
+    - Think about cis/trans and enantiomers
+
     """
     def __init__(self, coords, atomids, inp, qm=None):
         self.n_atoms = len(atomids)
@@ -107,6 +109,8 @@ class Molecule():
         self.atoms = np.zeros(self.n_atoms, dtype='int8')
         self.list = []
         self.conj = []
+        self.pair_list = []
+        self.pair_int = []
         self.double = []
         self.n_types = 0
         self.n_terms = 0
@@ -260,23 +264,15 @@ class Molecule():
             elif central['in_ring']:
                 atoms_r = [a for a in atoms_comb if any(set(a).issubset(set(r))
                            for r in self.rings)][0]
-                phi = get_dihed(*self.coords[atoms_r])[0]
+                phi = get_dihed(self.coords[atoms_r])[0]
                 if abs(phi) < 0.07:
                     for atoms in atoms_comb:
                         self.dih.add_rigid(self, atoms)
                 else:
                     d_type = self.dih.get_type(self, *atoms_r)
                     self.dih.add_constr(atoms_r, phi, d_type)
-
             else:
                 self.dih.add_flex(self, atoms_comb)
-
-#        Test for cyclohex
-#        for i in range(6):
-#            atoms = [i] + self.neighbors[0][i][:3]
-#            phi = get_dihed(*self.coords[atoms])[0]
-#            d_type = f"ki_{self.types[i]}"
-#            self.dih.rigid.add_term(atoms, phi, d_type)
 
         # find improper dihedrals
         for i in range(self.n_atoms):
@@ -296,7 +292,7 @@ class Molecule():
                 if b not in atoms:
                     atoms[atoms.index(-1)] = b
 
-            phi = get_dihed(*self.coords[atoms])[0]
+            phi = get_dihed(self.coords[atoms])[0]
 
             # Only add improper dihedrals if there is no stiff dihedral
             # on the central improper atom and one of the neighbors
@@ -354,7 +350,7 @@ class Molecule():
                     self.thole.append([i, a, a_const / (a1*a2)**(1./6.)])
 
     def node(self, i):
-        return self.graph.node[i]
+        return self.graph.nodes[i]
 
     def edge(self, i, j):
         return self.graph.edges[i, j]

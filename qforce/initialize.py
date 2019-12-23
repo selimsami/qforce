@@ -3,8 +3,7 @@ import os
 import sys
 from ase.io import read, write
 from qforce.make_qm_input import make_hessian_input
-from qforce.hessian import fit_hessian
-from qforce.fragment import fragment
+from qforce.hessian import fit_forcefield
 
 
 class Initialize():
@@ -23,7 +22,7 @@ class Initialize():
 
     Also checks if all necessary files and software are present.
     """
-    def __init__(self, input_file, start, options_file):
+    def __init__(self, args):
         ########## GENERAL ##########
         self.frag_lib = os.path.expanduser("~/qforce_fragments")
         self.n_equiv = 4
@@ -33,37 +32,48 @@ class Initialize():
         self.charge = 0
         self.multi = 1
         self.method = "PBEPBE"
-        self.basis = "6-31G(D)"
-        self.disp = ""
+        self.basis = "6-31+G(D)"
+        self.disp = "GD3BJ"
         self.nproc = ""
         self.mem = ""
         self.charge_method = "CM5"
-        self.pre_input_commands = []
-        self.post_input_commands = []
-        ###### HESSIAN FITTING ######
+        self.job_script = []
+        ########## FITTING ##########
         self.vibr_coef = 1.0
         self.fchk_file = ""
         self.qm_freq_out = ""
         self.urey = False
+        self.nrexcl = 2
+        self.param = []
+        self.nofrag = args.nofrag
         #############################
 
-        if options_file:
-            self.read_options(options_file)
+        if args.p:
+            self.param = args.p
 
-        self.initialize(input_file, start)
+        if args.o:
+            self.read_options(args.o)
+
+        self.initialize(args.f, args.s)
 
     def initialize(self, file, start):
         coord = False
 
+        if file.endswith('/'):
+            file = file[:-1]
+        path = os.path.dirname(file)
+        if path != '':
+            path = f'{path}/'
+            file = os.path.basename(file)
+
         if '.' in file:
             coord = True
-            split = file.split('.')
-            self.job_name = split[0]
+            self.job_name = file.split('.')[0]
             self.coord_file = file
         else:
             self.job_name = file.split('_qforce')[0]
 
-        self.job_dir = f'{self.job_name}_qforce'
+        self.job_dir = f'{path}{self.job_name}_qforce'
         os.makedirs(self.job_dir, exist_ok=True)
         self.frag_dir = f'{self.job_dir}/fragments'
         os.makedirs(self.frag_dir, exist_ok=True)
@@ -77,27 +87,14 @@ class Initialize():
             molecule = read(file)
             write(self.xyz_file, molecule, plain=True)
 
-        if self.qm_freq_out:
-            self.xyz_file = f'{self.job_dir}/opt.xyz'
-            molecule = read(self.qm_freq_out, format='gaussian-out')
-            write(self.xyz_file, molecule, plain=True)
-
-        if start:
-            self.job_type = start
-        else:
-            if not self.fchk_file or not self.qm_freq_out:
-                self.job_type = 'init'
-            else:
-                self.job_type = 'fragment'
-
-        self.check_requirements()
-
-        if self.job_type == "init":
+        if not self.fchk_file or not self.qm_freq_out:
+            self.job_type = 'init'
+            self.check_requirements()
             make_hessian_input(self)
-        elif self.job_type == 'fragment':
-            fragment(self, start)
-        elif self.job_type == "fit":
-            fit_hessian(self)
+        else:
+            self.job_type = 'fit'
+            self.check_requirements()
+            fit_forcefield(self)
 
     def set_file_name(self, ext):
         files = [f for f in os.listdir(self.job_dir) if f.endswith(ext)]
@@ -113,16 +110,17 @@ class Initialize():
 
     def read_options(self, input_file):
         with open(input_file, "r") as inp:
-            in_section = None
+            in_job_script = False
             for line in inp:
                 line = line.strip()
                 low_line = line.lower().replace("=", " = ")
-                if low_line == "" or low_line[0] == ";":
+                if in_job_script:
+                    self.job_script.append(line)
+                elif low_line == "" or low_line[0] == ";":
                     continue
                 elif len(low_line.split()) > 1 and low_line.split()[1] == "=":
                     prop = low_line.split()[0]
                     value = line.replace("=", " = ").split()[2]
-                    in_section = None
                     # General
                     if prop == "n_equivalence":
                         self.n_equiv = int(value)
@@ -140,7 +138,10 @@ class Initialize():
                     elif prop == "basis_set":
                         self.set_basis(value.upper())
                     elif prop == "dispersion":
-                        self.disp = value.upper()
+                        if value == "no":
+                            self.disp = ""
+                        else:
+                            self.disp = value.upper()
                     elif prop == "n_procs":
                         self.set_nproc(value)
                     elif prop == "memory":
@@ -152,19 +153,14 @@ class Initialize():
                         self.urey = True
                     elif prop == "vibrational_coef":
                         self.vibr_coef = float(value)
+                    elif prop == "nrexcl" and value in ["2", "3"]:
+                        self.nrexcl = int(value)
                     # related to fragment
                     elif prop == "frag_dir":
                         self.frag_lib = value
-                elif "[" in low_line and "]" in low_line:
-                    no_space = low_line.replace(" ", "")
-                    open_bra = no_space.index("[") + 1
-                    close_bra = no_space.index("]")
-                    in_section = no_space[open_bra:close_bra]
-                # related to file creation
-                elif in_section == "pre_submit_commands":
-                    self.pre_input_commands.append(line)
-                elif in_section == "post_submit_commands":
-                    self.post_input_commands.append(line)
+                elif ("[" in low_line and "]" in low_line and
+                      "job_script" in low_line):
+                    in_job_script = True
 
     def set_nproc(self, nprocs):
         if nprocs != "no":
@@ -199,18 +195,3 @@ class Initialize():
                      'software installed and the "dftd4" executable in PATH')
             if shutil.which(exe) is None:
                 raise FileNotFoundError({error})
-
-#    def flatten(self, x):
-#        if type(x) is list:
-#            return [a for i in x for a in self.flatten(i)]
-#        else:
-#            return [x]
-#
-#    def check_if_files_exist(self, files):
-#        not_exist = "{} file does not exist"
-#        files = self.flatten(files)
-#        for file in files:
-#            file_exists = os.path.isfile(file)
-#            dir_exists = os.path.isdir(file)
-#            if file != "" and not (file_exists or dir_exists):
-#                raise FileNotFoundError({not_exist.format(file)})

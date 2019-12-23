@@ -1,56 +1,64 @@
 import networkx as nx
 import os
 import hashlib
+import sys
 import networkx.algorithms.isomorphism as iso
 from .elements import elements
 from .read_qm_out import QM
-from .molecule import Molecule
 from .make_qm_input import make_qm_input
-from qforce.hessian import fit_hessian
 
 
-def fragment(inp, frag_only):
+def fragment(inp, mol, qm):
     n_missing, n_have, t = 0, 0, 0
-    qm = QM("freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)
-    mol = Molecule(qm.coords, qm.atomids, inp, qm=qm)
-    e = elements()
+    missing_path, have_path = reset_data_files(inp)
 
+    for atoms, term in zip(mol.dih.flex.atoms, mol.dih.flex.term_ids):
+        if term != t:
+            continue
+        frag_name, have_data, G = check_one_fragment(inp, mol, atoms)
+
+        if have_data:
+            n_have = write_data(have_path, frag_name, inp, n_have)
+
+        else:
+            n_missing = write_data(missing_path, frag_name, inp, n_missing)
+            make_qm_input(inp, G, frag_name)
+        t += 1
+
+    if n_missing+n_have == 0:
+        print('There are no flexible dihedrals.')
+    else:
+        print(f"There are {n_missing+n_have} unique flexible dihedrals.")
+    if n_missing == 0:
+        print(f"All scan data is available. Continuing with the fitting...\n")
+    else:
+        print(f"{n_missing} of them are missing the scan data.")
+        print(f"QM input files for them are created in: {inp.frag_dir}\n\n")
+        sys.exit()
+
+
+def check_one_fragment(inp, mol, atoms):
+    e = elements()
+    fragment, capping_h = identify_fragment(atoms, mol, e)
+    G = make_frag_graph(fragment, capping_h, mol, atoms)
+    frag_id, G = make_frag_identifier(G, mol, inp, e, atoms)
+    have_data, id_no = check_frag_in_database(G, inp.frag_lib, frag_id)
+    frag_name = f'{frag_id}~{id_no}'
+
+    if not have_data:
+        have_data = check_new_scan_data(inp, frag_name)
+
+    return frag_name, have_data, G
+
+
+def reset_data_files(inp):
     missing_path = f'{inp.frag_dir}/missing_data'
     have_path = f'{inp.frag_dir}/have_data'
 
     for data in [missing_path, have_path]:
         if os.path.exists(data):
             os.remove(data)
-
-    for atoms, term in zip(mol.dih.flex.atoms, mol.dih.flex.term_ids):
-        if term != t:
-            continue
-        fragment, capping_h = identify_fragment(atoms, mol, e)
-        G = make_frag_graph(fragment, capping_h, mol, atoms)
-        frag_id, G = make_frag_identifier(G, mol, inp, e, atoms)
-        have_data, id_no = check_frag_in_database(G, inp.frag_lib, frag_id)
-        frag_name = f'{frag_id}~{id_no}'
-        if have_data:
-            n_have = write_data(have_path, frag_name, inp, n_have)
-        else:
-            found = check_new_scan_data(inp, frag_name)
-            if found:
-                n_have = write_data(have_path, frag_name, inp, n_have)
-            else:
-                n_missing = write_data(missing_path, frag_name, inp, n_missing)
-                make_qm_input(inp, G, frag_name)
-        t += 1
-
-    print(f"There are {n_missing+n_have} unique flexible dihedrals.")
-
-    if n_missing == 0:
-        print(f"All scan data is available.")
-        if not frag_only:
-            print(f"Continuing with the fitting...\n")
-            fit_hessian(inp, qm=qm, mol=mol)
-    else:
-        print(f"{n_missing} of them are missing the scan data.")
-        print(f"QM input files for them are created in: {inp.frag_dir}")
+    return missing_path, have_path
 
 
 def check_new_scan_data(inp, frag_name):

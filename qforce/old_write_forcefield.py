@@ -1,4 +1,4 @@
-def write_ff(ff, inp, is_polar):
+def write_itp(ff, itp_file, inp):
     """
     Scope:
     ------
@@ -11,47 +11,26 @@ def write_ff(ff, inp, is_polar):
     This is terrible. Should be improved at some point.
     Perhaps it can wait until polarize is combined with FF creation.
     """
-
-    if is_polar:
-        polar = "_polar"
-    else:
-        polar = ""
-
-    itp_file = f"{inp.job_dir}/{inp.job_name}_qforce{polar}.itp"
-    top_file = f"{inp.job_dir}/gas{polar}.top"
-    gro_file = f"{inp.job_dir}/gas{polar}.gro"
-
-    write_itp(ff, inp, itp_file)
-    write_top(inp, top_file, polar)
-    write_gro(ff, inp, gro_file)
-
-
-def write_itp(ff, inp, itp_file):
     form_atypes = "{:>5} {:>8.4f} {:>8.4f} {:>2} {:>12.5e} {:>12.5e}\n"
     form_atoms = "{:>5}{:>5}{:>6}{:>6}{:>7}{:>5}{:>11.5f}{:>10.5f}\n"
     form_bonds = "{:>6}{:>6}{:>6}{:>10.5f}{:>10.0f}\n"
-    form_angles = "{:>6}{:>6}{:>6}{:>6}{:>11.3f}{:>13.3f}\n"
-    form_urey = "{:>6}{:>6}{:>6}{:>6}{:>11.3f}{:>13.3f}{:>10.5f}{:>13.3f}\n"
-    form_diheds = "{:>6}{:>6}{:>6}{:>6}{:>6}{:>11.3f}{:>13.3f}\n"
+    form_angles = "{:>6}{:>6}{:>6}{:>6}{:>10.2f}{:>13.3f}\n"
+    form_urey = "{:>6}{:>6}{:>6}{:>6}{:>10.2f}{:>13.3f}{:>10.5f}{:>13.3f}\n"
+    form_diheds = "{:>6}{:>6}{:>6}{:>6}{:>6}{:>10.2f}{:>13.3f}\n"
     form_thole = "{:>6}{:>6}{:>6}{:>6}{:>4}{:>7.2f}{:>14.8f}{:>14.8f}\n"
     form_unfit = ";{:>6}{:>6}{:>6}{:>6}{:>6}   -   Type: {:>6}\n"
 
     with open(itp_file, "w") as itp:
-        # fitting parameters - temporary
-        if inp.param != []:
-            itp.write('; fitting parameters are (C, H, O, N):\n')
-            itp.write(f'; S8: ')
-            for s8 in inp.param[::2]:
-                itp.write(f'{s8} ')
-            itp.write(f'\n; R_ref: ')
-            for r in inp.param[1::2]:
-                itp.write(f'{r} ')
-            itp.write('\n\n\n')
+
+        # defaults
+        itp.write("[ defaults ]")
+        itp.write(";nbfunc   comb-rule   gen-pairs   fudgeLJ   fudgeQQ")
+        itp.write("      1           1          no       1.0       1.0")
 
         # atom types
         if ff.atom_types != []:
             itp.write("[ atomtypes ]\n")
-            itp.write(";name     mass   charge  t        sigma      epsilon\n")
+            itp.write(";name     mass   charge  t           c6          c12\n")
         for at in ff.atom_types:
             itp.write(form_atypes.format(*at))
 
@@ -93,27 +72,35 @@ def write_itp(ff, inp, itp_file):
         itp.write("\n[ bonds ]\n")
         itp.write(";   ai    aj     f        r0        kb\n")
         for bond in ff.bonds:
-            itp.write(form_bonds.format(*bond))
+            if type(bond) is str:
+                itp.write(bond)
+            else:
+                itp.write(form_bonds.format(*bond))
 
         # angles
         itp.write("\n[ angles ]\n")
-        itp.write(";   ai    aj    ak     f        th0          kth\n")
+        itp.write(";   ai    aj    ak     f       th0          kth\n")
         for angle in ff.angles:
-            if inp.urey:
+            if type(angle) is str:
+                itp.write(angle)
+            elif inp.urey:
                 itp.write(form_urey.format(*angle))
             else:
                 itp.write(form_angles.format(*angle))
 
         # dihedrals
         itp.write("\n[ dihedrals ]\n")
-        itp.write(";   ai    aj    ak    al     f        th0          kth\n")
+        itp.write(";   ai    aj    ak    al     f       th0          kth\n")
         itp.write("; proper dihedrals \n")
         for dihedral in ff.dihedrals:
-            itp.write(form_diheds.format(*dihedral))
+            if type(dihedral) is str:
+                itp.write(dihedral)
+            else:
+                itp.write(form_diheds.format(*dihedral))
 
         # improper dihedrals
         itp.write("\n[ dihedrals ]\n")
-        itp.write(";   ai    aj    ak    al   f      th0         kth\n")
+        itp.write(";   ai    aj    ak    al   f     th0         kth\n")
         itp.write("; improper dihedrals \n")
         for improper in ff.impropers:
             itp.write(form_diheds.format(*improper))
@@ -142,34 +129,14 @@ def write_itp(ff, inp, itp_file):
                 itp.write("\n")
 
 
-def write_top(inp, top_file, polar):
-    with open(top_file, "w") as top:
-        # defaults
-        top.write("\n[ defaults ]\n")
-        top.write(";nbfunc   comb-rule   gen-pairs   fudgeLJ   fudgeQQ\n")
-        top.write("      1           2          no       1.0       1.0\n\n\n")
-
-        top.write("; Include the molecule ITP\n")
-        top.write(f'#include "./{inp.job_name}_qforce{polar}.itp"\n\n\n')
-
-        size = len(inp.job_name)
-        top.write("[ system ]\n")
-        top.write(f"; {' '*(size-6)}name\n")
-        top.write(f"{' '*(6-size)}{inp.job_name}\n\n\n")
-
-        top.write("[ molecules ]\n")
-        top.write(f"; {' '*(size-10)}compound    n_mol\n")
-        top.write(f"{' '*(10-size)}{inp.job_name}        1\n\n")
-
-
-def write_gro(ff, inp, gro_file):
+def write_gro(ff, gro_file):
     with open(gro_file, "w") as gro:
-        gro.write(f"{inp.job_name}\n")
-        gro.write(f"{ff.natom*ff.n_mol:>6}\n")
+        gro.write("{}".format(ff.title))
+        gro.write("{}\n".format(ff.gro_natom*2))
         for m in range(ff.n_mol):
             for i, a in enumerate(ff.atoms):
-                gro.write(f"{a[2]:>5}{a[3]:<5}")
-                gro.write(f"{a[4]:>5}{m*ff.natom+a[0]:>5}")
+                gro.write("{:>9}".format((str(a[2])+a[3])))
+                gro.write("{:>6}{:>5}".format(a[4], m*ff.natom*2+a[0]))
                 gro.write("{:>8.3f}{:>8.3f}{:>8.3f}\n"
-                          .format(*ff.coords[m*ff.natom+i]))
-        gro.write("{:>12.5f}{:>12.5f}{:>12.5f}\n".format(*ff.box))
+                          .format(*ff.coords[m*ff.natom*2+i]))
+        gro.write("{}".format(ff.box))

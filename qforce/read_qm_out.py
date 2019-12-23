@@ -126,7 +126,7 @@ class QM():
                     self.lone_e = np.zeros(self.n_atoms, dtype='int8')
                     self.n_bonds = []
                     self.b_orders = [[] for _ in range(self.n_atoms)]
-                    while "Leave Link  607" not in line:
+                    while "           Charge unit" not in line:
                         line = gaussout.readline()
                         if ("bond index matrix" in line and not found_wiberg):
                             for _ in range(int(np.ceil(self.n_atoms/9))):

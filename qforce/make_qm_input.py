@@ -4,7 +4,7 @@ from .elements import elements
 
 
 def make_qm_input(inp, G, out_file):
-    if inp.job_type == 'fragment':
+    if inp.job_type == 'fit':
         out_dir = inp.frag_dir
     else:
         out_dir = inp.job_dir
@@ -32,23 +32,32 @@ def make_hessian_input(inp):
 
 def change_run_settings(inp, out_dir, out_file, G):
     e = elements()
-    key = {"fragment": "opt=modredundant ", "init": "freq opt"}
+    key = {"fit": "opt=modredundant ", "init": "freq opt"}
     out_path = f'{out_dir}/{out_file}'
 
     title = out_file
 
-    if len(inp.pre_input_commands) + len(inp.post_input_commands) > 0:
+    if len(inp.job_script) > 0:
         out_path = f'{out_path}.inp'
+        if '<input>' in inp.job_script:
+            inp_line = inp.job_script.index('<input>')
+        else:
+            inp_line = len(inp.job_script)
+        pre_input_commands = inp.job_script[:inp_line]
+        post_input_commands = inp.job_script[inp_line+1:]
     else:
         out_path = f'{out_path}.com'
+        pre_input_commands, post_input_commands = [], []
     if inp.disp != "":
-        inp.disp = f' EmpiricalDispersion={inp.disp}'
+        disp = f' EmpiricalDispersion={inp.disp}'
+    else:
+        disp = ""
 
     if inp.job_type == 'init':
         inp.charge_method = f'({inp.charge_method}, NBOREAD)'
 
     with open(out_path, "w") as file:
-        for line in inp.pre_input_commands:
+        for line in pre_input_commands:
             if "<outfile>" in line:
                 on, off = line.index("<"), line.index(">") + 1
                 file.write(f"{line[:on]}{title}{line[off:]}\n")
@@ -56,7 +65,7 @@ def change_run_settings(inp, out_dir, out_file, G):
                 file.write(f"{line}\n")
         file.write(f"{inp.nproc}{inp.mem}")
         file.write(f"%chk={title}.chk\n")
-        file.write(f"#{key[inp.job_type]} {inp.method} {inp.basis}{inp.disp}"
+        file.write(f"#{key[inp.job_type]} {inp.method} {inp.basis}{disp}"
                    f" pop={inp.charge_method} \n\n")
         file.write(f"{title}\n\n")
         file.write(f"{inp.charge} {inp.multi}\n")
@@ -65,7 +74,7 @@ def change_run_settings(inp, out_dir, out_file, G):
             atom, [c1, c2, c3] = e.sym[data[1]['elem']], data[1]['coords']
             file.write(f'{atom:>3s} {c1:>12.6f} {c2:>12.6f} {c3:>12.6f}\n')
 
-        if inp.job_type == "fragment":
+        if inp.job_type == "fit":
             file.write("\nD {} {} {} {} S {} {}\n\n".format(*G.graph['scan'],
                                                             inp.scan_no,
                                                             inp.scan_step))
@@ -73,6 +82,6 @@ def change_run_settings(inp, out_dir, out_file, G):
             file.write('\n\$nbo BNDIDX \$end\n\n')
         else:
             file.write('\n$nbo BNDIDX $end\n\n')
-        for line in inp.post_input_commands:
-            file.write(line)
+        for line in post_input_commands:
+            file.write(f"{line}\n")
     return out_path

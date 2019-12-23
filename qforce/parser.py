@@ -18,8 +18,8 @@ def parse():
                 + '\n - '.join(options) + '\nOr use one of the depreciating' +
                 ' options:\n - ' + '\n - '.join(opt_depr) + '\n\n\n')
 
-    parser = argparse.ArgumentParser(formatter_class=
-                                     argparse.RawTextHelpFormatter)
+    formatter = argparse.RawTextHelpFormatter
+    parser = argparse.ArgumentParser(formatter_class=formatter)
     parser.add_argument('-f', type=check_if_file_exists, metavar='file',
                         help=('Input coordinate file (PBB, XYZ, GRO, ...)\n'
                               'or directory (job/job_qforce) name.'))
@@ -27,7 +27,11 @@ def parse():
                         help='File name for the optional options.')
     parser.add_argument('-s', metavar='start', choices=options + opt_depr,
                         help=opt_help)
+    parser.add_argument('-nofrag', default=False, action='store_true',
+                        help='Skip flexible dihedrals')
+    parser.add_argument('-p', metavar='params', nargs='+', type=float,
+                        help='Set non-default empirical params (temporary)')
     args = parser.parse_args()
     if args.s in opt_depr:
         depr = True
-    return args.f, args.o, args.s, depr
+    return args, depr
