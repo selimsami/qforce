@@ -97,10 +97,10 @@ def remove_scanned_dihedral(itp_path, atoms):
                 itp_file.write(line)
             elif in_section == "dihedrals" and len(line.split()) > 3:
                 atoms_check = line.split()[0:4]
-                if atoms == atoms_check:
-                    continue
-                else:
-                    itp_file.write(line)
+#                if atoms == atoms_check:
+#                    continue
+#                else:
+                itp_file.write(line)
             else:
                 itp_file.write(line)
 
@@ -123,7 +123,7 @@ def prepare_scan_directories(atoms, qm_angles, qm_energies, inp, itp_dir,
     Add dihedral restrain to each scan step ITP
     Copy all necessary files for a GROMACS run to scan directories
     """
-    dihed_res = "{:>5}{:>5}{:>5}{:>5}{:>5}{:>10.4f}  0.0  500\n"
+    dihed_res = "{:>5}{:>5}{:>5}{:>5}{:>5}{:>10.4f}  0.0  1000\n"
     atoms = [a+1 for a in atoms]
     itp_file = f'{inp.job_name}_qforce.itp'
     top_dir = f'{inp.job_dir}/gas.top'
@@ -211,9 +211,9 @@ def write_opt_dihedral(itp_file, atoms, c, r_squared):
     belle = ("{:>5}{:>5}{:>5}{:>5}    3 {:>11.4f}{:>11.4f}{:>11.4f}{:>11.4f}"
              "{:>11.4f}{:>11.4f}" + opt_d)
     atoms = [a+1 for a in atoms]
-    with open(itp_file, "a") as opt_itp:
-        opt_itp.write("\n[ dihedrals ]\n")
-        opt_itp.write(belle.format(*atoms, *c))
+#    with open(itp_file, "a") as opt_itp:
+#        opt_itp.write("\n[ dihedrals ]\n")
+#        opt_itp.write(belle.format(*atoms, *c))
 
 
 def plot_dihedral_profile(inp, qm_angles, qm_energies, md_energies, scan_name):

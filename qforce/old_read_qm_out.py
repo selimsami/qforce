@@ -13,7 +13,7 @@ class QM():
         #if qm_software == "Gaussian": (in the future)
         self.read_gaussian(fchk_file, out_files, job_type)
 
-    def read_gaussian(self, fchk_file, out_files, job_type):          
+    def read_gaussian(self, fchk_file, out_files, job_type):
         if out_files != None and job_type != None:
             self.coords = []
             self.atomids = []
@@ -30,21 +30,21 @@ class QM():
             self.init_charges = []
             self.natoms = 0
             self.step = 0
-            self.job_type = job_type 
+            self.job_type = job_type
             self.found_atom_ids = False
             self.found_mulliken = False
             self.found_esp = False
             self.files = []
             self.fail_count = 0
-            
+
             for file in out_files:
-                self.read_gaussian_out(file)       
-            self.numpyfy()     
-            if self.job_type == "opt_scan":    
-                self.sort_wrt_angles()        
+                self.read_gaussian_out(file)
+            self.numpyfy()
+            if self.job_type == "opt_scan":
+                self.sort_wrt_angles()
             elif self.job_type == "traj":
                 self.check_fail()
-                
+
         if fchk_file != None:
             self.coords = []
             self.atomids = []
@@ -52,11 +52,11 @@ class QM():
             self.dipole = []
             self.rot_tr = []
             self.esp = []
-        
+
             self.read_gaussian_fchk(fchk_file)
             self.prepare()
-                
-     
+
+
     def read_gaussian_fchk(self,fchk_file):
         esp_found = False
         with open(fchk_file, "r", encoding='utf-8') as fchk:
@@ -84,7 +84,7 @@ class QM():
                         self.dipole.extend(line.split())
                 if "Cartesian Force Constants  " in line:
                     n_line = math.ceil(3*n_atoms*(3*n_atoms + 1) / 10)
-                    for i in range(n_line):                                         
+                    for i in range(n_line):
                         line = fchk.readline()
                         self.hessian.extend(line.split())
                 if "ESP Charges  " in line:
@@ -101,7 +101,7 @@ class QM():
     def prepare(self):
         bohr2ang = 0.52917721067
         hartree2kjmol = 2625.499638
-        
+
         self.coords = np.asfarray(self.coords, float)
         self.hessian = np.asfarray(self.hessian, float)
         self.dipole = np.asfarray(self.dipole, float)
@@ -111,7 +111,7 @@ class QM():
 
         #convert to input coords
         if self.rot_tr != []:
-            rot = np.reshape(self.rot_tr[0:9], (3,3)) 
+            rot = np.reshape(self.rot_tr[0:9], (3,3))
             tr = np.array(self.rot_tr[9:])
             self.inp_coords = np.dot(self.coords,rot) + tr
         else:
@@ -121,7 +121,7 @@ class QM():
         self.hessian = self.hessian * hartree2kjmol / bohr2ang**2
 
     def read_gaussian_out (self, file):
-        
+
         with open(file, "r", encoding='utf-8') as gaussout:
             file = file.split("/")[-1]
             orientation = "Standard orientation:"
@@ -144,7 +144,7 @@ class QM():
                         job_specs = job_specs.lower().replace(" ","")
                         if ("nosymm" in job_specs or "symmetry=none"
                             in job_specs):
-                            orientation = "Input orientation:"      
+                            orientation = "Input orientation:"
 
                 #find atom names and number of atoms
                 elif orientation in line:
@@ -153,15 +153,15 @@ class QM():
                         line = gaussout.readline()
                     while "--" not in line:
                         x, y, z = line.split()[3:6]
-                        coord.append([float(x), float(y), float(z)])                                                
+                        coord.append([float(x), float(y), float(z)])
                         if self.found_atom_ids == False:
                             self.natoms+= 1
                             self.atomids.append(int(line.split()[1]))
                         line = gaussout.readline()
                     self.found_atom_ids = True
-                    
+
                 #read scanned atoms, step size, # of steps
-                elif (self.job_type == "opt_scan" and 
+                elif (self.job_type == "opt_scan" and
                       "The following ModRedundant" in line):
                     while 1 == 1:
                         line = gaussout.readline().split()
@@ -174,23 +174,23 @@ class QM():
 
                 #read initial scan angle
                 elif "  Scan  " in line and "!" in line:
-                    self.init_angle = float(line.split()[3])  
-    
+                    self.init_angle = float(line.split()[3])
+
                 elif "Charge" in line and "Multiplicity" in line:
                     self.charge = int(line.split()[2])
-    
+
                 #read energy
                 elif "SCF Done:" in line:
                     energy = round(float(line.split()[4]), 8)
                     found_energy = True
-                
+
                 #read dipole moment
                 elif "Dipole moment" in line:
                     line = gaussout.readline()
                     mu_x, mu_y, mu_z, mu = line.split()[1:8:2]
                     dipole = [float(mu_x), float(mu_y), float(mu_z), float(mu)]
                     found_dipole = True
-                    
+
 #                elif "Quadrupole moment" in line:
 #                    line = gaussout.readline()
 #                    q_xx, q_yy, q_zz = line.split()[1:6:2]
@@ -203,7 +203,7 @@ class QM():
                     found_wiberg = False
                     self.lone_elecs = np.zeros(self.natoms, dtype='int8')
                     self.n_bonds = []
-                    while "Leave Link  607" not in line:
+                    while "           Charge unit" not in line:
                         line = gaussout.readline()
                         if ("Wiberg bond index, Totals by atom" in line and
                             not found_wiberg):
@@ -255,12 +255,12 @@ class QM():
                 #check if calculation finished successfully
                 elif "Normal termination of Gaussian" in line:
                     normal_term = True
-                    
+
                 #On opt_scan mode: save coordinates and energies for each step
                 elif self.job_type == "opt_scan" and "-- Stationary" in line:
                     angle = self.init_angle + step * self.step_size
                     angle = round(angle % 360, 4)
-                    if (angle in self.angles 
+                    if (angle in self.angles
                         and energy < self.energies[self.angles.index(angle)]):
                         self.energies[self.angles.index(angle)] = energy
                         self.coords[self.angles.index(angle)] = coord
@@ -284,7 +284,7 @@ class QM():
                 self.fail_count+=1
         elif self.job_type == "freq":
             self.coords.append(coord)
-                
+
     def numpyfy(self):
         self.angles = np.array(self.angles)
         self.energies = np.array(self.energies)
@@ -304,4 +304,3 @@ class QM():
             print("Continuing without them.")
         else:
             print("All calculation(s) have finished successfully.")
-        

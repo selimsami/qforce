@@ -22,11 +22,6 @@ def write_itp(ff, itp_file, inp):
 
     with open(itp_file, "w") as itp:
 
-        # defaults
-        itp.write("[ defaults ]")
-        itp.write(";nbfunc   comb-rule   gen-pairs   fudgeLJ   fudgeQQ")
-        itp.write("      1           1          no       1.0       1.0")
-
         # atom types
         if ff.atom_types != []:
             itp.write("[ atomtypes ]\n")
@@ -38,7 +33,7 @@ def write_itp(ff, itp_file, inp):
         space = " "*(len(ff.mol_type)-5)
         itp.write("\n[ moleculetype ]\n")
         itp.write(f";{space}name nrexcl\n")
-        itp.write(f"{ff.mol_type}{inp.nrexcl:>7}\n")
+        itp.write(f"{ff.mol_type}{3:>7}\n")
 
         # atoms
         itp.write("\n[ atoms ]\n")

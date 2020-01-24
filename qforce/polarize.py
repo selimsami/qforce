@@ -65,16 +65,16 @@ def polarize(inp):
         # add polarization
         ff.polar.append([i+1, i+1+ff.natom, 1, polar_dict[ff.atomids[i]]])
 
-        # add thole
-        for a in neighbors[0][i]+neighbors[1][i]+neighbors[2][i]:
-            if i < a:
-                ff.thole.append([i+1, i+ff.natom+1, a+1, a+ff.natom+1, "2",
-                                 "2.6", polar_dict[ff.atomids[i]],
-                                 polar_dict[ff.atomids[a]]])  # 2.1304 2.899
+#        # add thole
+#        for a in neighbors[0][i]+neighbors[1][i]+neighbors[2][i]:
+#            if i < a:
+#                ff.thole.append([i+1, i+ff.natom+1, a+1, a+ff.natom+1, "2",
+#                                 "2.6", polar_dict[ff.atomids[i]],
+#                                 polar_dict[ff.atomids[a]]])  # 2.1304 2.899
 
     polar_itp = "{}_polar.itp".format(os.path.splitext(inp.itp_file)[0])
     polar_gro = "{}_polar.gro".format(os.path.splitext(inp.coord_file)[0])
-#    write_itp(ff, polar_itp, inp)
+    write_itp(ff, polar_itp, inp)
     write_gro(ff, polar_gro)
 
     print("Done!")

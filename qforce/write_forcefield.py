@@ -34,7 +34,9 @@ def write_itp(ff, inp, itp_file):
     form_urey = "{:>6}{:>6}{:>6}{:>6}{:>11.3f}{:>13.3f}{:>10.5f}{:>13.3f}\n"
     form_diheds = "{:>6}{:>6}{:>6}{:>6}{:>6}{:>11.3f}{:>13.3f}\n"
     form_thole = "{:>6}{:>6}{:>6}{:>6}{:>4}{:>7.2f}{:>14.8f}{:>14.8f}\n"
-    form_unfit = ";{:>6}{:>6}{:>6}{:>6}{:>6}   -   Type: {:>6}\n"
+    form_flex = ("{:>6}{:>6}{:>6}{:>6}{:>6}{:>11.3f}{:>11.3f}{:>11.3f}"
+                 "{:>11.3f}{:>11.3f}{:>11.3f}\n")
+    form_unfit = ";{:>6}{:>6}{:>6}{:>6}{:>6}{:>6}\n"
 
     with open(itp_file, "w") as itp:
         # fitting parameters - temporary
@@ -121,9 +123,13 @@ def write_itp(ff, inp, itp_file):
         # flexible dihedrals
         itp.write("\n;[ dihedrals ]\n")
         itp.write(";   ai    aj    ak    al   f     th0         kth\n")
-        itp.write("; flexible dihedrals - fit manually for now\n")
-        for flexible in ff.flexible:
-            itp.write(form_unfit.format(*flexible))
+        itp.write("; flexible dihedrals\n")
+        if inp.nofrag:
+            for flexible in ff.flexible:
+                itp.write(form_unfit.format(*flexible))
+        else:
+            for flexible in ff.flexible:
+                itp.write(form_flex.format(*flexible))
 
         # flexible dihedrals
         itp.write("\n;[ dihedrals ]\n")

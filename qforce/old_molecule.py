@@ -200,7 +200,7 @@ class Molecule():
         n_ring = [sum(a in r for r in self.rings) for a in range(self.n_atoms)]
 
         for a1, a2, a3, a4 in dihedrals:
-            phi = get_dihed(self.coords[a1, a2, a3, a4])[0]
+            phi = get_dihed(self.coords[[a1, a2, a3, a4]])[0]
 
             b12 = self.graph.edges[a1, a2]["type"]
             b23 = self.graph.edges[a2, a3]["type"]

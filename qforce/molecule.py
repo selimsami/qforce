@@ -14,7 +14,6 @@ class Terms():
         self.n_terms = 0
 
     def add_term(self, atoms, minimum, t_type):
-        print(t_type)
         if t_type not in self.types:
             self.term_ids.append(self.n_terms)
             self.types.append(t_type)
@@ -34,6 +33,7 @@ class Angles(Terms):
     def __init__(self):
         Terms.__init__(self)
         self.urey = Terms()
+        self.cross = Terms()
 
 
 class Dihedrals(Terms):
@@ -59,7 +59,7 @@ class Dihedrals(Terms):
         for a1, a2, a3, a4 in atoms_combin:
             mass = e.mass[mol.atomids[a1]] + e.mass[mol.atomids[a4]]
             if mass > heaviest:
-                atoms = [a1, a2, a3, a4]
+                atoms = np.array([a1, a2, a3, a4])
                 heaviest = mass
         self.flex.add_term(atoms, 0, mol.edge(a2, a3)['vers'])
 
@@ -126,7 +126,7 @@ class Molecule():
         self.find_bonds_and_rings(qm)
         self.find_atom_types(inp.n_equiv)
         self.find_neighbors()
-        self.find_parameter_types(inp.urey)
+        self.find_parameter_types(inp)
         self.prepare()
         self.polarize()
 
@@ -182,6 +182,9 @@ class Molecule():
                     types = [self.edge(*edge)['type'] for edge in path]
                     atom_ids[i].append("-".join(types))
                 atom_ids[i].sort()
+#            print('\n\n\n')
+#            print(f'-----{i+1}-----')
+#            print(atom_ids[i])
 
         if n_eq < 0:
             atom_ids = [i for i in range(self.n_atoms)]
@@ -202,7 +205,7 @@ class Molecule():
                                               types[self.atomids[i]])
             types[self.atomids[eq[0]]] += 1
 
-    def find_parameter_types(self, urey):
+    def find_parameter_types(self, inp):
         bonds, angles, dihedrals = [], [], []
 
         for i in range(self.n_atoms):
@@ -230,8 +233,8 @@ class Molecule():
             self.bonds.add_term([a1, a2], dist, bond['vers'])
 
         for a1, a2, a3 in angles:
-            vec12, _ = get_dist(self.coords[a1], self.coords[a2])
-            vec32, _ = get_dist(self.coords[a3], self.coords[a2])
+            vec12, dist12 = get_dist(self.coords[a1], self.coords[a2])
+            vec32, dist32 = get_dist(self.coords[a3], self.coords[a2])
             theta = get_angle(vec12, vec32)
 
             b21 = self.edge(a2, a1)['vers']
@@ -241,9 +244,13 @@ class Molecule():
             a_type = f"{a_type[0]}_{a_type[1]}"
             self.angles.add_term([a1, a2, a3], theta, a_type)
 
-            if urey:
-                dist = get_dist(self.coords[a1], self.coords[a3])[1]
-                self.angles.urey.add_term([a1, a3], dist, a_type)
+            dist13 = get_dist(self.coords[a1], self.coords[a3])[1]
+
+            if inp.urey:
+                self.angles.urey.add_term([a1, a3], dist13, a_type)
+            if inp.cross:
+                self.angles.cross.add_term([a1, a2, a3], np.array([dist12,
+                                           dist32, dist13]), a_type)
 
         # dihedrals
         for a2, a3 in bonds:
@@ -322,8 +329,8 @@ class Molecule():
                             self.neighbors[2][i].append(path[-1])
 
     def prepare(self):
-        for term in [self.bonds, self.angles.urey, self.angles,
-                     self.dih.rigid, self.dih.imp]:
+        for term in [self.bonds, self.angles.urey, self.angles.cross,
+                     self.angles, self.dih.rigid, self.dih.imp]:
             term.term_ids = [i + self.n_terms for i in term.term_ids]
             self.n_terms += term.n_terms
 

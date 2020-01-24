@@ -29,6 +29,7 @@ def calc_angles(coords, atoms, theta0, term, force):
     theta = get_angle(vec12, vec32)
     cos_theta = np.cos(theta)
     dtheta = theta - theta0
+
 #   energy[t] += 0.5 * dtheta**2
     st = - dtheta / np.sqrt(1. - cos_theta**2)
     sth = st * cos_theta
@@ -40,7 +41,61 @@ def calc_angles(coords, atoms, theta0, term, force):
     f3 = c33 * vec32 - c13 * vec12
     force[atoms[0], term] += f1
     force[atoms[2], term] += f3
-    force[atoms[1], term] += - f1 - f3
+    force[atoms[1], term] -= f1 + f3
+    return force
+
+
+#@jit(nopython=True)
+#def calc_quartic_angles(coords, atoms, theta0, term, force):
+#    vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+#    vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
+#    theta = get_angle(vec12, vec32)
+#    cos_theta = np.cos(theta)
+#    dtheta = theta - theta0
+#
+#    coefs = [1, -0.014, 5.6e-5, -7e-7, 2.2e08]
+#
+#    dtp = dtheta
+#    dvdt = 0
+#    for i in range(5):
+#        dvdt += (i+1)*dtp*coefs[i]
+#        dtp *= dtheta
+#
+#
+##   energy[t] += 0.5 * dtheta**2
+#    st = - dvdt / np.sqrt(1. - cos_theta**2)
+#    sth = st * cos_theta
+#    c13 = st / r12 / r32
+#    c11 = sth / r12 / r12
+#    c33 = sth / r32 / r32
+#
+#    f1 = c11 * vec12 - c13 * vec32
+#    f3 = c33 * vec32 - c13 * vec12
+#    force[atoms[0], term] += f1
+#    force[atoms[2], term] += f3
+#    force[atoms[1], term] -= f1 + f3
+#    return force
+
+
+def calc_cross_bondangle(coords, atoms, r0s, term, force):
+    vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+    vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
+    vec13, r13 = get_dist(coords[atoms[0]], coords[atoms[1]])
+
+    s1 = r12 - r0s[0]
+    s2 = r32 - r0s[1]
+    s3 = r13 - r0s[2]
+    # energy[n] += s3*(s1+s2)
+    k1 = - s3/r12
+    k2 = - s3/r32
+    k3 = - (s1+s2)/r13
+
+    f1 = k1*vec12 + k3*vec13
+    f3 = k2*vec32 + k3*vec13
+
+    force[atoms[0], term] += f1
+    force[atoms[2], term] += f3
+    force[atoms[1], term] -= f1 + f3
     return force
 
 
@@ -57,12 +112,11 @@ def calc_imp_diheds(coords, atoms, phi0, term, force):
 # @jit(nopython=True)
 def calc_rb_diheds(coords, atoms, params, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
-    kd = [1, 0, -1, 0, 0, 0]
     phi += np.pi
     cos_phi = np.cos(phi)
     sin_phi = np.sin(phi)
 
-    for i, c in enumerate(kd):
+    for i, c in enumerate(params):
         if i == 0:
             cos_factor = 1
             ddphi = 0
@@ -73,8 +127,9 @@ def calc_rb_diheds(coords, atoms, params, force):
 #        energy += c * cos_factor
 
     ddphi *= - sin_phi
+
     force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1,
-                           cross2, ddphi)
+                           cross2, ddphi, -1)
     return force
 
 
@@ -130,6 +185,18 @@ def calc_pairs(coords, i, j, c6, c12, qq, force):
     force[i, -1] -= fk
     force[j, -1] += fk
     return force
+
+
+@jit(nopython=True)
+def calc_pair_energies(coords, i, j, c6, c12, qq, energy):
+    vec, r = get_dist(coords[i], coords[j])
+    qq_r = qq/r
+    r_2 = 1/r**2
+    r_6 = r_2**3
+    c6_r6 = c6 * r_6
+    c12_r12 = c12 * r_6**2
+    energy += qq_r + c12_r12 - c6_r6
+    return energy
 
 
 @jit(nopython=True)

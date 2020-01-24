@@ -19,6 +19,7 @@ class QM():
             self.normal_term = False
             self.atomids = []
             self.n_atoms = 0
+            self.coords = []
             self.read_gaussian_out(out_file, out_type)
 
         if fchk_file:
@@ -83,6 +84,8 @@ class QM():
         self.hessian = self.hessian * hartree2kjmol / bohr2ang**2
 
     def read_gaussian_out(self, file, out_type):
+        orientation = "Standard orientation:"
+        found_job_specs = False
 
         with open(file, "r", encoding='utf-8') as gaussout:
             for line in gaussout:
@@ -109,13 +112,39 @@ class QM():
                 elif "  Scan  " in line and "!" in line:
                     self.init_angle = float(line.split()[3])
 
+                # read job specs and find job type
+                elif "--" in line and not found_job_specs:
+                    line = gaussout.readline().strip()
+                    if "#" in line:
+                        found_job_specs = True
+                        job_specs = line
+                        line = gaussout.readline().strip()
+                        while "--" not in line:
+                            job_specs = (job_specs + line)
+                            line = gaussout.readline().strip()
+                        job_specs = job_specs.lower().replace(" ", "")
+                        if ("nosymm" in job_specs or "symmetry=none"
+                                in job_specs):
+                            orientation = "Input orientation:"
+
+                # Find coordinates
+                elif orientation in line:
+                    coord = []
+                    for _ in range(5):
+                        line = gaussout.readline()
+                    while "--" not in line:
+                        coord.append([float(a) for a in line.split()[3:6]])
+                        line = gaussout.readline()
+
                 elif out_type == "scan" and "SCF Done:" in line:
                     energy = round(float(line.split()[4]), 8)
 
-                elif out_type == "scan" and "-- Stationary" in line:
+                # Get optimized energies, coords for each scan angle
+                elif "-- Stationary" in line and out_type == "scan":
                     angle = self.init_angle + step * self.step_size
                     self.angles.append(round(angle % 360, 4))
                     self.energies.append(energy)
+                    self.coords.append(coord)
                     step += 1
 
                 elif "Normal termination of Gaussian" in line:
@@ -164,5 +193,7 @@ class QM():
             hartree2kjmol = 2625.499638
             order = np.argsort(self.angles)
             self.angles = np.array(self.angles)[order]
+            self.coords = np.array(self.coords)[order]
             self.energies = np.array(self.energies)[order] * hartree2kjmol
             self.energies -= self.energies.min()
+

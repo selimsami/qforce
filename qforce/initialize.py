@@ -43,9 +43,11 @@ class Initialize():
         self.fchk_file = ""
         self.qm_freq_out = ""
         self.urey = False
+        self.cross = False
         self.nrexcl = 2
         self.param = []
         self.nofrag = args.nofrag
+        self.external_nonbonded = False
         #############################
 
         if args.p:
@@ -122,7 +124,7 @@ class Initialize():
                     prop = low_line.split()[0]
                     value = line.replace("=", " = ").split()[2]
                     # General
-                    if prop == "n_equivalence":
+                    if prop == "n_equiv":
                         self.n_equiv = int(value)
                     # related to file creation
                     elif prop == "scan_no":
@@ -151,6 +153,8 @@ class Initialize():
                     # related to hessianfitting
                     elif prop == "urey" and value == "yes":
                         self.urey = True
+                    elif prop == "cross" and value == "yes":
+                        self.cross = True
                     elif prop == "vibrational_coef":
                         self.vibr_coef = float(value)
                     elif prop == "nrexcl" and value in ["2", "3"]:
@@ -158,6 +162,9 @@ class Initialize():
                     # related to fragment
                     elif prop == "frag_dir":
                         self.frag_lib = value
+                    elif prop == "external_nb":
+                        if value == "yes":
+                            self.external_nonbonded = True
                 elif ("[" in low_line and "]" in low_line and
                       "job_script" in low_line):
                     in_job_script = True

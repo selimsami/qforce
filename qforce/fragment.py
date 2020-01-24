@@ -3,28 +3,39 @@ import os
 import hashlib
 import sys
 import networkx.algorithms.isomorphism as iso
+from scipy.optimize import curve_fit
+import numpy as np
 from .elements import elements
 from .read_qm_out import QM
 from .make_qm_input import make_qm_input
+from .forces import calc_pair_energies
 
 
 def fragment(inp, mol, qm):
+    params = []
     n_missing, n_have, t = 0, 0, 0
     missing_path, have_path = reset_data_files(inp)
 
     for atoms, term in zip(mol.dih.flex.atoms, mol.dih.flex.term_ids):
         if term != t:
             continue
-        frag_name, have_data, G = check_one_fragment(inp, mol, atoms)
-
+        frag_name, have_data, G, pairs = check_one_fragment(inp, mol, atoms)
         if have_data:
             n_have = write_data(have_path, frag_name, inp, n_have)
-
+            param = calc_dihedral_function(inp, frag_name, pairs)
+            params.append(param)
         else:
             n_missing = write_data(missing_path, frag_name, inp, n_missing)
             make_qm_input(inp, G, frag_name)
         t += 1
 
+    check_and_notify(inp, n_missing, n_have)
+
+    for i, term_id in enumerate(mol.dih.flex.term_ids):
+        mol.dih.flex.minima[i] = params[term_id]
+
+
+def check_and_notify(inp, n_missing, n_have):
     if n_missing+n_have == 0:
         print('There are no flexible dihedrals.')
     else:
@@ -37,10 +48,51 @@ def fragment(inp, mol, qm):
         sys.exit()
 
 
+def calc_dihedral_function(inp, frag_name, pairs):
+    energy_diff = []
+    frag_id, id_no = frag_name.split('~')
+    frag_dir = f'{inp.frag_lib}/{frag_id}'
+
+    angles, energies = np.loadtxt(f'{frag_dir}/scandata_{id_no}', unpack=True)
+    coords = np.load(f'{frag_dir}/scancoords_{id_no}.npy')
+
+    for energy, coord in zip(energies, coords):
+#        for i, j, c6, c12, qq in pairs:
+#            energy = calc_pair_energies(coord, i, j, c6, c12, qq, energy)
+        energy_diff.append(energy)
+
+    energy_diff = np.array(energy_diff) - np.array(energy_diff).min()
+
+    angles_radians = np.radians(angles)
+    weights = np.exp(-0.2 * np.sqrt(energies))
+
+    popt, _ = curve_fit(calc_rb, angles_radians, energy_diff,
+                        absolute_sigma=False, sigma=weights)
+    r_squared = calc_r_squared(calc_rb, angles_radians, energy_diff, popt)
+    print(r_squared)
+    # Plot with r_squared
+    return popt
+
+
+def calc_r_squared(funct, x, y, params):
+    residuals = y - funct(x, *params)
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((y-np.mean(y))**2)
+    return 1 - (ss_res / ss_tot)
+
+
+def calc_rb(angle, c0, c1, c2, c3, c4, c5):
+    params = [c0, c1, c2, c3, c4, c5]
+    rb = 0
+    for i, p in enumerate(params):
+        rb += p * np.cos(angle-np.pi)**i
+    return rb
+
+
 def check_one_fragment(inp, mol, atoms):
     e = elements()
     fragment, capping_h = identify_fragment(atoms, mol, e)
-    G = make_frag_graph(fragment, capping_h, mol, atoms)
+    G, pairs = make_frag_graph(fragment, capping_h, mol, atoms)
     frag_id, G = make_frag_identifier(G, mol, inp, e, atoms)
     have_data, id_no = check_frag_in_database(G, inp.frag_lib, frag_id)
     frag_name = f'{frag_id}~{id_no}'
@@ -48,7 +100,7 @@ def check_one_fragment(inp, mol, atoms):
     if not have_data:
         have_data = check_new_scan_data(inp, frag_name)
 
-    return frag_name, have_data, G
+    return frag_name, have_data, G, pairs
 
 
 def reset_data_files(inp):
@@ -75,6 +127,9 @@ def check_new_scan_data(inp, frag_name):
                 with open(path, 'w') as data:
                     for angle, energy in zip(qm.angles, qm.energies):
                         data.write(f'{angle:>10.3f} {energy:>20.8f}\n')
+            path = f'{inp.frag_lib}/{frag_id}/scancoords_{frag_no}.npy'
+            if not os.path.isfile(path):
+                np.save(path, qm.coords)
         else:
             print(f'WARNING: Scan output file "{out}" has not'
                   'terminated sucessfully. Skipping it...\n\n')
@@ -91,7 +146,7 @@ def write_data(data, frag_name, inp, n):
 def identify_fragment(atoms, mol, e):
     capping_h = []
     n_neigh = 0
-    fragment = atoms[1:3]
+    fragment = list(atoms[1:3])
     next_neigh = [[a, n] for a in fragment for n
                   in mol.neighbors[0][a] if n not in fragment]
     while next_neigh != []:
@@ -123,6 +178,9 @@ def make_frag_graph(fragment, capping_h, mol, atoms):
     G.graph['scan'] = [s+1 for s in scanned]
     G.edges[scanned[1:3]]['scan'] = True
 
+    pairs = [[mapping[a[0]], mapping[a[1]], a[2], a[3], a[4]] for a in
+             mol.pair_list if set(a[0:2]) <= set(mapping.keys())]
+
     for _, _, d in G.edges(data=True):
         for att in ['vector', 'length', 'order', 'breakable', 'vers',
                     'in_ring3', 'in_ring']:
@@ -132,11 +190,11 @@ def make_frag_graph(fragment, capping_h, mol, atoms):
             d.pop(att, None)
     for i, h in enumerate(capping_h):
         G.add_node(G.graph['n_atoms']+i, elem=1, n_bonds=1, lone_e=0,
-                   coords=h[1])
+                   coords=h[1], c6=101, c12=31405)
         G.add_edge(G.graph['n_atoms']+i, mapping[h[0]],
                    type=f'1(1.0){mol.atomids[h[0]]}')
     G.graph['n_atoms'] += len(capping_h)
-    return G
+    return G, pairs
 
 
 def make_frag_identifier(G, mol, inp, e, atoms):

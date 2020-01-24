@@ -6,6 +6,39 @@ from ase import Atoms
 from scipy.optimize import curve_fit
 
 
+def get_nonbonded(inp, mol, qm):
+    if inp.external_nonbonded:
+        read_external(inp, mol, qm)
+    else:
+        run_dftd4(inp, mol, qm)
+
+    calc_pair_list(mol, qm, inp.nrexcl)
+
+
+def read_external(inp, mol, qm):
+    lj_dict = {}
+    lj = []
+    q = np.loadtxt(f'{inp.job_dir}/ext_charges')
+
+    with open(f'{inp.job_dir}/ext_lj', 'r') as file:
+        for line in file:
+            if line.startswith('#'):
+                line = line[1:].split()
+                lj_dict[line[0]] = [float(line[1]), float(line[2])]
+
+    lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', comments='#', dtype=np.str)
+
+    for lj_type in lj_types:
+        lj.append(lj_dict[lj_type])
+
+    lj = np.array(lj)
+    c6 = lj[:, 0]*1e6
+    c12 = lj[:, 1]*1e12
+
+    q, qm.c6, qm.c12 = average_equivalent_terms([q, c6, c12], mol.list)
+    qm.q = sum_charges_to_qtotal(mol, q, inp.charge)
+
+
 def run_dftd4(inp, mol, qm):
     n_more = 0
     q, c6, c8, alpha, r_rel = [], [], [], [], []
@@ -33,16 +66,12 @@ def run_dftd4(inp, mol, qm):
             r_rel.append(float(line[8])**(1/3))
             n_more -= 1
 
-    q = average_equivalent_terms(q, mol.list)
-    alpha = average_equivalent_terms(alpha, mol.list)
-    c6 = average_equivalent_terms(c6, mol.list)
-    c8 = average_equivalent_terms(c8, mol.list)
-    r_rel = average_equivalent_terms(r_rel, mol.list)
+    q, alpha, c6, c8, r_rel = average_equivalent_terms([q, alpha, c6, c8,
+                                                        r_rel], mol.list)
 
     qm.q = sum_charges_to_qtotal(mol, q, inp.charge)
     qm.alpha = move_polarizability_from_hydrogens(alpha, mol)
     calc_c6_c12(qm, mol, c6, c8, r_rel, inp.param)
-    calc_pair_list(mol, qm, inp.nrexcl)
 
 
 def calc_pair_list(mol, qm, nrexcl):
@@ -60,7 +89,6 @@ def calc_pair_list(mol, qm, nrexcl):
                 c6 = 4 * epsilon * sigma6
                 c12 = c6 * sigma6
                 qq = qm.q[a1] * qm.q[a2] * eps0
-
                 mol.pair_list.append([i, j, c6, c12, qq])
 
 
@@ -87,15 +115,18 @@ def move_polarizability_from_hydrogens(alpha, mol):
     return new_alpha
 
 
-def average_equivalent_terms(term, eq):
-    avg_term = []
-    term = np.array(term)
-    for l in eq:
-        total = 0
-        for a in l:
-            total += term[a]
-        avg_term.append(round(total/len(l), 5))
-    return avg_term
+def average_equivalent_terms(terms, eq):
+    avg_terms = []
+    for term in terms:
+        avg_term = []
+        term = np.array(term)
+        for l in eq:
+            total = 0
+            for a in l:
+                total += term[a]
+            avg_term.append(round(total/len(l), 5))
+        avg_terms.append(avg_term)
+    return np.array(avg_terms)
 
 
 def sum_charges_to_qtotal(mol, charges, q_total):
@@ -133,8 +164,8 @@ def calc_c6_c12(qm, mol, c6s, c8s, r_rels, param):
     new_ljs = []
 
     order2elem = [6, 1, 8, 7]
-    r_ref = {1: 1.9860558, 6: 2.08254094, 7: 1.64052717, 8: 1.45226652}
-    s8_scale = {1: 0.13335551, 6: 0.13335551, 7: 0.68314538, 8: 0.68314538}
+    r_ref = {1: 1.986, 6: 2.083, 7: 1.641, 8: 1.452, 16: 1.5}
+    s8_scale = {1: 0.133, 6: 0.133, 7: 0.683, 8: 0.683, 16: 0.5}
 
     for i, s8 in enumerate(param[::2]):
         s8_scale[order2elem[i]] = s8
@@ -157,6 +188,10 @@ def calc_c6_c12(qm, mol, c6s, c8s, r_rels, param):
     new_ljs = np.array(new_ljs)*hartree2kjmol
     qm.c6 = new_ljs[:, 0]*bohr2ang**6
     qm.c12 = new_ljs[:, 1]*bohr2ang**12
+
+    for i, atom in enumerate(mol.atoms):
+        mol.node(i)['c6'] = qm.c6[atom]
+        mol.node(i)['c12'] = qm.c12[atom]
 
 
 def calc_lj(r, c6, c12):
