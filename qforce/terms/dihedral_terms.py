@@ -49,6 +49,10 @@ class ImproperDihedralTerm(DihedralBaseTerm):
     def _calc_forces(self, crd, force, fconst):
         calc_imp_diheds(crd, self.atomids, self.equ, fconst, self.idx, force)
 
+    @classmethod
+    def get_term(cls, topo, atomids, phi, d_type):
+        return cls(atomids, phi, d_type)
+
 
 class FlexibleDihedralTerm(DihedralBaseTerm):
 
@@ -76,6 +80,9 @@ class ConstrDihedralTerm(DihedralBaseTerm):
     def _calc_forces(self, crd, force, fconst):
         ...
 
+    @classmethod
+    def get_term(cls, topo, atomids, phi, d_type):
+        return cls(atomids, phi, d_type)
 
 class DihedralTerms(TermFactory):
 
@@ -140,7 +147,7 @@ class DihedralTerms(TermFactory):
                 else:
                     d_type = get_dtype(topo, *atoms_r)
                     for atoms in atoms_comb:
-                        add_term('constr', topo, atoms, d_type)
+                        add_term('constr', topo, atoms, phi, d_type)
             else:
                 add_term('flexible', topo, atoms_comb)
 
@@ -172,5 +179,5 @@ class DihedralTerms(TermFactory):
             if abs(phi) < 0.07:  # check planarity <4 degrees
                 add_term('improper', topo, atoms, phi, imp_type)
             else:
-                add_term('constr', atoms, phi, imp_type)
+                add_term('constr', topo, atoms, phi, imp_type)
         return terms
