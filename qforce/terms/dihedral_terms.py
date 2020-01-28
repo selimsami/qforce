@@ -62,18 +62,11 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
 
         """
         heaviest = 0
-        if isinstance(atoms_combin, tuple):
-            a1, a2, a3, a4 = atoms_combin
+        for a1, a2, a3, a4 in atoms_combin:
             mass = ATOMMASS[topo.atomids[a1]] + ATOMMASS[topo.atomids[a4]]
             if mass > heaviest:
                 atoms = np.array((a1, a2, a3, a4))
                 heaviest = mass
-        else:
-            for a1, a2, a3, a4 in atoms_combin:
-                mass = ATOMMASS[topo.atomids[a1]] + ATOMMASS[topo.atomids[a4]]
-                if mass > heaviest:
-                    atoms = np.array((a1, a2, a3, a4))
-                    heaviest = mass
         return cls(atoms, 0, topo.edge(a2, a3)['vers'])
 
 
@@ -148,36 +141,35 @@ class DihedralTerms(TermFactory):
                     for atoms in atoms_comb:
                         add_term('constr', topo, atoms, d_type)
             else:
-                add_term('flexible', topo, tuple(atoms))
+                add_term('flexible', topo, atoms_comb)
 
         # improper dihedrals
-#       for i in range(topo.n_atoms):
-#           bonds = list(topo.graph.neighbors(i))
-#           if len(bonds) != 3:
-#               continue
-#           atoms = [i, -1, -1, -1]
-#           n_bond = [len(list(topo.graph.neighbors(b))) for b in bonds]
-#           non_ring = [a for a in bonds if not topo.edge(i, a)['in_ring']]
-#
-#           if len(non_ring) == 1:
-#               atoms[3] = non_ring[0]
-#           else:
-#               atoms[3] = bonds[n_bond.index(min(n_bond))]
-#
-#           for b in bonds:
-#               if b not in atoms:
-#                   atoms[atoms.index(-1)] = b
-#
-#           phi = get_dihed(topo.coords[atoms])[0]
-#           # Only add improper dihedrals if there is no stiff dihedral
-#           # on the central improper atom and one of the neighbors
-#           bonds = [sorted([b, i]) for b in bonds]
-#           if any(b == a[1:3] for a in to.dih.rigid.atoms
-#                  for b in bonds):
-#               continue
-#           imp_type = f"ki_{topo.types[i]}"
-#           if abs(phi) < 0.07:  # check planarity <4 degrees
-#               add_term('improper', atoms, phi, imp_type)
-#           else:
-#               add_term('constr', atoms, phi, imp_type)
+        for i in range(topo.n_atoms):
+            bonds = list(topo.graph.neighbors(i))
+            if len(bonds) != 3:
+                continue
+            atoms = [i, -1, -1, -1]
+            n_bond = [len(list(topo.graph.neighbors(b))) for b in bonds]
+            non_ring = [a for a in bonds if not topo.edge(i, a)['in_ring']]
+ 
+            if len(non_ring) == 1:
+                atoms[3] = non_ring[0]
+            else:
+                atoms[3] = bonds[n_bond.index(min(n_bond))]
+ 
+            for b in bonds:
+                if b not in atoms:
+                    atoms[atoms.index(-1)] = b
+ 
+            phi = get_dihed(topo.coords[atoms])[0]
+            # Only add improper dihedrals if there is no stiff dihedral
+            # on the central improper atom and one of the neighbors
+            bonds = [sorted([b, i]) for b in bonds]
+            if any(b == list(term.atomids[1:3]) for term in terms['rigid'] for b in bonds):
+                continue
+            imp_type = f"ki_{topo.types[i]}"
+            if abs(phi) < 0.07:  # check planarity <4 degrees
+                add_term('improper', atoms, phi, imp_type)
+            else:
+                add_term('constr', atoms, phi, imp_type)
         return terms
