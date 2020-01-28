@@ -33,6 +33,7 @@ class DihedralBaseTerm(TermABC):
 
     @classmethod
     def get_term(cls, topo, atomids, d_type):
+        print(type(topo))
         phi = get_dihed(topo.coords[atomids])[0]
         return cls(atomids, phi, d_type)
 
@@ -151,16 +152,16 @@ class DihedralTerms(TermFactory):
             atoms = [i, -1, -1, -1]
             n_bond = [len(list(topo.graph.neighbors(b))) for b in bonds]
             non_ring = [a for a in bonds if not topo.edge(i, a)['in_ring']]
- 
+
             if len(non_ring) == 1:
                 atoms[3] = non_ring[0]
             else:
                 atoms[3] = bonds[n_bond.index(min(n_bond))]
- 
+
             for b in bonds:
                 if b not in atoms:
                     atoms[atoms.index(-1)] = b
- 
+
             phi = get_dihed(topo.coords[atoms])[0]
             # Only add improper dihedrals if there is no stiff dihedral
             # on the central improper atom and one of the neighbors
@@ -169,7 +170,7 @@ class DihedralTerms(TermFactory):
                 continue
             imp_type = f"ki_{topo.types[i]}"
             if abs(phi) < 0.07:  # check planarity <4 degrees
-                add_term('improper', atoms, phi, imp_type)
+                add_term('improper', topo, atoms, phi, imp_type)
             else:
                 add_term('constr', atoms, phi, imp_type)
         return terms
