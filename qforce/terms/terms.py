@@ -17,9 +17,10 @@ class Terms(MappingIterator):
             'dihedral': DihedralTerms,
     }
 
+    # dihedral(flex) > split it
     regex_substring = re.compile(r"(?P<key>\w+)\((?P<subkey>.*)\)")
 
-    def __init__(self, topo, ignore=['dihedral(rigid)']):
+    def __init__(self, topo, ignore=[]):
         _terms = {name: factory.get_terms(topo)
                   for name, factory in self._term_factories.items()}
         ignore = self._set_ignore(_terms, ignore)
@@ -40,6 +41,7 @@ class Terms(MappingIterator):
             iterm = terms[key]
             if not isinstance(iterm, MappingIterator):
                 print(f"WARNING: '{key}({subkey})' cannot be modified therefore ignored!")
+                continue
             iterm.add_ignore_key(subkey)
 
         return regular_ignore
@@ -52,10 +54,3 @@ class Terms(MappingIterator):
         if match is None:
             raise ValueError("Could not pass '%s'" % string)
         return match.group('key'), match.group('subkey')
-
-
-if __name__ == '__main__':
-    qm = QM('freq', 'thio3.fchk', 'thio3.out')
-    topo = Topology(qm.atomids, qm.coords, qm, 5)
-    for term in Terms(topo):
-        print(term)
