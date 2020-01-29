@@ -143,7 +143,9 @@ def calc_forces(coords, FF, inp):
     force = np.zeros((FF.terms.n_fitted_terms+1, FF.topo.n_atoms, 3))
 
     for term in FF.terms:
+        print(term.idx, str(term))
         term.do_fitting(coords, force)
+
 
 
 #    for i, j, c6, c12, qq in mol.pair_list:
@@ -324,14 +326,14 @@ def make_ff_params_from_fit(FF, fit, inp, qm, polar=False):
     for term in FF.terms['angle']:
         atoms = [a+1 for a in term.atomids]
         param = fit[term.idx]
-        eq = np.where(np.array(list(oterm.idx for oterm in FF.terms['angle'])) == term)
+        eq = np.where(np.array(list(oterm.idx for oterm in FF.terms['angle'])) == term.idx)
         minimum = np.degrees(np.array(list(oterm.equ for oterm in FF.terms['angle']))[eq].mean())
         ff.angles.append(atoms + [1, minimum, param])
 
     if inp.urey:
         for term in FF.terms['urey']:
             param = fit[term.idx] * 100
-            eq = np.where(np.array(list(oterm.idx for oterm in FF.terms['urey'])) == term)
+            eq = np.where(np.array(list(oterm.idx for oterm in FF.terms['urey'])) == term.idx)
             minimum = np.array(list(oterm.equ for oterm in FF.terms['urey']))[eq].mean() * 0.1
             ff.angles[i][3] = 5
             ff.angles[i].extend([minimum, param])

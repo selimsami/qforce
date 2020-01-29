@@ -178,8 +178,8 @@ def calc_pairs(coords, i, j, c6, c12, qq, force):
     f = (qq_r + 12*c12_r12 - 6*c6_r6) * r_2
     # tiny numerical disagreement with gromacs for lj forces?? double check!
     fk = f * vec
-    force[i, -1] -= fk
-    force[j, -1] += fk
+    force[i] -= fk
+    force[j] += fk
     return force
 
 
