@@ -1,11 +1,15 @@
 from abc import ABC, abstractmethod
 #
 import numpy as np
-# smart iterator
-from collections.abc import Mapping
+#
+from .storage import TermStorage, MultipleTermStorge
 
 
 class TermABC(ABC):
+
+    __slots__ = ('atomids', 'equ', 'idx', 'fconst', '_typename')
+
+    name = 'NOT_NAMED'
 
     def __init__(self, atomids, equ, typename, fconst=None):
         """Initialization of a term"""
@@ -16,10 +20,10 @@ class TermABC(ABC):
         self._typename = typename
 
     def __repr__(self):
-        return f"{self.__class__}({self._typename})"
+        return f"{self.name}({self._typename})"
 
     def __str__(self):
-        return f"{self.__class__}({self._typename})"
+        return f"{self.name}({self._typename})"
 
     def set_idx(self, idx):
         self.idx = idx
@@ -36,9 +40,24 @@ class TermABC(ABC):
     def _calc_forces(self, crd, force, fconst):
         """Perform actuall force computation"""
 
+    @classmethod
+    def get_terms_container(cls):
+        return TermStorage(cls.name)
+
 
 class TermFactory(ABC):
     """Factory class to create ForceField Terms of one ore multiple TermABC classes"""
+
+    _term_types = None
+    _multiple_terms = True
+    name = "NAME_NOT_DEFINED"
+
+    @classmethod
+    def get_terms_container(cls):
+        if cls._multiple_terms is False:
+            return TermStorage(cls.name)
+        return MultipleTermStorge(cls.name, {key: value.get_terms_container()
+                                             for key, value in cls._term_types.items()})
 
     @classmethod
     @abstractmethod
@@ -54,39 +73,6 @@ class TermFactory(ABC):
         ...
 
 
-class TermBase(TermABC, TermFactory):
+class TermBase(TermFactory, TermABC):
     """Base class for terms that are TermFactories for themselves as well"""
-    pass
-
-
-class MappingIterator(Mapping):
-
-    def __init__(self, dct, ignore=[]):
-        self._dct_data = dct
-        self._ignore = set(ignore)
-
-    @property
-    def ignore(self):
-        return self._ignore
-
-    @ignore.setter
-    def ignore(self, value):
-        self._ignore = set(value)
-
-    def add_ignore_key(self, value):
-        self._ignore.add(value)
-
-    def remove_ignore_key(self, value):
-        self._ignore.remove(value)
-
-    def __getitem__(self, key):
-        return self._dct_data[key]
-
-    def __len__(self):
-        return sum(1 for _ in self)
-
-    def __iter__(self):
-        for key, value in self._dct_data.items():
-            if key not in self.ignore:
-                for rval in value:
-                    yield rval
+    _multiple_terms = False
