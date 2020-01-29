@@ -33,7 +33,6 @@ class DihedralBaseTerm(TermABC):
 
     @classmethod
     def get_term(cls, topo, atomids, d_type):
-        print(type(topo))
         phi = get_dihed(topo.coords[atomids])[0]
         return cls(atomids, phi, d_type)
 
@@ -43,7 +42,7 @@ class RigidDihedralTerm(DihedralBaseTerm):
     name = 'RigidDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_imp_diheds(crd, self.atomids, self.equ, fconst, self.idx, force)
+        calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
 
 
 class ImproperDihedralTerm(DihedralBaseTerm):
@@ -51,7 +50,7 @@ class ImproperDihedralTerm(DihedralBaseTerm):
     name = 'ImproperDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_imp_diheds(crd, self.atomids, self.equ, fconst, self.idx, force)
+        calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):

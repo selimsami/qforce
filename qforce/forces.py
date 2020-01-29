@@ -13,17 +13,16 @@ from numba import jit
 
 
 @jit(nopython=True)
-def calc_bonds(coords, atoms, r0, term, force):
+def calc_bonds(coords, atoms, r0, fconst, force):
     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
 #   energy[t] += 0.5 * (r12-r0)**2
     f = - vec12 * (r12-r0) / r12
-    force[atoms[0], term] += f
-    force[atoms[1], term] -= f
-    return force
+    force[atoms[0]] += f
+    force[atoms[1]] -= f
 
 
 @jit(nopython=True)
-def calc_angles(coords, atoms, theta0, term, force):
+def calc_angles(coords, atoms, theta0, fconst, force):
     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
     vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
     theta = get_angle(vec12, vec32)
@@ -39,10 +38,9 @@ def calc_angles(coords, atoms, theta0, term, force):
 
     f1 = c11 * vec12 - c13 * vec32
     f3 = c33 * vec32 - c13 * vec12
-    force[atoms[0], term] += f1
-    force[atoms[2], term] += f3
-    force[atoms[1], term] -= f1 + f3
-    return force
+    force[atoms[0]] += f1
+    force[atoms[2]] += f3
+    force[atoms[1]] -= f1 + f3
 
 
 #@jit(nopython=True)
@@ -77,7 +75,7 @@ def calc_angles(coords, atoms, theta0, term, force):
 #    return force
 
 
-def calc_cross_bondangle(coords, atoms, r0s, term, force):
+def calc_cross_bondangle(coords, atoms, r0s, fconst, force):
     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
     vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
     vec13, r13 = get_dist(coords[atoms[0]], coords[atoms[1]])
@@ -93,20 +91,19 @@ def calc_cross_bondangle(coords, atoms, r0s, term, force):
     f1 = k1*vec12 + k3*vec13
     f3 = k2*vec32 + k3*vec13
 
-    force[atoms[0], term] += f1
-    force[atoms[2], term] += f3
-    force[atoms[1], term] -= f1 + f3
-    return force
+    force[atoms[0]] += f1
+    force[atoms[2]] += f3
+    force[atoms[1]] -= f1 + f3
 
 
-def calc_imp_diheds(coords, atoms, phi0, term, force):
+
+def calc_imp_diheds(coords, atoms, phi0, fconst, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     dphi = phi - phi0
     dphi = (dphi + np.pi) % (2 * np.pi) - np.pi  # dphi between -pi to pi
 #    energy[n] += 0.5 * dphi**2
     force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1,
-                           cross2, dphi, term)
-    return force
+                           cross2, dphi)
 
 
 # @jit(nopython=True)
@@ -140,9 +137,9 @@ def dot_prod(a, b):
     z = a[2]*b[2]
     return x+y+z
 
-@jit("f8[:,:,:](f8[:,:,:], i8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8, i4)",
+@jit("void(f8[:,:], i8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8)",
      nopython=True)
-def calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi, n):
+def calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi):
     inner1 = dot_prod(cross1, cross1)
     inner2 = dot_prod(cross2, cross2)
     nrkj2 = dot_prod(vec_kj, vec_kj)
@@ -163,11 +160,10 @@ def calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi, n):
     f_j = f_i - svec
     f_k = f_l + svec
 
-    force[a[0], n] += f_i
-    force[a[1], n] -= f_j
-    force[a[2], n] -= f_k
-    force[a[3], n] += f_l
-    return force
+    force[a[0]] += f_i
+    force[a[1]] -= f_j
+    force[a[2]] -= f_k
+    force[a[3]] += f_l
 
 
 @jit(nopython=True)

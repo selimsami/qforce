@@ -27,6 +27,7 @@ class Topology(object):
         self.neighbors = [[[] for j in range(self.n_atoms)] for i in range(3)]
         self.list = []
         self.atoms = np.zeros(self.n_atoms, dtype='int8')
+        self.pair_list = []
         #
         self._setup(qm, n_equiv)
 
@@ -150,8 +151,3 @@ class Topology(object):
 
     def edge(self, i, j):
         return self.graph.edges[i, j]
-
-
-if __name__ == '__main__':
-    qm = QM('freq', 'thio3.fchk', 'thio3.out')
-    topo = Topology(qm.atomids, qm.coords, qm, 5)
