@@ -26,6 +26,6 @@ class ForceField(object):
 
     """
 
-    def __init__(self, coords, atomids, inp, qm=None, terms=["bonds"]):
+    def __init__(self, coords, atomids, inp, qm=None):
         self.topo = Topology(atomids, coords, qm, inp.n_equiv)
         self.terms = Terms(self.topo)

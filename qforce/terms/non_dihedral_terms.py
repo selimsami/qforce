@@ -6,6 +6,8 @@ from ..forces import calc_bonds, calc_angles
 
 class BondTerm(TermBase):
 
+    name = 'BondTerm'
+
     def _calc_forces(self, crd, force, fconst):
         calc_bonds(crd, self.atomids, self.equ, fconst, self.idx, force)
 
@@ -13,7 +15,8 @@ class BondTerm(TermBase):
     def get_terms(cls, topo):
         """get terms"""
 
-        bond_terms = []
+        bond_terms = cls.get_terms_container()
+
         for a1, a2 in topo.bonds:
             bond = topo.edge(a1, a2)
             dist = bond['length']
@@ -24,10 +27,13 @@ class BondTerm(TermBase):
             else:
                 bond['breakable'] = True
             bond_terms.append(cls([a1, a2], dist, bond['vers']))
+
         return bond_terms
 
 
 class AngleTerm(TermBase):
+
+    name = 'AngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         calc_angles(crd, self.atomids, self.equ, fconst, self.idx, force)
@@ -44,7 +50,8 @@ class AngleTerm(TermBase):
                 list of cls objects
 
         """
-        angle_terms = []
+
+        angle_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
             vec12, _ = get_dist(topo.coords[a1], topo.coords[a2])
@@ -57,10 +64,13 @@ class AngleTerm(TermBase):
                              f"{topo.types[a2]}({b23}){topo.types[a3]}"])
             a_type = f"{a_type[0]}_{a_type[1]}"
             angle_terms.append(cls([a1, a2, a3], theta, a_type))
+
         return angle_terms
 
 
 class UrayAngleTerm(TermBase):
+
+    name = 'UrayAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         calc_bonds(crd, self.atomids, self.equ, fconst, self.idx, force)
@@ -77,7 +87,8 @@ class UrayAngleTerm(TermBase):
                 list of cls objects
 
         """
-        urey_terms = []
+        urey_terms = cls.get_terms_container()
+
         for a1, a2, a3 in topo.angles:
             dist = get_dist(topo.coords[a1], topo.coords[a3])[1]
             #
@@ -88,4 +99,5 @@ class UrayAngleTerm(TermBase):
             a_type = f"{a_type[0]}_{a_type[1]}"
             #
             urey_terms.append(cls([a1, a3], dist, a_type))
+
         return urey_terms

@@ -2,7 +2,7 @@ from itertools import product
 #
 import numpy as np
 #
-from .baseterms import TermABC, TermFactory, MappingIterator
+from .baseterms import TermABC, TermFactory
 #
 from ..forces import get_dihed
 from ..forces import calc_imp_diheds
@@ -40,11 +40,15 @@ class DihedralBaseTerm(TermABC):
 
 class RigidDihedralTerm(DihedralBaseTerm):
 
+    name = 'RigidDihedralTerm'
+
     def _calc_forces(self, crd, force, fconst):
         calc_imp_diheds(crd, self.atomids, self.equ, fconst, self.idx, force)
 
 
 class ImproperDihedralTerm(DihedralBaseTerm):
+
+    name = 'ImproperDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
         calc_imp_diheds(crd, self.atomids, self.equ, fconst, self.idx, force)
@@ -55,6 +59,8 @@ class ImproperDihedralTerm(DihedralBaseTerm):
 
 
 class FlexibleDihedralTerm(DihedralBaseTerm):
+
+    name = 'FlexibleDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
         ...
@@ -77,6 +83,8 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
 
 class ConstrDihedralTerm(DihedralBaseTerm):
 
+    name = 'ConstrDihedralTerm'
+
     def _calc_forces(self, crd, force, fconst):
         ...
 
@@ -84,17 +92,17 @@ class ConstrDihedralTerm(DihedralBaseTerm):
     def get_term(cls, topo, atomids, phi, d_type):
         return cls(atomids, phi, d_type)
 
+
 class DihedralTerms(TermFactory):
 
-    _types = {
-            'rigid': RigidDihedralTerm,
-            'improper': ImproperDihedralTerm,
-            'flexible': FlexibleDihedralTerm,
-            'constr': ConstrDihedralTerm,
-            }
+    name = 'DihedralTerms'
 
-    class DihedralTermsContainer(MappingIterator):
-        pass
+    _term_types = {
+        'rigid': RigidDihedralTerm,
+        'improper': ImproperDihedralTerm,
+        'flexible': FlexibleDihedralTerm,
+        'constr': ConstrDihedralTerm,
+    }
 
     @classmethod
     def get_terms(cls, topo):
@@ -108,11 +116,11 @@ class DihedralTerms(TermFactory):
                 list of cls objects
 
         """
-        terms = cls.DihedralTermsContainer({key: [] for key in cls._types.keys()})
+        terms = cls.get_terms_container()
 
         # helper functions to improve readability
         def add_term(name, topo, atoms, *args):
-            terms[name].append(cls._types[name].get_term(topo, atoms, *args))
+            terms[name].append(cls._term_types[name].get_term(topo, atoms, *args))
 
         def get_dtype(topo, *args):
             DihedralBaseTerm.get_type(topo, *args)
