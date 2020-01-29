@@ -9,7 +9,7 @@ class BondTerm(TermBase):
     name = 'BondTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_bonds(crd, self.atomids, self.equ, fconst, self.idx, force)
+        calc_bonds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_terms(cls, topo):
