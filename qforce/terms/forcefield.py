@@ -29,9 +29,3 @@ class ForceField(object):
     def __init__(self, coords, atomids, inp, qm=None):
         self.topo = Topology(atomids, coords, qm, inp.n_equiv)
         self.terms = Terms(self.topo)
-        self._set_term_idx()
-
-    def _set_term_idx(self):
-        names = list(set(str(term) for term in self.terms))
-        for term in self.terms:
-            term.set_idx(names.index(str(term)))
