@@ -140,7 +140,6 @@ class DihedralTerms(TermFactory):
                 # rigid
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
-                    print(f"dtype1 = {d_type}")
                     add_term('rigid', topo, atoms, d_type)
 
             elif central['in_ring']:
@@ -149,14 +148,12 @@ class DihedralTerms(TermFactory):
                 phi = get_dihed(topo.coords[atoms_r])[0]
                 if abs(phi) < 0.07:
                     # rigid
-                    d_type = get_dtype(topo, *atoms_r)
                     for atoms in atoms_comb:
-                        print(f"dtype2 = {d_type}")
+                        d_type = get_dtype(topo, *atoms)
                         add_term('rigid', topo, atoms, d_type)
                 else:
                     d_type = get_dtype(topo, *atoms_r)
-                    for atoms in atoms_comb:
-                        add_term('constr', topo, atoms, phi, d_type)
+                    add_term('constr', topo, atoms_r, phi, d_type)
             else:
                 add_term('flexible', topo, atoms_comb)
 
