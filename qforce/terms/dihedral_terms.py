@@ -122,7 +122,7 @@ class DihedralTerms(TermFactory):
             terms[name].append(cls._term_types[name].get_term(topo, atoms, *args))
 
         def get_dtype(topo, *args):
-            DihedralBaseTerm.get_type(topo, *args)
+            return DihedralBaseTerm.get_type(topo, *args)
         # proper dihedrals
         for a2, a3 in topo.bonds:
             central = topo.edge(a2, a3)
@@ -140,6 +140,7 @@ class DihedralTerms(TermFactory):
                 # rigid
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
+                    print(f"dtype1 = {d_type}")
                     add_term('rigid', topo, atoms, d_type)
 
             elif central['in_ring']:
@@ -150,6 +151,7 @@ class DihedralTerms(TermFactory):
                     # rigid
                     d_type = get_dtype(topo, *atoms_r)
                     for atoms in atoms_comb:
+                        print(f"dtype2 = {d_type}")
                         add_term('rigid', topo, atoms, d_type)
                 else:
                     d_type = get_dtype(topo, *atoms_r)
