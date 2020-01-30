@@ -48,6 +48,9 @@ def fit_forcefield(inp, qm=None, mol=None):
         fragment(inp, mol, qm)
 #        fit_hessian(inp, mol, qm)
 
+
+    print(mol.n_terms)
+
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
 
     make_ff_params_from_fit(mol, fit_results, inp, qm)

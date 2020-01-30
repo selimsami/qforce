@@ -47,6 +47,7 @@ class Dihedrals(Terms):
     def add_rigid(self, mol, atoms):
         phi = get_dihed(mol.coords[atoms])[0]
         d_type = self.get_type(mol, *atoms)
+        print(d_type)
         self.rigid.add_term(atoms, phi, d_type)
 
     def add_constr(self, atoms, phi, d_type):
