@@ -53,6 +53,9 @@ def fit_forcefield(inp, qm=None, mol=None):
 
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
 
+    for term in FF.terms:
+        print(term.idx, str(term))
+
     print(fit_results)
 
     make_ff_params_from_fit(FF, fit_results, inp, qm)
@@ -120,6 +123,7 @@ def calc_hessian(coords, FF, inp):
     """
     full_hessian = np.zeros((3*FF.topo.n_atoms, 3*FF.topo.n_atoms, FF.terms.n_fitted_terms+1))
 
+
     for a in range(FF.topo.n_atoms):
         for xyz in range(3):
             coords[a][xyz] += 0.003
@@ -143,10 +147,7 @@ def calc_forces(coords, FF, inp):
     force = np.zeros((FF.terms.n_fitted_terms+1, FF.topo.n_atoms, 3))
 
     for term in FF.terms:
-        print(term.idx, str(term))
         term.do_fitting(coords, force)
-
-
 
 #    for i, j, c6, c12, qq in mol.pair_list:
 #        force = calc_pairs(coords, i, j, c6, c12, qq, force)
@@ -156,7 +157,7 @@ def calc_forces(coords, FF, inp):
 #            force = calc_rb_diheds(coords, atoms, params, force)
 
     force = np.swapaxes(force, 0, 2)
-
+    force = np.swapaxes(force, 0, 1)
     return force
 
 
