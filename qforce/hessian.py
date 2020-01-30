@@ -3,7 +3,6 @@ import scipy.optimize as optimize
 # import scipy.optimize.nnls as nnls
 from scipy.linalg import eigh
 import numpy as np
-from .molecule import Molecule
 from .read_qm_out import QM
 from .read_forcefield import Forcefield
 from .write_forcefield import write_ff
@@ -11,8 +10,7 @@ from .dihedral_scan import scan_dihedral
 from .dftd4 import get_nonbonded
 from .terms import ForceField
 from .fragment import fragment
-from .forces import (calc_bonds, calc_angles, calc_pairs, calc_imp_diheds,
-                     calc_rb_diheds, calc_cross_bondangle)
+
 # , calc_g96angles
 from .elements import elements
 # from .decorators import timeit, print_timelog
@@ -38,7 +36,6 @@ def fit_forcefield(inp, qm=None, mol=None):
     """
 
     qm = QM("freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)
-#    mol = Molecule(qm.coords, qm.atomids, inp, qm=qm)
 
     FF = ForceField(qm.coords, qm.atomids, inp, qm=qm)
 
@@ -52,11 +49,6 @@ def fit_forcefield(inp, qm=None, mol=None):
 #        fit_hessian(inp, mol, qm)
 
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
-
-    for term in FF.terms:
-        print(term.idx, str(term))
-
-    print(fit_results)
 
     make_ff_params_from_fit(FF, fit_results, inp, qm)
 
@@ -121,8 +113,8 @@ def calc_hessian(coords, FF, inp):
     -----
     Perform displacements to calculate the MD hessian numerically.
     """
-    full_hessian = np.zeros((3*FF.topo.n_atoms, 3*FF.topo.n_atoms, FF.terms.n_fitted_terms+1))
-
+    full_hessian = np.zeros((3*FF.topo.n_atoms, 3*FF.topo.n_atoms,
+                             FF.terms.n_fitted_terms+1))
 
     for a in range(FF.topo.n_atoms):
         for xyz in range(3):
@@ -132,8 +124,8 @@ def calc_hessian(coords, FF, inp):
             f_minus = calc_forces(coords, FF, inp)
             coords[a][xyz] += 0.003
             diff = - (f_plus - f_minus) / 0.006
-            full_hessian[a*3 + xyz, :, :] = diff.reshape(3*FF.topo.n_atoms,
-                                                         FF.terms.n_fitted_terms + 1)
+            full_hessian[a*3+xyz] = diff.reshape(FF.terms.n_fitted_terms+1,
+                                                 3*FF.topo.n_atoms).T
     return full_hessian
 
 
@@ -156,8 +148,6 @@ def calc_forces(coords, FF, inp):
 #        for atoms, params in zip(mol.dih.flex.atoms, mol.dih.flex.minima):
 #            force = calc_rb_diheds(coords, atoms, params, force)
 
-    force = np.swapaxes(force, 0, 2)
-    force = np.swapaxes(force, 0, 1)
     return force
 
 
