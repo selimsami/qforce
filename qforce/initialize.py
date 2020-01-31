@@ -154,10 +154,10 @@ class Initialize():
                     # related to hessianfitting
                     elif prop == "urey" and value == "yes":
                         self.urey = True
-                        self.ignored_terms.pop('urey')
+                        self.ignored_terms.remove('urey')
                     elif prop == "cross" and value == "yes":
                         self.cross = True
-                        self.ignored_terms.pop('cross')
+                        self.ignored_terms.remove('cross')
                     elif prop == "vibrational_coef":
                         self.vibr_coef = float(value)
                     elif prop == "nrexcl" and value in ["2", "3"]:
