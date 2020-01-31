@@ -8,7 +8,7 @@ from .read_forcefield import Forcefield
 from .write_forcefield import write_ff
 from .dihedral_scan import scan_dihedral
 from .dftd4 import get_nonbonded
-from .molecule import Molecule, Terms
+from .molecule import Molecule
 from .fragment import fragment
 # , calc_g96angles
 from .elements import elements
@@ -34,7 +34,7 @@ def fit_forcefield(inp, qm=None, mol=None):
     - Charges from IR intensities - together with interacting polarizable FF?
     """
 
-    qm = QM("freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)  # , nonbonded='
+    qm = QM(inp, "freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)
 
     mol = Molecule(qm.coords, qm.atomids, inp, qm=qm)
 
@@ -45,7 +45,7 @@ def fit_forcefield(inp, qm=None, mol=None):
     # Fit - add dihedrals - fit again >> Is it enough? More iteration?
     if not inp.nofrag:
         fragment(inp, mol, qm)
-        fit_hessian(inp, mol, qm, ignore_flex=False)
+        fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=False)
 
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
 

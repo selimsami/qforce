@@ -1,6 +1,7 @@
 import math
 import numpy as np
-
+#
+from .dftd4 import run_dftd4
 
 class QM():
     """
@@ -10,17 +11,20 @@ class QM():
     In case of Gaussian output - look for different things for different
     job types
     """
-    def __init__(self, out_type, fchk_file=False, out_file=False):
+    def __init__(self, inp, job_type, fchk_file=False, out_file=False):
         # if qm_software == "Gaussian": (in the future)
-        self.read_gaussian(fchk_file, out_file, out_type)
+        self.read_gaussian(fchk_file, out_file, job_type)
 
-    def read_gaussian(self, fchk_file, out_file, out_type):
+        if job_type == 'freq':
+            self.get_nonbonded(inp)
+
+    def read_gaussian(self, fchk_file, out_file, job_type):
         if out_file:
             self.normal_term = False
             self.atomids = []
             self.n_atoms = 0
             self.coords = []
-            self.read_gaussian_out(out_file, out_type)
+            self.read_gaussian_out(out_file, job_type)
 
         if fchk_file:
             self.coords = []
@@ -31,6 +35,49 @@ class QM():
 
             self.read_gaussian_fchk(fchk_file)
             self.prepare()
+
+    def get_nonbonded(self, inp):
+        if 'd4' in [inp.point_charges, inp.lennard_jones]:
+            run_dftd4(inp, self)
+
+        if inp.point_charges == 'ext':
+            self.q = np.loadtxt(f'{inp.job_dir}/ext_q')
+        elif inp.point_charges == 'cm5':
+            self.q = self.cm5
+
+        if inp.lennard_jones == 'ext':
+            self.read_external_lennard_jones(inp)
+
+    def read_external_lennard_jones(self, inp):
+        unit_type = 'c6/c12'
+        all_lj, lj_types, lj_dict = [], [], {}
+
+        with open(f'{inp.job_dir}/ext_lj', 'r') as file:
+            for line in file:
+                line = line.strip()
+                if line == '':
+                    continue
+                elif line.startswith('@'):
+                    unit_type = line.partition('@')[2].strip().lower()
+                    print(unit_type)
+                elif line.startswith('#'):
+                    line = line[1:].split()
+                    lj_dict[line[0]] = [float(line[1]), float(line[2])]
+                else:
+                    lj_types.append(line)
+
+        for lj_type in lj_types:
+            all_lj.append(lj_dict[lj_type])
+
+        all_lj = np.array(all_lj)
+        if unit_type == 'sigma/epsilon':
+            self.c6 = 4 * all_lj[:, 1] * all_lj[:, 0]**6
+            self.c12 = 4 * all_lj[:, 1] * all_lj[:, 0]**12
+        elif unit_type == 'c6/c12':
+            self.c6 = all_lj[:, 0]
+            self.c12 = all_lj[:, 1]
+        self.c6 = self.c6 * 1e6
+        self.c12 = self.c12 * 1e12
 
     def read_gaussian_fchk(self, fchk_file):
         with open(fchk_file, "r", encoding='utf-8') as fchk:
@@ -83,7 +130,7 @@ class QM():
         self.coords = self.coords * bohr2ang
         self.hessian = self.hessian * hartree2kjmol / bohr2ang**2
 
-    def read_gaussian_out(self, file, out_type):
+    def read_gaussian_out(self, file, job_type):
         orientation = "Standard orientation:"
         found_job_specs = False
 
@@ -97,7 +144,7 @@ class QM():
 #                    line = gaussout.readline().split()
 #                    self.dipoles = [float(d) for d in line[1:8:2]]
 
-                elif out_type == "scan" and "following ModRedundant" in line:
+                elif job_type == "scan" and "following ModRedundant" in line:
                     self.angles, self.energies = [], []
                     step = 0
                     for line in gaussout:
@@ -136,11 +183,11 @@ class QM():
                         coord.append([float(a) for a in line.split()[3:6]])
                         line = gaussout.readline()
 
-                elif out_type == "scan" and "SCF Done:" in line:
+                elif job_type == "scan" and "SCF Done:" in line:
                     energy = round(float(line.split()[4]), 8)
 
                 # Get optimized energies, coords for each scan angle
-                elif "-- Stationary" in line and out_type == "scan":
+                elif "-- Stationary" in line and job_type == "scan":
                     angle = self.init_angle + step * self.step_size
                     self.angles.append(round(angle % 360, 4))
                     self.energies.append(energy)
@@ -187,9 +234,9 @@ class QM():
                         self.cm5.append(float(line[7]))
                     self.cm5 = np.array(self.cm5)
 
-        if out_type == 'freq':
+        if job_type == 'freq':
             self.b_orders = np.round(np.array(self.b_orders)*2)/2
-        if out_type == 'scan':
+        if job_type == 'scan':
             hartree2kjmol = 2625.499638
             order = np.argsort(self.angles)
             self.angles = np.array(self.angles)[order]

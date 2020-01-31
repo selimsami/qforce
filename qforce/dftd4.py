@@ -39,7 +39,7 @@ def read_external(inp, mol, qm):
     qm.q = sum_charges_to_qtotal(mol, q, inp.charge)
 
 
-def run_dftd4(inp, mol, qm):
+def run_dftd4(inp, qm):
     n_more = 0
     q, c6, c8, alpha, r_rel = [], [], [], [], []
     write_optimized_xyz(inp, qm)
@@ -66,12 +66,11 @@ def run_dftd4(inp, mol, qm):
             r_rel.append(float(line[8])**(1/3))
             n_more -= 1
 
-    q, alpha, c6, c8, r_rel = average_equivalent_terms([q, alpha, c6, c8,
-                                                        r_rel], mol.list)
-
-    qm.q = sum_charges_to_qtotal(mol, q, inp.charge)
-    qm.alpha = move_polarizability_from_hydrogens(alpha, mol)
-    calc_c6_c12(qm, mol, c6, c8, r_rel, inp.param)
+#    q, alpha, c6, c8, r_rel = average_equivalent_terms([q, alpha, c6, c8,
+#                                                        r_rel], mol.list)
+#
+#    qm.q = sum_charges_to_qtotal(mol, q, inp.charge)
+#    qm.alpha = move_polarizability_from_hydrogens(alpha, mol)
 
 
 def calc_pair_list(mol, qm, nrexcl):
@@ -158,7 +157,7 @@ def sum_charges_to_qtotal(mol, charges, q_total):
     return charges
 
 
-def calc_c6_c12(qm, mol, c6s, c8s, r_rels, param):
+def calc_c6_c12(qm, c6s, c8s, r_rels, param):
     hartree2kjmol = 2625.499638
     bohr2ang = 0.52917721067
     new_ljs = []
@@ -173,7 +172,7 @@ def calc_c6_c12(qm, mol, c6s, c8s, r_rels, param):
         r_ref[order2elem[i]] = r
 
     for i, (c6, c8, r_rel) in enumerate(zip(c6s, c8s, r_rels)):
-        elem = mol.atomids[mol.list[i][0]]
+        elem = qm.atomids[i]
         c8 *= s8_scale[elem]
         c10 = 40/49*(c8**2)/c6
 
@@ -189,9 +188,9 @@ def calc_c6_c12(qm, mol, c6s, c8s, r_rels, param):
     qm.c6 = new_ljs[:, 0]*bohr2ang**6
     qm.c12 = new_ljs[:, 1]*bohr2ang**12
 
-    for i, atom in enumerate(mol.atoms):
-        mol.node(i)['c6'] = qm.c6[atom]
-        mol.node(i)['c12'] = qm.c12[atom]
+#    for i, atom in enumerate(mol.atoms):
+#        mol.node(i)['c6'] = qm.c6[atom]
+#        mol.node(i)['c12'] = qm.c12[atom]
 
 
 def calc_lj(r, c6, c12):

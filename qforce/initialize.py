@@ -46,9 +46,10 @@ class Initialize():
         self.cross = False
         self.ignored_terms = ['urey', 'cross']
         self.nrexcl = 3
-        self.param = []
+        self.param = []  # temporary
         self.nofrag = args.nofrag
-        self.external_nonbonded = False
+        self.point_charges = 'd4'
+        self.lennard_jones = 'd4'
         #############################
 
         if args.p:
@@ -165,9 +166,11 @@ class Initialize():
                     # related to fragment
                     elif prop == "frag_dir":
                         self.frag_lib = value
-                    elif prop == "external_nb":
-                        if value == "yes":
-                            self.external_nonbonded = True
+                    elif prop == "point_charges":
+                        self.point_charges = value
+                    elif prop == "lennard_jones":
+                        self.lennard_jones = value
+
                 elif ("[" in low_line and "]" in low_line and
                       "job_script" in low_line):
                     in_job_script = True
