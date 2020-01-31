@@ -361,19 +361,19 @@ def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
         minimum = np.degrees(mol.dih.imp.minima[i])
         ff.impropers.append(atoms + [2, minimum, param])
 
-#    if inp.nofrag:
-#        for i, term in enumerate(mol.dih.flex.term_ids):
-#            atoms = [a+1 for a in mol.dih.flex.atoms[i]]
-#            ff.flexible.append(atoms + [3] + [term])
-#    else:
-#        for i, (term, params) in enumerate(zip(mol.dih.flex.term_ids,
-#                                               mol.dih.flex.minima)):
-#            atoms = [a+1 for a in mol.dih.flex.atoms[i]]
-#            ff.flexible.append(atoms + [3] + list(params))
-#
-#    for i, term in enumerate(mol.dih.constr.term_ids):
-#        atoms = [a+1 for a in mol.dih.constr.atoms[i]]
-#        ff.constrained.append(atoms + [1, term+1])
+    if inp.nofrag:
+        for i, term in enumerate(mol.dih.flex.term_ids):
+            atoms = [a+1 for a in mol.dih.flex.atoms[i]]
+            ff.flexible.append(atoms + [3, term+1])
+    else:
+        for i, (term, params) in enumerate(zip(mol.dih.flex.term_ids,
+                                               mol.dih.flex.minima)):
+            atoms = [a+1 for a in mol.dih.flex.atoms[i]]
+            ff.flexible.append(atoms + [3] + list(params))
+
+    for i, term in enumerate(mol.dih.constr.term_ids):
+        atoms = [a+1 for a in mol.dih.constr.atoms[i]]
+        ff.constrained.append(atoms + [3, term+1])
 
     write_ff(ff, inp, polar)
     print("Q-Force force field parameters (.itp, .top) can be found in the "
