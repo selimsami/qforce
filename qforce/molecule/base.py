@@ -60,7 +60,6 @@ class MappingIterator(Mapping):
     def _perform_ignore_action(self, dct, ignore, action=lambda *args: None):
 
         ignore_keys = {'__REGULAR_KEY__': []}
-
         for ign in ignore:
             key, subkey = self._get_substring(ign)
             if subkey is None:

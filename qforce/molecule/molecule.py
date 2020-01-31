@@ -2,7 +2,7 @@ from .topology import Topology
 from .terms import Terms
 
 
-class ForceField(object):
+class Molecule(object):
     """
     Scope:
     ------
