@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from .dihedral_terms import DihedralTerms
 from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm,
                                  CrossBondAngleTerm)
+from .non_bonded_terms import NonBondedTerms
 #
 from .base import MappingIterator
 from .baseterms import TermFactory
@@ -16,6 +17,7 @@ class Terms(MappingIterator):
             'urey': UreyAngleTerm,
             'cross_bond_angle': CrossBondAngleTerm,
             'dihedral': DihedralTerms,
+            'non_bonded': NonBondedTerms,
     }
 
     def __init__(self, topo, ignore=[],

@@ -7,7 +7,6 @@ from .read_qm_out import QM
 from .read_forcefield import Forcefield
 from .write_forcefield import write_ff
 from .dihedral_scan import scan_dihedral
-from .dftd4 import get_nonbonded
 from .molecule import Molecule
 from .fragment import fragment
 # , calc_g96angles
@@ -37,8 +36,6 @@ def fit_forcefield(inp, qm=None, mol=None):
     qm = QM(inp, "freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)
 
     mol = Molecule(qm.coords, qm.atomids, inp, qm=qm)
-
-    get_nonbonded(inp, mol.topo, qm)  # move it before mol
 
     fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
 

@@ -6,39 +6,6 @@ from ase import Atoms
 from scipy.optimize import curve_fit
 
 
-def get_nonbonded(inp, mol, qm):
-    if inp.external_nonbonded:
-        read_external(inp, mol, qm)
-    else:
-        run_dftd4(inp, mol, qm)
-
-    calc_pair_list(mol, qm, inp.nrexcl)
-
-
-def read_external(inp, mol, qm):
-    lj_dict = {}
-    lj = []
-    q = np.loadtxt(f'{inp.job_dir}/ext_charges')
-
-    with open(f'{inp.job_dir}/ext_lj', 'r') as file:
-        for line in file:
-            if line.startswith('#'):
-                line = line[1:].split()
-                lj_dict[line[0]] = [float(line[1]), float(line[2])]
-
-    lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', comments='#', dtype=np.str)
-
-    for lj_type in lj_types:
-        lj.append(lj_dict[lj_type])
-
-    lj = np.array(lj)
-    c6 = lj[:, 0]*1e6
-    c12 = lj[:, 1]*1e12
-
-    q, qm.c6, qm.c12 = average_equivalent_terms([q, c6, c12], mol.list)
-    qm.q = sum_charges_to_qtotal(mol, q, inp.charge)
-
-
 def run_dftd4(inp, qm):
     n_more = 0
     q, c6, c8, alpha, r_rel = [], [], [], [], []
@@ -66,17 +33,19 @@ def run_dftd4(inp, qm):
             r_rel.append(float(line[8])**(1/3))
             n_more -= 1
 
+    calc_c6_c12(qm, c6, c8, r_rel, inp.param)
+
 #    q, alpha, c6, c8, r_rel = average_equivalent_terms([q, alpha, c6, c8,
 #                                                        r_rel], mol.list)
-#
 #    qm.q = sum_charges_to_qtotal(mol, q, inp.charge)
 #    qm.alpha = move_polarizability_from_hydrogens(alpha, mol)
+#        calc_pair_list(mol, qm, inp.nrexcl)
 
 
 def calc_pair_list(mol, qm, nrexcl):
     eps0 = 1389.35458
-    qm.sigma = (qm.c12/qm.c6)**(1/6)
-    qm.epsilon = qm.c6 / (4*qm.sigma**6)
+#    qm.sigma = (qm.c12/qm.c6)**(1/6)
+#    qm.epsilon = qm.c6 / (4*qm.sigma**6)
 
     for i, a1 in enumerate(mol.atoms):
         for j, a2 in enumerate(mol.atoms):
