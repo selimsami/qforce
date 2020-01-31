@@ -1,10 +1,8 @@
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import BondTerm, AngleTerm, UrayAngleTerm
+from .non_dihedral_terms import BondTerm, AngleTerm, UreyAngleTerm
 #
 from .base import MappingIterator
 from .baseterms import TermFactory
-#
-from .topology import QM, Topology
 
 
 class Terms(MappingIterator):
@@ -12,12 +10,12 @@ class Terms(MappingIterator):
     _term_factories = {
             'bond': BondTerm,
             'angle': AngleTerm,
-            'uray': UrayAngleTerm,
+            'urey': UreyAngleTerm,
             'dihedral': DihedralTerms,
     }
 
-    def __init__(self, topo, ignore=['dihedral/flexible', 'dihedral/constr', 'uray'],
-                 not_fit_terms=[]): #'dihedral/flexible', 'dihedral/constr'
+    def __init__(self, topo, ignore=['dihedral/flexible', 'dihedral/constr'],
+                 not_fit_terms=[]):
         _terms = {name: factory.get_terms(topo)
                   for name, factory in self._term_factories.items()}
         # enable iteration

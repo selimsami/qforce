@@ -68,9 +68,9 @@ class AngleTerm(TermBase):
         return angle_terms
 
 
-class UrayAngleTerm(TermBase):
+class UreyAngleTerm(TermBase):
 
-    name = 'UrayAngleTerm'
+    name = 'UreyAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         calc_bonds(crd, self.atomids, self.equ, fconst, force)

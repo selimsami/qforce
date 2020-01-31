@@ -322,12 +322,17 @@ def make_ff_params_from_fit(FF, fit, inp, qm, polar=False):
         ff.angles.append(atoms + [1, minimum, param])
 
     if inp.urey:
+        corresp_angles = np.array([angle[0:3:2] for angle in ff.angles])
         for term in FF.terms['urey']:
             param = fit[term.idx] * 100
             eq = np.where(np.array(list(oterm.idx for oterm in FF.terms['urey'])) == term.idx)
             minimum = np.array(list(oterm.equ for oterm in FF.terms['urey']))[eq].mean() * 0.1
-            ff.angles[i][3] = 5
-            ff.angles[i].extend([minimum, param])
+
+            match = np.all(corresp_angles == term.atomids+1, axis=1)
+            match = np.nonzero(match)[0][0]
+
+            ff.angles[match][3] = 5
+            ff.angles[match].extend([minimum, param])
 
     for term in FF.terms['dihedral/rigid']:
         atoms = [a+1 for a in term.atomids]
