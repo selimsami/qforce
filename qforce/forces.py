@@ -96,7 +96,6 @@ def calc_cross_bond_angle(coords, atoms, r0s, fconst, force):
     force[atoms[1]] -= f1 + f3
 
 
-
 def calc_imp_diheds(coords, atoms, phi0, fconst, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     dphi = phi - phi0
@@ -107,7 +106,7 @@ def calc_imp_diheds(coords, atoms, phi0, fconst, force):
 
 
 # @jit(nopython=True)
-def calc_rb_diheds(coords, atoms, params, force):
+def calc_rb_diheds(coords, atoms, params, fconst, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     phi += np.pi
     cos_phi = np.cos(phi)
@@ -126,7 +125,7 @@ def calc_rb_diheds(coords, atoms, params, force):
     ddphi *= - sin_phi
 
     force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1,
-                           cross2, ddphi, -1)
+                           cross2, ddphi)
     return force
 
 

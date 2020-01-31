@@ -8,9 +8,8 @@ from .read_forcefield import Forcefield
 from .write_forcefield import write_ff
 from .dihedral_scan import scan_dihedral
 from .dftd4 import get_nonbonded
-from .molecule import Molecule
+from .molecule import Molecule, Terms
 from .fragment import fragment
-
 # , calc_g96angles
 from .elements import elements
 # from .decorators import timeit, print_timelog
@@ -35,18 +34,18 @@ def fit_forcefield(inp, qm=None, mol=None):
     - Charges from IR intensities - together with interacting polarizable FF?
     """
 
-    qm = QM("freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)
+    qm = QM("freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)  # , nonbonded='
 
     mol = Molecule(qm.coords, qm.atomids, inp, qm=qm)
 
-    get_nonbonded(inp, mol.topo, qm)
+    get_nonbonded(inp, mol.topo, qm)  # move it before mol
 
-    fit_results, md_hessian = fit_hessian(inp, mol, qm)
+    fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
 
     # Fit - add dihedrals - fit again >> Is it enough? More iteration?
-#    if not inp.nofrag:
-#        fragment(inp, mol, qm)
-#        fit_hessian(inp, mol, qm)
+    if not inp.nofrag:
+        fragment(inp, mol, qm)
+        fit_hessian(inp, mol, qm, ignore_flex=False)
 
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
 
@@ -62,13 +61,13 @@ def calc_qm_vs_md_frequencies(inp, qm, md_hessian):
     write_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp)
 
 
-def fit_hessian(inp, mol, qm):
+def fit_hessian(inp, mol, qm, ignore_flex=True):
     hessian, full_md_hessian_1d = [], []
     non_fit = []
     qm_hessian = np.copy(qm.hessian)
 
     print("Calculating the MD hessian matrix elements...")
-    full_md_hessian = calc_hessian(qm.coords, mol, inp)
+    full_md_hessian = calc_hessian(qm.coords, mol, inp, ignore_flex)
 
     count = 0
     print("Fitting the MD hessian parameters to QM hessian values")
@@ -107,7 +106,7 @@ def fit_dihedrals(inp, mol, qm):
 #            scan_dihedral(inp, mol, atoms, frag_name)
 
 
-def calc_hessian(coords, mol, inp):
+def calc_hessian(coords, mol, inp, ignore_flex):
     """
     Scope:
     -----
@@ -119,9 +118,9 @@ def calc_hessian(coords, mol, inp):
     for a in range(mol.topo.n_atoms):
         for xyz in range(3):
             coords[a][xyz] += 0.003
-            f_plus = calc_forces(coords, mol, inp)
+            f_plus = calc_forces(coords, mol, inp, ignore_flex)
             coords[a][xyz] -= 0.006
-            f_minus = calc_forces(coords, mol, inp)
+            f_minus = calc_forces(coords, mol, inp, ignore_flex)
             coords[a][xyz] += 0.003
             diff = - (f_plus - f_minus) / 0.006
             full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1,
@@ -129,24 +128,26 @@ def calc_hessian(coords, mol, inp):
     return full_hessian
 
 
-def calc_forces(coords, mol, inp):
+def calc_forces(coords, mol, inp, ignore_flex):
     """
     Scope:
     ------
     For each displacement, calculate the forces from all terms.
 
     """
+    if ignore_flex:
+        ignores = ['dihedral/flexible', 'dihedral/constr']
+    else:
+        ignores = []
+
     force = np.zeros((mol.terms.n_fitted_terms+1, mol.topo.n_atoms, 3))
 
-    for term in mol.terms:
-        term.do_fitting(coords, force)
+    with mol.terms.add_ignore(ignores):
+        for term in mol.terms:
+            term.do_fitting(coords, force)
 
 #    for i, j, c6, c12, qq in mol.pair_list:
 #        force = calc_pairs(coords, i, j, c6, c12, qq, force)
-
-#    if not inp.nofrag:
-#        for atoms, params in zip(mol.dih.flex.atoms, mol.dih.flex.minima):
-#            force = calc_rb_diheds(coords, atoms, params, force)
 
     return force
 
@@ -350,19 +351,17 @@ def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
         minimum = np.degrees(term.equ)
         ff.impropers.append(atoms + [2, minimum, param])
 
-#    if inp.nofrag:
-#        for i, term in enumerate(mol.dih.flex.term_ids):
-#            atoms = [a+1 for a in mol.dih.flex.atoms[i]]
-#            ff.flexible.append(atoms + [3] + [term])
-#    else:
-#        for i, (term, params) in enumerate(zip(mol.dih.flex.term_ids,
-#                                               mol.dih.flex.minima)):
-#            atoms = [a+1 for a in mol.dih.flex.atoms[i]]
-#            ff.flexible.append(atoms + [3] + list(params))
-#
-#    for i, term in enumerate(mol.dih.constr.term_ids):
-#        atoms = [a+1 for a in mol.dih.constr.atoms[i]]
-#        ff.constrained.append(atoms + [1, term+1])
+    for term in mol.terms['dihedral/flexible']:
+        atoms = [a+1 for a in term.atomids]
+
+        if inp.nofrag:
+            ff.flexible.append(atoms + [3, term.idx+1])
+        else:
+            ff.flexible.append(atoms + [3] + list(term.equ))
+
+    for term in mol.terms['dihedral/constr']:
+        atoms = [a+1 for a in term.atomids]
+        ff.constrained.append(atoms + [3, term.idx+1])
 
     write_ff(ff, inp, polar)
     print("Q-Force force field parameters (.itp, .top) can be found in the "

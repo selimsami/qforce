@@ -5,7 +5,7 @@ import numpy as np
 from .baseterms import TermABC, TermFactory
 #
 from ..forces import get_dihed
-from ..forces import calc_imp_diheds
+from ..forces import calc_imp_diheds, calc_rb_diheds
 from ..elements import ATOMMASS
 
 """
@@ -62,11 +62,11 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
     name = 'FlexibleDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        ...
+        calc_rb_diheds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_term(cls, topo, atoms_combin):
-        """@Selim: what is atom_combin?
+        """
 
         TODO: write atoms_comb as a function of atomids!
 
@@ -77,7 +77,7 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
             if mass > heaviest:
                 atoms = np.array((a1, a2, a3, a4))
                 heaviest = mass
-        return cls(atoms, 0, topo.edge(a2, a3)['vers'])
+        return cls(atoms, None, topo.edge(a2, a3)['vers'])
 
 
 class ConstrDihedralTerm(DihedralBaseTerm):

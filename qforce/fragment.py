@@ -12,27 +12,31 @@ from .forces import calc_pair_energies
 
 
 def fragment(inp, mol, qm):
-    params = []
-    n_missing, n_have, t = 0, 0, 0
+    unique_terms = []
+    params = {}
+    n_missing, n_have = 0, 0
     missing_path, have_path = reset_data_files(inp)
 
-    for atoms, term in zip(mol.dih.flex.atoms, mol.dih.flex.term_ids):
-        if term != t:
+    for term in mol.terms['dihedral/flexible']:
+        if str(term) in unique_terms:
             continue
-        frag_name, have_data, G, pairs = check_one_fragment(inp, mol, atoms)
+        else:
+            unique_terms.append(str(term))
+
+        frag_name, have_data, G, pairs = check_one_fragment(inp, mol.topo,
+                                                            term.atomids)
         if have_data:
             n_have = write_data(have_path, frag_name, inp, n_have)
             param = calc_dihedral_function(inp, frag_name, pairs)
-            params.append(param)
+            params[str(term)] = param
         else:
             n_missing = write_data(missing_path, frag_name, inp, n_missing)
             make_qm_input(inp, G, frag_name)
-        t += 1
 
     check_and_notify(inp, n_missing, n_have)
 
-    for i, term_id in enumerate(mol.dih.flex.term_ids):
-        mol.dih.flex.minima[i] = params[term_id]
+    for term in mol.terms['dihedral/flexible']:
+        term.equ = params[str(term)]
 
 
 def check_and_notify(inp, n_missing, n_have):
@@ -69,7 +73,7 @@ def calc_dihedral_function(inp, frag_name, pairs):
     popt, _ = curve_fit(calc_rb, angles_radians, energy_diff,
                         absolute_sigma=False, sigma=weights)
     r_squared = calc_r_squared(calc_rb, angles_radians, energy_diff, popt)
-    print(r_squared)
+
     # Plot with r_squared
     return popt
 
@@ -89,11 +93,11 @@ def calc_rb(angle, c0, c1, c2, c3, c4, c5):
     return rb
 
 
-def check_one_fragment(inp, mol, atoms):
+def check_one_fragment(inp, topo, atoms):
     e = elements()
-    fragment, capping_h = identify_fragment(atoms, mol, e)
-    G, pairs = make_frag_graph(fragment, capping_h, mol, atoms)
-    frag_id, G = make_frag_identifier(G, mol, inp, e, atoms)
+    fragment, capping_h = identify_fragment(atoms, topo, e)
+    G, pairs = make_frag_graph(fragment, capping_h, topo, atoms)
+    frag_id, G = make_frag_identifier(G, topo, inp, e, atoms)
     have_data, id_no = check_frag_in_database(G, inp.frag_lib, frag_id)
     frag_name = f'{frag_id}~{id_no}'
 
@@ -143,34 +147,34 @@ def write_data(data, frag_name, inp, n):
     return n
 
 
-def identify_fragment(atoms, mol, e):
+def identify_fragment(atoms, topo, e):
     capping_h = []
     n_neigh = 0
     fragment = list(atoms[1:3])
     next_neigh = [[a, n] for a in fragment for n
-                  in mol.neighbors[0][a] if n not in fragment]
+                  in topo.neighbors[0][a] if n not in fragment]
     while next_neigh != []:
         new = []
         for a, n in next_neigh:
             if n in fragment:
                 pass
-            elif (n_neigh < 2 or not mol.edge(a, n)['breakable']
-                  or not mol.node(n)['breakable']):
+            elif (n_neigh < 2 or not topo.edge(a, n)['breakable']
+                  or not topo.node(n)['breakable']):
                 new.append(n)
                 fragment.append(n)
             else:
-                bl = mol.edge(a, n)['length']
-                new_bl = e.cov[mol.atomids[a]] + e.cov[1]
-                vec = mol.node(a)['coords'] - mol.node(n)['coords']
-                capping_h.append((a, mol.coords[a] - vec/bl*new_bl))
-        next_neigh = [[a, n] for a in new for n in mol.neighbors[0][a]
+                bl = topo.edge(a, n)['length']
+                new_bl = e.cov[topo.atomids[a]] + e.cov[1]
+                vec = topo.node(a)['coords'] - topo.node(n)['coords']
+                capping_h.append((a, topo.coords[a] - vec/bl*new_bl))
+        next_neigh = [[a, n] for a in new for n in topo.neighbors[0][a]
                       if n not in fragment]
         n_neigh += 1
     return fragment, capping_h
 
 
-def make_frag_graph(fragment, capping_h, mol, atoms):
-    G = mol.graph.subgraph(fragment)
+def make_frag_graph(fragment, capping_h, topo, atoms):
+    G = topo.graph.subgraph(fragment)
     G.graph['n_atoms'] = len(fragment)
     mapping = {fragment[i]: i for i in range(G.graph['n_atoms'])}
     G = nx.relabel_nodes(G, mapping)
@@ -179,7 +183,7 @@ def make_frag_graph(fragment, capping_h, mol, atoms):
     G.edges[scanned[1:3]]['scan'] = True
 
     pairs = [[mapping[a[0]], mapping[a[1]], a[2], a[3], a[4]] for a in
-             mol.pair_list if set(a[0:2]) <= set(mapping.keys())]
+             topo.pair_list if set(a[0:2]) <= set(mapping.keys())]
 
     for _, _, d in G.edges(data=True):
         for att in ['vector', 'length', 'order', 'breakable', 'vers',
@@ -192,14 +196,14 @@ def make_frag_graph(fragment, capping_h, mol, atoms):
         G.add_node(G.graph['n_atoms']+i, elem=1, n_bonds=1, lone_e=0,
                    coords=h[1], c6=101, c12=31405)
         G.add_edge(G.graph['n_atoms']+i, mapping[h[0]],
-                   type=f'1(1.0){mol.atomids[h[0]]}')
+                   type=f'1(1.0){topo.atomids[h[0]]}')
     G.graph['n_atoms'] += len(capping_h)
     return G, pairs
 
 
-def make_frag_identifier(G, mol, inp, e, atoms):
+def make_frag_identifier(G, topo, inp, e, atoms):
     atom_ids = [[], []]
-    comp_dict = {i: 0 for i in mol.atomids}
+    comp_dict = {i: 0 for i in topo.atomids}
     mult = 1
     composition = ""
     for a in range(2):
@@ -214,9 +218,9 @@ def make_frag_identifier(G, mol, inp, e, atoms):
     frag_hash = hashlib.md5(frag_hash.encode()).hexdigest()
 
     charge = int(round(sum(nx.get_node_attributes(G, 'q').values())))
-    s1, s2 = sorted([e.sym[mol.atomids[elem]] for elem in atoms[1:3]])
+    s1, s2 = sorted([e.sym[topo.atomids[elem]] for elem in atoms[1:3]])
     G.graph['charge'] = charge
-    if (sum(mol.atomids) + charge) % 2 == 1:
+    if (sum(topo.atomids) + charge) % 2 == 1:
         mult = 2
     G.graph['mult'] = mult
     for elem in nx.get_node_attributes(G, 'elem').values():

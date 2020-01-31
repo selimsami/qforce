@@ -64,7 +64,7 @@ class AngleTerm(TermBase):
             b23 = topo.edge(a2, a3)['vers']
             a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
                              f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-            a_type = f"ANGLE-{a_type[0]}_{a_type[1]}"
+            a_type = f"{a_type[0]}_{a_type[1]}"
             angle_terms.append(cls([a1, a2, a3], theta, a_type))
 
         return angle_terms
@@ -98,7 +98,7 @@ class UreyAngleTerm(TermBase):
             b23 = topo.edge(a2, a3)['vers']
             a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
                              f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-            a_type = f"UREY-{a_type[0]}_{a_type[1]}"
+            a_type = f"{a_type[0]}_{a_type[1]}"
             #
             urey_terms.append(cls([a1, a3], dist, a_type))
 
@@ -137,7 +137,7 @@ class CrossBondAngleTerm(TermBase):
             b23 = topo.edge(a2, a3)['vers']
             a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
                              f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-            a_type = f"CROSSBA-{a_type[0]}_{a_type[1]}"
+            a_type = f"{a_type[0]}_{a_type[1]}"
             cross_bond_angle_terms.append(cls([a1, a2, a3], dists, a_type))
 
         return cross_bond_angle_terms
