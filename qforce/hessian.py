@@ -41,12 +41,12 @@ def fit_forcefield(inp, qm=None, mol=None):
 
     get_nonbonded(inp, mol, qm)
 
-    fit_results, md_hessian = fit_hessian(inp, mol, qm)
+#   fit_results, md_hessian = fit_hessian(inp, mol, qm)
 
     # Fit - add dihedrals - fit again >> Is it enough? More iteration?
     if not inp.nofrag:
         fragment(inp, mol, qm)
-#        fit_hessian(inp, mol, qm)
+        fit_results, md_hessian = fit_hessian(inp, mol, qm)
 
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
 
@@ -158,9 +158,9 @@ def calc_forces(coords, mol, inp):
 #    for i, j, c6, c12, qq in mol.pair_list:
 #        force = calc_pairs(coords, i, j, c6, c12, qq, force)
 
-#    if not inp.nofrag:
-#        for atoms, params in zip(mol.dih.flex.atoms, mol.dih.flex.minima):
-#            force = calc_rb_diheds(coords, atoms, params, force)
+    if not inp.nofrag:
+        for atoms, params in zip(mol.dih.flex.atoms, mol.dih.flex.minima):
+            force = calc_rb_diheds(coords, atoms, params, force)
 
     force = np.swapaxes(force, 1, 2)
 

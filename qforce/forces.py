@@ -127,7 +127,7 @@ def calc_rb_diheds(coords, atoms, params, force):
 #        energy += c * cos_factor
 
     ddphi *= - sin_phi
-
+    print(ddphi)
     force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1,
                            cross2, ddphi, -1)
     return force
