@@ -1,5 +1,6 @@
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import BondTerm, AngleTerm, UreyAngleTerm
+from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm,
+                                 CrossBondAngleTerm)
 #
 from .base import MappingIterator
 from .baseterms import TermFactory
@@ -11,6 +12,7 @@ class Terms(MappingIterator):
             'bond': BondTerm,
             'angle': AngleTerm,
             'urey': UreyAngleTerm,
+            'cross_bond_angle': CrossBondAngleTerm,
             'dihedral': DihedralTerms,
     }
 

@@ -1,7 +1,9 @@
+import numpy as np
+#
 from .baseterms import TermBase
 #
 from ..forces import get_dist, get_angle
-from ..forces import calc_bonds, calc_angles
+from ..forces import calc_bonds, calc_angles, calc_cross_bond_angle
 
 
 class BondTerm(TermBase):
@@ -62,7 +64,7 @@ class AngleTerm(TermBase):
             b23 = topo.edge(a2, a3)['vers']
             a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
                              f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-            a_type = f"{a_type[0]}_{a_type[1]}"
+            a_type = f"ANGLE-{a_type[0]}_{a_type[1]}"
             angle_terms.append(cls([a1, a2, a3], theta, a_type))
 
         return angle_terms
@@ -96,8 +98,46 @@ class UreyAngleTerm(TermBase):
             b23 = topo.edge(a2, a3)['vers']
             a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
                              f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-            a_type = f"{a_type[0]}_{a_type[1]}"
+            a_type = f"UREY-{a_type[0]}_{a_type[1]}"
             #
             urey_terms.append(cls([a1, a3], dist, a_type))
 
         return urey_terms
+
+
+class CrossBondAngleTerm(TermBase):
+
+    name = 'CrossBondAngleTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
+
+    @classmethod
+    def get_terms(cls, topo):
+        """
+
+            Args:
+                topo: Topology object, const
+                    Stores all topology information
+
+            Return:
+                list of cls objects
+
+        """
+
+        cross_bond_angle_terms = cls.get_terms_container()
+
+        for a1, a2, a3 in topo.angles:
+            dist12 = get_dist(topo.coords[a1], topo.coords[a2])[1]
+            dist32 = get_dist(topo.coords[a3], topo.coords[a2])[1]
+            dist13 = get_dist(topo.coords[a1], topo.coords[a3])[1]
+            dists = np.array([dist12, dist32, dist13])
+
+            b21 = topo.edge(a2, a1)['vers']
+            b23 = topo.edge(a2, a3)['vers']
+            a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
+                             f"{topo.types[a2]}({b23}){topo.types[a3]}"])
+            a_type = f"CROSSBA-{a_type[0]}_{a_type[1]}"
+            cross_bond_angle_terms.append(cls([a1, a2, a3], dists, a_type))
+
+        return cross_bond_angle_terms
