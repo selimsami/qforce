@@ -28,4 +28,4 @@ class Molecule(object):
 
     def __init__(self, coords, atomids, inp, qm=None):
         self.topo = Topology(atomids, coords, qm, inp.n_equiv)
-        self.terms = Terms(self.topo)
+        self.terms = Terms(self.topo, ignore=inp.ignored_terms)

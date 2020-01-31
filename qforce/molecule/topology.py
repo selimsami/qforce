@@ -2,7 +2,6 @@ import networkx as nx
 import numpy as np
 #
 from ..elements import ATOM_SYM, ELE_ENEG, ELE_MAXB
-from ..read_qm_out import QM
 
 
 class Topology(object):
