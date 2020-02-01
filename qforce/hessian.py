@@ -37,6 +37,9 @@ def fit_forcefield(inp, qm=None, mol=None):
 
     mol = Molecule(inp, qm)
 
+    for term in mol.terms:
+        print(term, term.idx)
+
     fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
 
     # Fit - add dihedrals - fit again >> Is it enough? More iteration?

@@ -170,7 +170,8 @@ class Initialize():
                         self.point_charges = value
                     elif prop == "lennard_jones":
                         self.lennard_jones = value
-
+                    elif prop == "nb_off" and value == 'yes':
+                        self.ignored_terms.append('non_bonded')
                 elif ("[" in low_line and "]" in low_line and
                       "job_script" in low_line):
                     in_job_script = True

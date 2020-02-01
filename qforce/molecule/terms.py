@@ -20,8 +20,9 @@ class Terms(MappingIterator):
             'non_bonded': NonBondedTerms,
     }
 
-    def __init__(self, topo, ignore=[],
-                 not_fit_terms=['dihedral/flexible', 'dihedral/constr', 'non_bonded']):
+    def __init__(self, topo, ignore=[]):
+        not_fit_terms=[term for term in ['dihedral/flexible', 'dihedral/constr', 'non_bonded']
+                       if term not in ignore]
         _terms = {name: factory.get_terms(topo)
                   for name, factory in self._term_factories.items() if name not in ignore}
         # enable iteration
