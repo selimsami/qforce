@@ -47,6 +47,7 @@ class Initialize():
         self.nrexcl = 3
         self.param = []
         self.nofrag = args.nofrag
+        self.nb_off = False
         self.external_nonbonded = False
         #############################
 
@@ -165,6 +166,8 @@ class Initialize():
                     elif prop == "external_nb":
                         if value == "yes":
                             self.external_nonbonded = True
+                    elif prop == "nb_off" and value == 'yes':
+                        self.nb_off = True
                 elif ("[" in low_line and "]" in low_line and
                       "job_script" in low_line):
                     in_job_script = True
