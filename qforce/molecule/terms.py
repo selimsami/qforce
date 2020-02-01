@@ -23,7 +23,7 @@ class Terms(MappingIterator):
     def __init__(self, topo, ignore=[],
                  not_fit_terms=['dihedral/flexible', 'dihedral/constr', 'non_bonded']):
         _terms = {name: factory.get_terms(topo)
-                  for name, factory in self._term_factories.items()}
+                  for name, factory in self._term_factories.items() if name not in ignore}
         # enable iteration
         MappingIterator.__init__(self, _terms, ignore)
         self.n_fitted_terms = self._set_fitting_term_idx(not_fit_terms)

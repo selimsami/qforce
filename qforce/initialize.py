@@ -44,7 +44,7 @@ class Initialize():
         self.qm_freq_out = ""
         self.urey = False
         self.cross = False
-        self.ignored_terms = ['urey', 'cross']
+        self.ignored_terms = ['urey', 'cross_bond_angle']
         self.n_excl = 3
         self.param = []  # temporary
         self.nofrag = args.nofrag
@@ -158,7 +158,7 @@ class Initialize():
                         self.ignored_terms.remove('urey')
                     elif prop == "cross" and value == "yes":
                         self.cross = True
-                        self.ignored_terms.remove('cross')
+                        self.ignored_terms.remove('cross_bond_angle')
                     elif prop == "vibrational_coef":
                         self.vibr_coef = float(value)
                     elif prop == "n_excl" and value in ["2", "3"]:
