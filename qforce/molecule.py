@@ -233,24 +233,25 @@ class Molecule():
             self.bonds.add_term([a1, a2], dist, bond['vers'])
 
         for a1, a2, a3 in angles:
-            vec12, dist12 = get_dist(self.coords[a1], self.coords[a2])
-            vec32, dist32 = get_dist(self.coords[a3], self.coords[a2])
-            theta = get_angle(vec12, vec32)
+            if not self.edge(a2, a1)['in_ring3'] or not self.edge(a2, a3)['in_ring3']:
+                vec12, dist12 = get_dist(self.coords[a1], self.coords[a2])
+                vec32, dist32 = get_dist(self.coords[a3], self.coords[a2])
+                theta = get_angle(vec12, vec32)
 
-            b21 = self.edge(a2, a1)['vers']
-            b23 = self.edge(a2, a3)['vers']
-            a_type = sorted([f"{self.types[a2]}({b21}){self.types[a1]}",
-                             f"{self.types[a2]}({b23}){self.types[a3]}"])
-            a_type = f"{a_type[0]}_{a_type[1]}"
-            self.angles.add_term([a1, a2, a3], theta, a_type)
+                b21 = self.edge(a2, a1)['vers']
+                b23 = self.edge(a2, a3)['vers']
+                a_type = sorted([f"{self.types[a2]}({b21}){self.types[a1]}",
+                                 f"{self.types[a2]}({b23}){self.types[a3]}"])
+                a_type = f"{a_type[0]}_{a_type[1]}"
+                self.angles.add_term([a1, a2, a3], theta, a_type)
 
-            dist13 = get_dist(self.coords[a1], self.coords[a3])[1]
+                dist13 = get_dist(self.coords[a1], self.coords[a3])[1]
 
-            if inp.urey:
-                self.angles.urey.add_term([a1, a3], dist13, a_type)
-            if inp.cross:
-                self.angles.cross.add_term([a1, a2, a3], np.array([dist12,
-                                           dist32, dist13]), a_type)
+                if inp.urey:
+                    self.angles.urey.add_term([a1, a3], dist13, a_type)
+                if inp.cross:
+                    self.angles.cross.add_term([a1, a2, a3], np.array([dist12,
+                                               dist32, dist13]), a_type)
 
         # dihedrals
         for a2, a3 in bonds:

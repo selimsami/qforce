@@ -88,6 +88,7 @@ def fit_hessian(inp, mol, qm):
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
     fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
+
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
     return fit, full_md_hessian_1d
@@ -155,7 +156,7 @@ def calc_forces(coords, mol, inp):
                                mol.dih.rigid.term_ids + mol.dih.imp.term_ids):
         force = calc_imp_diheds(coords, np.array(atoms), p0, term, force)
 
-    if not inp.nb_off: 
+    if not inp.nb_off:
         for i, j, c6, c12, qq in mol.pair_list:
             force = calc_pairs(coords, i, j, c6, c12, qq, force)
 
