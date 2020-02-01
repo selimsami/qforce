@@ -166,8 +166,9 @@ def calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi):
 
 
 @jit(nopython=True)
-def calc_pairs(coords, i, j, c6, c12, qq, force):
-    vec, r = get_dist(coords[i], coords[j])
+def calc_pairs(coords, atoms, params, force):
+    c6, c12, qq = params
+    vec, r = get_dist(coords[atoms[0]], coords[atoms[1]])
     qq_r = qq/r
     r_2 = 1/r**2
     r_6 = r_2**3
@@ -177,8 +178,8 @@ def calc_pairs(coords, i, j, c6, c12, qq, force):
     f = (qq_r + 12*c12_r12 - 6*c6_r6) * r_2
     # tiny numerical disagreement with gromacs for lj forces?? double check!
     fk = f * vec
-    force[i] -= fk
-    force[j] += fk
+    force[atoms[0]] -= fk
+    force[atoms[1]] += fk
     return force
 
 

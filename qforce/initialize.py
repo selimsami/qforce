@@ -45,7 +45,7 @@ class Initialize():
         self.urey = False
         self.cross = False
         self.ignored_terms = ['urey', 'cross']
-        self.nrexcl = 3
+        self.n_excl = 3
         self.param = []  # temporary
         self.nofrag = args.nofrag
         self.point_charges = 'd4'
@@ -161,8 +161,8 @@ class Initialize():
                         self.ignored_terms.remove('cross')
                     elif prop == "vibrational_coef":
                         self.vibr_coef = float(value)
-                    elif prop == "nrexcl" and value in ["2", "3"]:
-                        self.nrexcl = int(value)
+                    elif prop == "n_excl" and value in ["2", "3"]:
+                        self.n_excl = int(value)
                     # related to fragment
                     elif prop == "frag_dir":
                         self.frag_lib = value

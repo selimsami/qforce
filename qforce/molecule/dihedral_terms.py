@@ -8,11 +8,6 @@ from ..forces import get_dihed
 from ..forces import calc_imp_diheds, calc_rb_diheds
 from ..elements import ATOMMASS
 
-"""
-*TODO*: FLEXIBLE DIHEDRALS ARE WRONG
-
-"""
-
 
 class DihedralBaseTerm(TermABC):
 

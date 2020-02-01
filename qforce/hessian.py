@@ -35,7 +35,7 @@ def fit_forcefield(inp, qm=None, mol=None):
 
     qm = QM(inp, "freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)
 
-    mol = Molecule(qm.coords, qm.atomids, inp, qm=qm)
+    mol = Molecule(inp, qm)
 
     fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
 
@@ -120,8 +120,7 @@ def calc_hessian(coords, mol, inp, ignore_flex):
             f_minus = calc_forces(coords, mol, inp, ignore_flex)
             coords[a][xyz] += 0.003
             diff = - (f_plus - f_minus) / 0.006
-            full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1,
-                                                 3*mol.topo.n_atoms).T
+            full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1, 3*mol.topo.n_atoms).T
     return full_hessian
 
 
@@ -210,8 +209,7 @@ def write_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
         for i, (qm1, md1) in enumerate(zip(qm_vec, md_vec)):
             f.write(f"\nMode {i+7}\n")
             for qm2, md2 in zip(qm1, md1):
-                f.write("{:>8.3f}{:>8.3f}{:>8.3f}{:>10.3f}{:>8.3f}{:>8.3f}\n"
-                        .format(*qm2, *md2))
+                f.write("{:>8.3f}{:>8.3f}{:>8.3f}{:>10.3f}{:>8.3f}{:>8.3f}\n".format(*qm2, *md2))
     with open(nmd_file, "w") as nmd:
         nmd.write(f"nmwiz_load {inp.job_name}_qforce.nmd\n")
         nmd.write(f"title {inp.job_name}\n")
@@ -263,12 +261,12 @@ def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
             atom_dict[sym] += 1
         atoms.append(f'{sym}{atom_dict[sym]}')
 
-    for i, (sigma, epsilon) in enumerate(zip(qm.sigma, qm.epsilon)):
+    for i, (sigma, epsilon) in enumerate(zip(mol.topo.sigma, mol.topo.epsilon)):
         unique = mol.topo.types[mol.topo.list[i][0]]
         ff.atom_types.append([unique, 0, 0, "A", sigma*0.1, epsilon])
 
     for n, at, a_uniq, a, m in zip(atom_no, mol.topo.types, mol.topo.atoms, atoms, mass):
-        ff.atoms.append([n, at, 1, "MOL", a, n, qm.q[a_uniq], m])
+        ff.atoms.append([n, at, 1, "MOL", a, n, mol.topo.q[a_uniq], m])
 
     if polar:
         alphas = qm.alpha*bohr2nm**3
@@ -302,8 +300,8 @@ def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
                 for neigh in [mol.topo.neighbors[n][i] for n in range(inp.nrexcl)]:
                     for j in neigh:
                         if i < j and alphas[j] > 0:
-                            ff.thole.append([i+1, drude[i], j+1, drude[j], "2",
-                                             2.6, alpha, alphas[j]])
+                            ff.thole.append([i+1, drude[i], j+1, drude[j], "2", 2.6, alpha,
+                                             alphas[j]])
 
     for term in mol.terms['bond']:
         atoms = [a+1 for a in term.atomids]

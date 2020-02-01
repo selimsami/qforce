@@ -21,7 +21,7 @@ class Terms(MappingIterator):
     }
 
     def __init__(self, topo, ignore=[],
-                 not_fit_terms=['dihedral/flexible', 'dihedral/constr']):
+                 not_fit_terms=['dihedral/flexible', 'dihedral/constr', 'non_bonded']):
         _terms = {name: factory.get_terms(topo)
                   for name, factory in self._term_factories.items()}
         # enable iteration

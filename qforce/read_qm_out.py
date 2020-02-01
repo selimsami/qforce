@@ -12,6 +12,7 @@ class QM():
     In case of Gaussian output - look for different things for different
     job types
     """
+
     def __init__(self, inp, job_type, fchk_file=False, out_file=False):
         # if qm_software == "Gaussian": (in the future)
         self.read_gaussian(fchk_file, out_file, job_type)
@@ -28,6 +29,7 @@ class QM():
             self.read_gaussian_out(out_file, job_type)
 
         if fchk_file:
+            self.q = []
             self.coords = []
             self.atomids = []
             self.hessian = []
@@ -40,7 +42,6 @@ class QM():
     def get_nonbonded(self, inp):
         if 'd4' in [inp.point_charges, inp.lennard_jones]:
             run_dftd4(inp, self)
-
         if inp.point_charges == 'ext':
             self.q = np.loadtxt(f'{inp.job_dir}/ext_q')
         elif inp.point_charges == 'cm5':
@@ -48,6 +49,9 @@ class QM():
 
         if inp.lennard_jones == 'ext':
             self.read_external_lennard_jones(inp)
+        else:
+            print('WARNING: You are using Q-Force Lennard-Jones parameters. This is not finished.',
+                  '\nYou are advised to provide external LJ parameters for production runs.\n')
 
     def read_external_lennard_jones(self, inp):
         unit_type = 'c6/c12'
@@ -244,4 +248,3 @@ class QM():
             self.coords = np.array(self.coords)[order]
             self.energies = np.array(self.energies)[order] * hartree2kjmol
             self.energies -= self.energies.min()
-
