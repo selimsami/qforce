@@ -56,16 +56,18 @@ class AngleTerm(TermBase):
         angle_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
-            vec12, _ = get_dist(topo.coords[a1], topo.coords[a2])
-            vec32, _ = get_dist(topo.coords[a3], topo.coords[a2])
-            theta = get_angle(vec12, vec32)
 
-            b21 = topo.edge(a2, a1)['vers']
-            b23 = topo.edge(a2, a3)['vers']
-            a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
-                             f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-            a_type = f"{a_type[0]}_{a_type[1]}"
-            angle_terms.append(cls([a1, a2, a3], theta, a_type))
+            if not topo.edge(a2, a1)['in_ring3'] or not topo.edge(a2, a3)['in_ring3']:
+                vec12, _ = get_dist(topo.coords[a1], topo.coords[a2])
+                vec32, _ = get_dist(topo.coords[a3], topo.coords[a2])
+                theta = get_angle(vec12, vec32)
+
+                b21 = topo.edge(a2, a1)['vers']
+                b23 = topo.edge(a2, a3)['vers']
+                a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
+                                 f"{topo.types[a2]}({b23}){topo.types[a3]}"])
+                a_type = f"{a_type[0]}_{a_type[1]}"
+                angle_terms.append(cls([a1, a2, a3], theta, a_type))
 
         return angle_terms
 
@@ -93,14 +95,16 @@ class UreyAngleTerm(TermBase):
 
         for a1, a2, a3 in topo.angles:
             dist = get_dist(topo.coords[a1], topo.coords[a3])[1]
-            #
-            b21 = topo.edge(a2, a1)['vers']
-            b23 = topo.edge(a2, a3)['vers']
-            a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
-                             f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-            a_type = f"{a_type[0]}_{a_type[1]}"
-            #
-            urey_terms.append(cls([a1, a3], dist, a_type))
+
+            if not topo.edge(a2, a1)['in_ring3'] or not topo.edge(a2, a3)['in_ring3']:
+
+                b21, b23 = topo.edge(a2, a1)['vers'], topo.edge(a2, a3)['vers']
+
+                a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
+                                 f"{topo.types[a2]}({b23}){topo.types[a3]}"])
+                a_type = f"{a_type[0]}_{a_type[1]}"
+
+                urey_terms.append(cls([a1, a3], dist, a_type))
 
         return urey_terms
 
@@ -128,16 +132,17 @@ class CrossBondAngleTerm(TermBase):
         cross_bond_angle_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
-            dist12 = get_dist(topo.coords[a1], topo.coords[a2])[1]
-            dist32 = get_dist(topo.coords[a3], topo.coords[a2])[1]
-            dist13 = get_dist(topo.coords[a1], topo.coords[a3])[1]
-            dists = np.array([dist12, dist32, dist13])
+            if not topo.edge(a2, a1)['in_ring3'] or not topo.edge(a2, a3)['in_ring3']:
+                dist12 = get_dist(topo.coords[a1], topo.coords[a2])[1]
+                dist32 = get_dist(topo.coords[a3], topo.coords[a2])[1]
+                dist13 = get_dist(topo.coords[a1], topo.coords[a3])[1]
+                dists = np.array([dist12, dist32, dist13])
 
-            b21 = topo.edge(a2, a1)['vers']
-            b23 = topo.edge(a2, a3)['vers']
-            a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
-                             f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-            a_type = f"{a_type[0]}_{a_type[1]}"
-            cross_bond_angle_terms.append(cls([a1, a2, a3], dists, a_type))
+                b21 = topo.edge(a2, a1)['vers']
+                b23 = topo.edge(a2, a3)['vers']
+                a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
+                                 f"{topo.types[a2]}({b23}){topo.types[a3]}"])
+                a_type = f"{a_type[0]}_{a_type[1]}"
+                cross_bond_angle_terms.append(cls([a1, a2, a3], dists, a_type))
 
         return cross_bond_angle_terms

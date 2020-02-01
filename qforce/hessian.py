@@ -37,9 +37,6 @@ def fit_forcefield(inp, qm=None, mol=None):
 
     mol = Molecule(inp, qm)
 
-    for term in mol.terms:
-        print(term, term.idx)
-
     fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
 
     # Fit - add dihedrals - fit again >> Is it enough? More iteration?
@@ -87,6 +84,7 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
     fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
+
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
     return fit, full_md_hessian_1d
