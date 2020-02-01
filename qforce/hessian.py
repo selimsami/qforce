@@ -155,8 +155,8 @@ def calc_forces(coords, mol, inp):
                                mol.dih.rigid.term_ids + mol.dih.imp.term_ids):
         force = calc_imp_diheds(coords, np.array(atoms), p0, term, force)
 
-    # for i, j, c6, c12, qq in mol.pair_list:
-    #     force = calc_pairs(coords, i, j, c6, c12, qq, force)
+    for i, j, c6, c12, qq in mol.pair_list:
+        force = calc_pairs(coords, i, j, c6, c12, qq, force)
 
     if not inp.nofrag:
         for atoms, params in zip(mol.dih.flex.atoms, mol.dih.flex.minima):
