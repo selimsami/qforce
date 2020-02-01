@@ -69,7 +69,6 @@ def calc_dihedral_function(inp, frag_name, pairs):
     popt, _ = curve_fit(calc_rb, angles_radians, energy_diff,
                         absolute_sigma=False, sigma=weights)
     r_squared = calc_r_squared(calc_rb, angles_radians, energy_diff, popt)
-    print(r_squared)
     # Plot with r_squared
     return popt
 

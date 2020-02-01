@@ -44,7 +44,7 @@ class Initialize():
         self.qm_freq_out = ""
         self.urey = False
         self.cross = False
-        self.nrexcl = 2
+        self.nrexcl = 3
         self.param = []
         self.nofrag = args.nofrag
         self.external_nonbonded = False
