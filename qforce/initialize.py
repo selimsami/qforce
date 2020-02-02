@@ -44,11 +44,12 @@ class Initialize():
         self.qm_freq_out = ""
         self.urey = False
         self.cross = False
-        self.nrexcl = 3
-        self.param = []
+        self.ignored_terms = ['urey', 'cross_bond_angle']
+        self.n_excl = 3
+        self.param = []  # temporary
         self.nofrag = args.nofrag
-        self.nb_off = False
-        self.external_nonbonded = False
+        self.point_charges = 'd4'
+        self.lennard_jones = 'd4'
         #############################
 
         if args.p:
@@ -154,20 +155,23 @@ class Initialize():
                     # related to hessianfitting
                     elif prop == "urey" and value == "yes":
                         self.urey = True
+                        self.ignored_terms.remove('urey')
                     elif prop == "cross" and value == "yes":
                         self.cross = True
+                        self.ignored_terms.remove('cross_bond_angle')
                     elif prop == "vibrational_coef":
                         self.vibr_coef = float(value)
-                    elif prop == "nrexcl" and value in ["2", "3"]:
-                        self.nrexcl = int(value)
+                    elif prop == "n_excl" and value in ["2", "3"]:
+                        self.n_excl = int(value)
                     # related to fragment
                     elif prop == "frag_dir":
                         self.frag_lib = value
-                    elif prop == "external_nb":
-                        if value == "yes":
-                            self.external_nonbonded = True
+                    elif prop == "point_charges":
+                        self.point_charges = value
+                    elif prop == "lennard_jones":
+                        self.lennard_jones = value
                     elif prop == "nb_off" and value == 'yes':
-                        self.nb_off = True
+                        self.ignored_terms.append('non_bonded')
                 elif ("[" in low_line and "]" in low_line and
                       "job_script" in low_line):
                     in_job_script = True

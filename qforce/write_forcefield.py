@@ -61,7 +61,7 @@ def write_itp(ff, inp, itp_file):
         space = " "*(len(ff.mol_type)-5)
         itp.write("\n[ moleculetype ]\n")
         itp.write(f";{space}name nrexcl\n")
-        itp.write(f"{ff.mol_type}{inp.nrexcl:>7}\n")
+        itp.write(f"{ff.mol_type}{inp.n_excl:>7}\n")
 
         # atoms
         itp.write("\n[ atoms ]\n")
