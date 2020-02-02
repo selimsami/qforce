@@ -178,7 +178,7 @@ def calc_vibrational_frequencies(upper, qm):
     for i in range(qm.n_atoms):
         vec[:, i, :] = vec[:, i, :] / np.sqrt(e.mass[qm.atomids[i]])
 
-    freq = np.sqrt(val[6:] * to_omega2) * to_waveno
+    freq = np.sqrt(val.clip(min=0)[6:] * to_omega2) * to_waveno
     return freq, vec
 
 
