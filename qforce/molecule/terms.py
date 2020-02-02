@@ -21,13 +21,14 @@ class Terms(MappingIterator):
     }
 
     def __init__(self, topo, ignore=[]):
-        not_fit_terms=[term for term in ['dihedral/flexible', 'dihedral/constr', 'non_bonded']
-                       if term not in ignore]
+        not_fit_terms = [term for term in ['dihedral/flexible', 'dihedral/constr', 'non_bonded']
+                         if term not in ignore]
         _terms = {name: factory.get_terms(topo)
                   for name, factory in self._term_factories.items() if name not in ignore}
         # enable iteration
         MappingIterator.__init__(self, _terms, ignore)
         self.n_fitted_terms = self._set_fitting_term_idx(not_fit_terms)
+        self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
 
     def _set_fitting_term_idx(self, not_fit_terms):
 

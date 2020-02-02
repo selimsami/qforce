@@ -8,7 +8,6 @@ import numpy as np
 from .elements import elements
 from .read_qm_out import QM
 from .make_qm_input import make_qm_input
-from .forces import calc_pair_energies
 
 
 def fragment(inp, mol, qm):
@@ -73,6 +72,8 @@ def calc_dihedral_function(inp, frag_name, pairs):
     popt, _ = curve_fit(calc_rb, angles_radians, energy_diff,
                         absolute_sigma=False, sigma=weights)
     r_squared = calc_r_squared(calc_rb, angles_radians, energy_diff, popt)
+
+    print(r_squared)
     # Plot with r_squared
     return popt
 

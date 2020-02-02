@@ -1,7 +1,6 @@
 import scipy.optimize as optimize
 # import scipy.linalg as la
 # import scipy.optimize.nnls as nnls
-from scipy.linalg import eigh
 import numpy as np
 from .read_qm_out import QM
 from .read_forcefield import Forcefield
@@ -11,6 +10,7 @@ from .molecule import Molecule
 from .fragment import fragment
 # , calc_g96angles
 from .elements import elements
+from .frequencies import calc_qm_vs_md_frequencies
 # from .decorators import timeit, print_timelog
 
 
@@ -45,17 +45,11 @@ def fit_forcefield(inp, qm=None, mol=None):
         fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=False)
 
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
-
+    average_unique_minima(mol.terms)
     make_ff_params_from_fit(mol, fit_results, inp, qm)
 
     # temporary
-#    fit_dihedrals(inp, mol, qm)
-
-
-def calc_qm_vs_md_frequencies(inp, qm, md_hessian):
-    qm_freq, qm_vec = calc_vibrational_frequencies(qm.hessian, qm)
-    md_freq, md_vec = calc_vibrational_frequencies(md_hessian, qm)
-    write_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp)
+    # fit_dihedrals(inp, mol, qm)
 
 
 def fit_hessian(inp, mol, qm, ignore_flex=True):
@@ -96,9 +90,9 @@ def fit_dihedrals(inp, mol, qm):
     """
 
     from .fragment import check_one_fragment
-    for atoms in mol.dih.flex.atoms:
-        frag_name, _, _, _ = check_one_fragment(inp, mol, atoms)
-        scan_dihedral(inp, mol, atoms, frag_name)
+    for term in mol.terms['dihedral/flexible']:
+        frag_name, _, _, _ = check_one_fragment(inp, mol.topo, term.atomids)
+        scan_dihedral(inp, term.atomids, frag_name)
 #        for atoms in mol.dih.flex.atoms:
 #            frag_name, _, _ = check_one_fragment(inp, mol, atoms)
 #            scan_dihedral(inp, mol, atoms, frag_name)
@@ -143,95 +137,21 @@ def calc_forces(coords, mol, inp, ignore_flex):
         for term in mol.terms:
             term.do_fitting(coords, force)
 
-#    for i, j, c6, c12, qq in mol.pair_list:
-#        force = calc_pairs(coords, i, j, c6, c12, qq, force)
-
     return force
 
 
-def calc_vibrational_frequencies(upper, qm):
-    """
-    Calculate the MD vibrational frequencies by diagonalizing its Hessian
-    """
-    const_amu = 1.6605389210e-27
-    const_avogadro = 6.0221412900e+23
-    const_speedoflight = 299792.458
-    kj2j = 1e3
-    ang2meter = 1e-10
-    to_omega2 = kj2j/ang2meter**2/(const_avogadro*const_amu)  # 1/s**2
-    to_waveno = 1e-5/(2.0*np.pi*const_speedoflight)  # cm-1
-
-    e = elements()
-    matrix = np.zeros((3*qm.n_atoms, 3*qm.n_atoms))
-    count = 0
-
-    for i in range(3*qm.n_atoms):
-        for j in range(i+1):
-            mass_i = e.mass[qm.atomids[int(np.floor(i/3))]]
-            mass_j = e.mass[qm.atomids[int(np.floor(j/3))]]
-            matrix[i, j] = upper[count]/np.sqrt(mass_i*mass_j)
-            matrix[j, i] = matrix[i, j]
-            count += 1
-    val, vec = eigh(matrix)
-    vec = np.reshape(np.transpose(vec), (3*qm.n_atoms, qm.n_atoms, 3))[6:]
-
-    for i in range(qm.n_atoms):
-        vec[:, i, :] = vec[:, i, :] / np.sqrt(e.mass[qm.atomids[i]])
-
-    freq = np.sqrt(val.clip(min=0)[6:] * to_omega2) * to_waveno
-    return freq, vec
-
-
-def write_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
-    """
-    Scope:
-    ------
-    Create the following files for comparing QM reference to the generated
-    MD frequencies/eigenvalues.
-
-    Output:
-    ------
-    JOBNAME_qforce.freq : QM vs MD vibrational frequencies and eigenvectors
-    JOBNAME_qforce.nmd : MD eigenvectors that can be played in VMD with:
-                                vmd -e filename
-    """
-    e = elements()
-    freq_file = f"{inp.job_dir}/{inp.job_name}_qforce.freq"
-    nmd_file = f"{inp.job_dir}/{inp.job_name}_qforce.nmd"
-
-    with open(freq_file, "w") as f:
-        f.write(" mode  QM-Freq   MD-Freq     Diff.  %Error\n")
-        for i, (q, m) in enumerate(zip(qm_freq, md_freq)):
-            diff = q - m
-            err = diff / q * 100
-            f.write(f"{i+7:>4}{q:>10.1f}{m:>10.1f}{diff:>10.1f}{err:>8.2f}\n")
-        f.write("\n\n         QM vectors              MD Vectors\n")
-        f.write(50*"=")
-        for i, (qm1, md1) in enumerate(zip(qm_vec, md_vec)):
-            f.write(f"\nMode {i+7}\n")
-            for qm2, md2 in zip(qm1, md1):
-                f.write("{:>8.3f}{:>8.3f}{:>8.3f}{:>10.3f}{:>8.3f}{:>8.3f}\n".format(*qm2, *md2))
-    with open(nmd_file, "w") as nmd:
-        nmd.write(f"nmwiz_load {inp.job_name}_qforce.nmd\n")
-        nmd.write(f"title {inp.job_name}\n")
-        nmd.write("names")
-        for ids in qm.atomids:
-            nmd.write(f" {e.sym[ids]}")
-        nmd.write("\nresnames")
-        for i in range(qm.n_atoms):
-            nmd.write(" RES")
-        nmd.write("\nresnums")
-        for i in range(qm.n_atoms):
-            nmd.write(" 1")
-        nmd.write("\ncoordinates")
-        for c in qm.coords:
-            nmd.write(f" {c[0]:.3f} {c[1]:.3f} {c[2]:.3f}")
-        for i, m in enumerate(md_vec):
-            nmd.write(f"\nmode {i+7}")
-            for c in m:
-                nmd.write(f" {c[0]:.3f} {c[1]:.3f} {c[2]:.3f}")
-    print(f"QM vs MD vibrational frequencies can be found in: {freq_file}")
-    print(f"Vibrational modes (can be run in VMD) is located in: {nmd_file}\n")
+def average_unique_minima(terms):
+    unique_terms = {}
+    averaged_terms = ['bond', 'angle', 'urey']
+    for name in [term_name for term_name in averaged_terms if term_name in terms.term_names]:
+        for term in terms[name]:
+            if str(term) in unique_terms.keys():
+                term.equ = unique_terms[str(term)]
+            else:
+                eq = np.where(np.array(list(oterm.idx for oterm in terms[name])) == term.idx)
+                minimum = np.array(list(oterm.equ for oterm in terms[name]))[eq].mean()
+                term.equ = minimum
+                unique_terms[str(term)] = minimum
 
 
 def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
@@ -306,46 +226,36 @@ def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
 
     for term in mol.terms['bond']:
         atoms = [a+1 for a in term.atomids]
-        param = fit[term.idx] * 100
-        eq = np.where(np.array(list(oterm.idx for oterm in mol.terms['bond'])) == term.idx)
-        minimum = np.array(list(oterm.equ for oterm in mol.terms['bond']))[eq].mean() * 0.1
-        ff.bonds.append(atoms + [1, minimum, param])
+        term.fconst = fit[term.idx]
+        ff.bonds.append(atoms + [1, term.equ*0.1, term.fconst*100])
 
     for term in mol.terms['angle']:
         atoms = [a+1 for a in term.atomids]
-        param = fit[term.idx]
-        eq = np.where(np.array(list(oterm.idx for oterm in mol.terms['angle'])) == term.idx)
-        minimum = np.degrees(np.array(list(oterm.equ for oterm in mol.terms['angle']))[eq].mean())
-        ff.angles.append(atoms + [1, minimum, param])
+        term.fconst = fit[term.idx]
+        ff.angles.append(atoms + [1, np.degrees(term.equ), term.fconst])
 
     if inp.urey:
         corresp_angles = np.array([angle[0:3:2] for angle in ff.angles])
         for term in mol.terms['urey']:
-            param = fit[term.idx] * 100
-            eq = np.where(np.array(list(oterm.idx for oterm in mol.terms['urey'])) == term.idx)
-            minimum = np.array(list(oterm.equ for oterm in mol.terms['urey']))[eq].mean() * 0.1
+            term.fconst = fit[term.idx]
 
             match = np.all(corresp_angles == term.atomids+1, axis=1)
             match = np.nonzero(match)[0][0]
 
             ff.angles[match][3] = 5
-            ff.angles[match].extend([minimum, param])
+            ff.angles[match].extend([term.equ*0.1, term.fconst*100])
 
     for term in mol.terms['dihedral/rigid']:
+        term.fconst = fit[term.idx]
         atoms = [a+1 for a in term.atomids]
-        param = fit[term.idx]
-#        eq = np.where(np.array(mol.dih.rigid.term_ids)==term)
-#        minimum = np.degrees(np.array(mol.dih.rigid.minima)[eq].mean())
         minimum = np.degrees(term.equ)
-        ff.dihedrals.append(atoms + [2, minimum, param])
+        ff.dihedrals.append(atoms + [2, minimum, term.fconst])
 
     for term in mol.terms['dihedral/improper']:
+        term.fconst = fit[term.idx]
         atoms = [a+1 for a in term.atomids]
-        param = fit[term.idx]
-#        eq = np.where(np.array(mol.dih.imp.term_ids)==term)
-#        minimum = np.degrees(np.array(mol.dih.imp.minima)[eq].mean())
         minimum = np.degrees(term.equ)
-        ff.impropers.append(atoms + [2, minimum, param])
+        ff.impropers.append(atoms + [2, minimum, term.fconst])
 
     for term in mol.terms['dihedral/flexible']:
         atoms = [a+1 for a in term.atomids]

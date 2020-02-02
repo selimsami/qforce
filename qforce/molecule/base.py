@@ -84,12 +84,12 @@ class MappingIterator(Mapping):
         return ignore_keys['__REGULAR_KEY__']
 
     def _set_ignore(self, dct, ignore):
-        return self._perform_ignore_action(dct, ignore,
-                                           action=lambda dct, name, keys: dct[name].add_ignore_keys(keys))
+        return self._perform_ignore_action(dct, ignore, action=lambda dct,
+                                           name, keys: dct[name].add_ignore_keys(keys))
 
     def _remove_ignore(self, dct, ignore):
-        return self._perform_ignore_action(dct, ignore,
-                                           action=lambda dct, name, keys: dct[name].remove_ignore_keys(keys))
+        return self._perform_ignore_action(dct, ignore, action=lambda dct,
+                                           name, keys: dct[name].remove_ignore_keys(keys))
 
     def __getitem__(self, key):
         key, data = self._goto_key(key)

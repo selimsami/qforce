@@ -38,7 +38,7 @@ class TermABC(ABC):
 
     @abstractmethod
     def _calc_forces(self, crd, force, fconst):
-        """Perform actuall force computation"""
+        """Perform actual force computation"""
 
     @classmethod
     def get_terms_container(cls):

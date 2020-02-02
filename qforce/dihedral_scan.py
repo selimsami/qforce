@@ -8,7 +8,7 @@ import seaborn as sns
 from . import qforce_data
 
 
-def scan_dihedral(inp, mol, atoms, scan_id):
+def scan_dihedral(inp, atoms, scan_id):
     """
     For each different dihedral in the input file, do dihedral optimization:
     Read scan QM output(s), run GROMACS with the same angles, get the fitting
@@ -36,32 +36,32 @@ def scan_dihedral(inp, mol, atoms, scan_id):
                              scan_dir)
 
     # Run gromacs without the scanned dihedral - get energies
-    print("Running GROMACS without the scanned dihedral...")
-    for step, angle in enumerate(qm_angles):
-        step_dir = f"{scan_dir}/step{step}"
-        run_gromacs(step_dir, "nodihed", inp)
-        md_energy = read_gromacs_energies(step_dir, "nodihed")
-        md_energies.append(md_energy)
+    # print("Running GROMACS without the scanned dihedral...")
+    # for step, angle in enumerate(qm_angles):
+    #     step_dir = f"{scan_dir}/step{step}"
+    #     run_gromacs(step_dir, "nodihed", inp)
+    #     md_energy = read_gromacs_energies(step_dir, "nodihed")
+    #     md_energies.append(md_energy)
 
-    # Set minimum energies to zero and compute QM vs MD difference
-    # and the dihedral potential to be fitted
-    md_energies = set_minimum_to_zero(md_energies)
-    dihedral_fitting = set_minimum_to_zero(qm_energies - md_energies)
+    # # Set minimum energies to zero and compute QM vs MD difference
+    # # and the dihedral potential to be fitted
+    # md_energies = set_minimum_to_zero(md_energies)
+    # dihedral_fitting = set_minimum_to_zero(qm_energies - md_energies)
 
-    # fit the data
-    print("Fitting the dihedral function...")
-    c, r_squared, fitted_dihedral = do_fitting(qm_angles, qm_energies, inp,
-                                               dihedral_fitting)
+    # # fit the data
+    # print("Fitting the dihedral function...")
+    # c, r_squared, fitted_dihedral = do_fitting(qm_angles, qm_energies, inp,
+    #                                            dihedral_fitting)
 
     # print optmized dihedrals
-    write_opt_dihedral(itp_file, atoms, c, r_squared)
+    # write_opt_dihedral(itp_file, atoms, c, r_squared)
 
     # run gromacs again with optimized dihedrals
     print("Running GROMACS with the fitted dihedral...")
     for step, angle in enumerate(qm_angles):
         step_dir = f"{scan_dir}/step{step}"
-        itp_loc = f"{step_dir}/{inp.job_name}_qforce.itp"
-        write_opt_dihedral(itp_loc, atoms, c, r_squared)
+        # itp_loc = f"{step_dir}/{inp.job_name}_qforce.itp"
+        # write_opt_dihedral(itp_loc, atoms, c, r_squared)
         run_gromacs(step_dir, "opt", inp)
         md_energy = read_gromacs_energies(step_dir, "opt")
         opt_md_energies.append(md_energy)
