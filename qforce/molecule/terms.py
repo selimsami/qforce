@@ -1,4 +1,6 @@
 from contextlib import contextmanager
+from copy import deepcopy
+import numpy as np
 #
 from .dihedral_terms import DihedralTerms
 from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm,
@@ -20,15 +22,32 @@ class Terms(MappingIterator):
             'non_bonded': NonBondedTerms,
     }
 
-    def __init__(self, topo, ignore=[]):
-        not_fit_terms = [term for term in ['dihedral/flexible', 'dihedral/constr', 'non_bonded']
-                         if term not in ignore]
-        _terms = {name: factory.get_terms(topo)
-                  for name, factory in self._term_factories.items() if name not in ignore}
-        # enable iteration
-        MappingIterator.__init__(self, _terms, ignore)
+    def __init__(self, terms, ignore, not_fit_terms):
+        MappingIterator.__init__(self, terms, ignore)
         self.n_fitted_terms = self._set_fitting_term_idx(not_fit_terms)
         self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
+
+    @classmethod
+    def from_topology(cls, topo, ignore=[]):
+        not_fit_terms = [term for term in ['dihedral/flexible', 'dihedral/constr', 'non_bonded']
+                         if term not in ignore]
+        terms = {name: factory.get_terms(topo)
+                 for name, factory in cls._term_factories.items() if name not in ignore}
+        return cls(terms, ignore, not_fit_terms)
+
+    @classmethod
+    def as_subset(cls, terms, fragment, mapping, ignore=[], not_fit_terms=[]):
+        subterms = {}
+        for key, termlist in terms.items():
+            if key == 'dihedral/flexible':
+                continue
+            subterms[key] = []
+            for term in termlist:
+                if set(term.atomids).issubset(fragment):
+                    term = deepcopy(term)
+                    term.atomids = np.array([mapping[i] for i in term.atomids])
+                    subterms[key].append(term)
+        return cls(subterms, ignore, not_fit_terms)
 
     def _set_fitting_term_idx(self, not_fit_terms):
 
@@ -44,6 +63,9 @@ class Terms(MappingIterator):
                 term.set_idx(n_fitted_terms)
 
         return n_fitted_terms
+
+    def subset(self, fragment, mapping):
+        return self.as_subset(self, fragment, mapping)
 
     @classmethod
     def add_term(cls, name, term):

@@ -44,10 +44,10 @@ class Initialize():
         self.qm_freq_out = ""
         self.urey = False
         self.cross = False
-        self.ignored_terms = ['urey', 'cross_bond_angle']
+        self.ignored_terms = ['cross_bond_angle']
         self.n_excl = 3
         self.param = []  # temporary
-        self.nofrag = args.nofrag
+        self.nofrag = False
         self.point_charges = 'd4'
         self.lennard_jones = 'd4'
         #############################
@@ -153,12 +153,6 @@ class Initialize():
                     elif prop == "charge_method":
                         self.charge_method = value
                     # related to hessianfitting
-                    elif prop == "urey" and value == "yes":
-                        self.urey = True
-                        self.ignored_terms.remove('urey')
-                    elif prop == "cross" and value == "yes":
-                        self.cross = True
-                        self.ignored_terms.remove('cross_bond_angle')
                     elif prop == "vibrational_coef":
                         self.vibr_coef = float(value)
                     elif prop == "n_excl" and value in ["2", "3"]:
@@ -170,8 +164,17 @@ class Initialize():
                         self.point_charges = value
                     elif prop == "lennard_jones":
                         self.lennard_jones = value
-                    elif prop == "nb_off" and value == 'yes':
+                    elif prop == "non_bonded" and (value == 'off' or value == 'no'):
                         self.ignored_terms.append('non_bonded')
+                    elif prop == "fragment" and (value == 'off' or value == 'no'):
+                        self.nofrag = True
+                        self.ignored_terms.append('dihedral')
+                    elif prop == "urey" and (value == 'off' or value == 'no'):
+                        self.urey = False
+                        self.ignored_terms.append('urey')
+                    elif prop == "cross" and value == "yes":
+                        self.cross = True
+                        self.ignored_terms.remove('cross_bond_angle')
                 elif ("[" in low_line and "]" in low_line and
                       "job_script" in low_line):
                     in_job_script = True

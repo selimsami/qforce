@@ -15,9 +15,9 @@ class QForce(Calculator):
         if system_changes:
             for name in self.implemented_properties:
                 self.results.pop(name, None)
-        if 'energy' not in self.results:
-            self.results = {'energy': 0.0}
-        if 'forces' not in self.results:
-            self.results['forces'] = np.zeros(len(atoms)*3)
-            for term in terms:
-                term.do_force(coords, self.results['forces'])
+
+        if 'forces' not in self.results or 'energy' not in self.results:
+            self.results = {'energy': 0.0, 'forces': np.zeros((len(atoms), 3))}
+
+            for term in self.terms:
+                self.results['energy'] += term.do_force(coords, self.results['forces'])

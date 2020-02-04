@@ -37,7 +37,7 @@ class RigidDihedralTerm(DihedralBaseTerm):
     name = 'RigidDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
+        return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
 
 
 class ImproperDihedralTerm(DihedralBaseTerm):
@@ -45,7 +45,7 @@ class ImproperDihedralTerm(DihedralBaseTerm):
     name = 'ImproperDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
+        return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
@@ -57,7 +57,7 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
     name = 'FlexibleDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_rb_diheds(crd, self.atomids, self.equ, fconst, force)
+        return calc_rb_diheds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_term(cls, topo, atoms_combin):

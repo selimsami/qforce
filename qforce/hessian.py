@@ -12,6 +12,10 @@ from .fragment import fragment
 from .elements import elements
 from .frequencies import calc_qm_vs_md_frequencies
 # from .decorators import timeit, print_timelog
+from ase.optimize import BFGS
+from ase import Atoms
+from ase.io import write
+from .calculator import QForce
 
 
 def fit_forcefield(inp, qm=None, mol=None):
@@ -44,10 +48,21 @@ def fit_forcefield(inp, qm=None, mol=None):
         fragment(inp, mol, qm)
         fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=False)
 
+    molecule = Atoms(qm.atomids, positions=qm.coords, calculator=QForce(mol.terms))
+
+    dyn = BFGS(molecule)
+    dyn.run(fmax=0.005, )
+
+    # print(molecule.get_positions())
+    # write('optimized.xyz', molecule, plain=True)
+
+    #
+    #
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
     average_unique_minima(mol.terms)
     make_ff_params_from_fit(mol, fit_results, inp, qm)
-
+    #
+    #
     # temporary
     # fit_dihedrals(inp, mol, qm)
 
@@ -79,6 +94,10 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
     # la.lstsq or nnls could also be used:
     fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
 
+    for term in mol.terms:
+        if term.idx < len(fit):
+            term.fconst = fit[term.idx]
+
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
     return fit, full_md_hessian_1d
@@ -93,9 +112,6 @@ def fit_dihedrals(inp, mol, qm):
     for term in mol.terms['dihedral/flexible']:
         frag_name, _, _, _ = check_one_fragment(inp, mol.topo, term.atomids)
         scan_dihedral(inp, term.atomids, frag_name)
-#        for atoms in mol.dih.flex.atoms:
-#            frag_name, _, _ = check_one_fragment(inp, mol, atoms)
-#            scan_dihedral(inp, mol, atoms, frag_name)
 
 
 def calc_hessian(coords, mol, inp, ignore_flex):
@@ -226,40 +242,32 @@ def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
 
     for term in mol.terms['bond']:
         atoms = [a+1 for a in term.atomids]
-        term.fconst = fit[term.idx]
         ff.bonds.append(atoms + [1, term.equ*0.1, term.fconst*100])
 
     for term in mol.terms['angle']:
         atoms = [a+1 for a in term.atomids]
-        term.fconst = fit[term.idx]
         ff.angles.append(atoms + [1, np.degrees(term.equ), term.fconst])
 
     if inp.urey:
         corresp_angles = np.array([angle[0:3:2] for angle in ff.angles])
         for term in mol.terms['urey']:
-            term.fconst = fit[term.idx]
-
             match = np.all(corresp_angles == term.atomids+1, axis=1)
             match = np.nonzero(match)[0][0]
-
             ff.angles[match][3] = 5
             ff.angles[match].extend([term.equ*0.1, term.fconst*100])
 
     for term in mol.terms['dihedral/rigid']:
-        term.fconst = fit[term.idx]
         atoms = [a+1 for a in term.atomids]
         minimum = np.degrees(term.equ)
         ff.dihedrals.append(atoms + [2, minimum, term.fconst])
 
     for term in mol.terms['dihedral/improper']:
-        term.fconst = fit[term.idx]
         atoms = [a+1 for a in term.atomids]
         minimum = np.degrees(term.equ)
         ff.impropers.append(atoms + [2, minimum, term.fconst])
 
     for term in mol.terms['dihedral/flexible']:
         atoms = [a+1 for a in term.atomids]
-
         if inp.nofrag:
             ff.flexible.append(atoms + [3, term.idx+1])
         else:

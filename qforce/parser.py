@@ -27,8 +27,6 @@ def parse():
                         help='File name for the optional options.')
     parser.add_argument('-s', metavar='start', choices=options + opt_depr,
                         help=opt_help)
-    parser.add_argument('-nofrag', default=False, action='store_true',
-                        help='Skip flexible dihedrals')
     parser.add_argument('-p', metavar='params', nargs='+', type=float,
                         help='Set non-default empirical params (temporary)')
     args = parser.parse_args()

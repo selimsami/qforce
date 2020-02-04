@@ -23,7 +23,6 @@ class QM():
     def read_gaussian(self, fchk_file, out_file, job_type):
         if out_file:
             self.normal_term = False
-            self.atomids = []
             self.n_atoms = 0
             self.coords = []
             self.read_gaussian_out(out_file, job_type)

@@ -10,7 +10,7 @@ class NonBondedTerms(TermBase):
     name = 'NonBondedTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_pairs(crd, self.atomids, self.equ, force)
+        return calc_pairs(crd, self.atomids, self.equ, force)
 
     @classmethod
     def get_terms(cls, topo):
@@ -29,5 +29,6 @@ class NonBondedTerms(TermBase):
                     c6 = 4 * epsilon * sigma6
                     c12 = c6 * sigma6
                     qq = topo.q[a1] * topo.q[a2] * eps0
-                    non_bonded_terms.append(cls([i, j], np.array([c6, c12, qq]), None))
+                    term_type = '-'.join([topo.types[i], topo.types[j]])
+                    non_bonded_terms.append(cls([i, j], np.array([c6, c12, qq]), term_type))
         return non_bonded_terms

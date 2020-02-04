@@ -11,7 +11,7 @@ class BondTerm(TermBase):
     name = 'BondTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_bonds(crd, self.atomids, self.equ, fconst, force)
+        return calc_bonds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_terms(cls, topo):
@@ -38,7 +38,7 @@ class AngleTerm(TermBase):
     name = 'AngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_angles(crd, self.atomids, self.equ, fconst, force)
+        return calc_angles(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_terms(cls, topo):
@@ -77,7 +77,7 @@ class UreyAngleTerm(TermBase):
     name = 'UreyAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_bonds(crd, self.atomids, self.equ, fconst, force)
+        return calc_bonds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_terms(cls, topo):
@@ -114,7 +114,7 @@ class CrossBondAngleTerm(TermBase):
     name = 'CrossBondAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
+        return calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_terms(cls, topo):
