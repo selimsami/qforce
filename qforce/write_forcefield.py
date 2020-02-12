@@ -36,7 +36,7 @@ def write_itp(ff, inp, itp_file):
     form_thole = "{:>6}{:>6}{:>6}{:>6}{:>4}{:>7.2f}{:>14.8f}{:>14.8f}\n"
     form_flex = ("{:>6}{:>6}{:>6}{:>6}{:>6}{:>11.3f}{:>11.3f}{:>11.3f}"
                  "{:>11.3f}{:>11.3f}{:>11.3f}\n")
-    form_unfit = ";{:>6}{:>6}{:>6}{:>6}{:>6}{:>6}\n"
+    form_unfit = ";{:>6}{:>6}{:>6}{:>6}{:>6} ; Term ID: {:>6}\n"
 
     with open(itp_file, "w") as itp:
         # fitting parameters - temporary
@@ -61,7 +61,7 @@ def write_itp(ff, inp, itp_file):
         space = " "*(len(ff.mol_type)-5)
         itp.write("\n[ moleculetype ]\n")
         itp.write(f";{space}name nrexcl\n")
-        itp.write(f"{ff.mol_type}{inp.nrexcl:>7}\n")
+        itp.write(f"{ff.mol_type}{inp.n_excl:>7}\n")
 
         # atoms
         itp.write("\n[ atoms ]\n")

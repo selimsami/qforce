@@ -5,13 +5,8 @@ import numpy as np
 from .baseterms import TermABC, TermFactory
 #
 from ..forces import get_dihed
-from ..forces import calc_imp_diheds
+from ..forces import calc_imp_diheds, calc_rb_diheds
 from ..elements import ATOMMASS
-
-"""
-*TODO*: FLEXIBLE DIHEDRALS ARE WRONG
-
-"""
 
 
 class DihedralBaseTerm(TermABC):
@@ -42,7 +37,7 @@ class RigidDihedralTerm(DihedralBaseTerm):
     name = 'RigidDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_imp_diheds(crd, self.atomids, self.equ, fconst, self.idx, force)
+        return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
 
 
 class ImproperDihedralTerm(DihedralBaseTerm):
@@ -50,7 +45,7 @@ class ImproperDihedralTerm(DihedralBaseTerm):
     name = 'ImproperDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        calc_imp_diheds(crd, self.atomids, self.equ, fconst, self.idx, force)
+        return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
@@ -62,11 +57,11 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
     name = 'FlexibleDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        ...
+        return calc_rb_diheds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_term(cls, topo, atoms_combin):
-        """@Selim: what is atom_combin?
+        """
 
         TODO: write atoms_comb as a function of atomids!
 
@@ -77,7 +72,7 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
             if mass > heaviest:
                 atoms = np.array((a1, a2, a3, a4))
                 heaviest = mass
-        return cls(atoms, 0, topo.edge(a2, a3)['vers'])
+        return cls(atoms, None, topo.edge(a2, a3)['vers'])
 
 
 class ConstrDihedralTerm(DihedralBaseTerm):
@@ -122,7 +117,7 @@ class DihedralTerms(TermFactory):
             terms[name].append(cls._term_types[name].get_term(topo, atoms, *args))
 
         def get_dtype(topo, *args):
-            DihedralBaseTerm.get_type(topo, *args)
+            return DihedralBaseTerm.get_type(topo, *args)
         # proper dihedrals
         for a2, a3 in topo.bonds:
             central = topo.edge(a2, a3)
@@ -148,13 +143,12 @@ class DihedralTerms(TermFactory):
                 phi = get_dihed(topo.coords[atoms_r])[0]
                 if abs(phi) < 0.07:
                     # rigid
-                    d_type = get_dtype(topo, *atoms_r)
                     for atoms in atoms_comb:
+                        d_type = get_dtype(topo, *atoms)
                         add_term('rigid', topo, atoms, d_type)
                 else:
                     d_type = get_dtype(topo, *atoms_r)
-                    for atoms in atoms_comb:
-                        add_term('constr', topo, atoms, phi, d_type)
+                    add_term('constr', topo, atoms_r, phi, d_type)
             else:
                 add_term('flexible', topo, atoms_comb)
 

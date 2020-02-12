@@ -2,15 +2,8 @@ from .topology import Topology
 from .terms import Terms
 
 
-class ForceField(object):
+class Molecule(object):
     """
-    Scope:
-    ------
-    self.list : atom numbers of unique atoms grouped together
-    self.atoms : unique atom numbers of each atom
-    self.types : atom types of each atom
-    self.neighbors : First 3 neighbors of each atom
-
 
     To do:
     -----
@@ -26,6 +19,6 @@ class ForceField(object):
 
     """
 
-    def __init__(self, coords, atomids, inp, qm=None):
-        self.topo = Topology(atomids, coords, qm, inp.n_equiv)
-        self.terms = Terms(self.topo)
+    def __init__(self, inp, qm):
+        self.topo = Topology(inp, qm)
+        self.terms = Terms.from_topology(self.topo, ignore=inp.ignored_terms)

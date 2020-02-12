@@ -30,7 +30,7 @@ class TermABC(ABC):
 
     def do_force(self, crd, force):
         """force calculation with given geometry"""
-        self._calc_forces(crd, force, self.fconst)
+        return self._calc_forces(crd, force, self.fconst)
 
     def do_fitting(self, crd, forces):
         """compute fitting contributions"""
@@ -38,7 +38,7 @@ class TermABC(ABC):
 
     @abstractmethod
     def _calc_forces(self, crd, force, fconst):
-        """Perform actuall force computation"""
+        """Perform actual force computation"""
 
     @classmethod
     def get_terms_container(cls):
