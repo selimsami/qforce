@@ -22,6 +22,7 @@ args, depriciated = parse()
 if depriciated:
     inp = old_Input(args)
 else:
-    inp = Initialize(args)
+    inp = Initialize.from_questions("qforce", check_only=True, config=args.o)
+    inp.setup(args.f, args.p)
 
 print("\n")

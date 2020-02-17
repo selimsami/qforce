@@ -27,8 +27,8 @@ def write_ff(ff, inp, is_polar):
 
 
 def write_itp(ff, inp, itp_file):
-    form_atypes = "{:>5} {:>8.4f} {:>8.4f} {:>2} {:>12.5e} {:>12.5e}\n"
-    form_atoms = "{:>5}{:>5}{:>6}{:>6}{:>7}{:>5}{:>11.5f}{:>10.5f}\n"
+    form_atypes = "{:>8} {:>8.4f} {:>8.4f} {:>2} {:>12.5e} {:>12.5e}\n"
+    form_atoms = "{:>5}{:>9}{:>6}{:>6}{:>7}{:>5}{:>11.5f}{:>10.5f}\n"
     form_bonds = "{:>6}{:>6}{:>6}{:>10.5f}{:>10.0f}\n"
     form_angles = "{:>6}{:>6}{:>6}{:>6}{:>11.3f}{:>13.3f}\n"
     form_urey = "{:>6}{:>6}{:>6}{:>6}{:>11.3f}{:>13.3f}{:>10.5f}{:>13.3f}\n"
@@ -53,7 +53,10 @@ def write_itp(ff, inp, itp_file):
         # atom types
         if ff.atom_types != []:
             itp.write("[ atomtypes ]\n")
-            itp.write(";name     mass   charge  t        sigma      epsilon\n")
+            if inp.comb_rule == 1:
+                itp.write(";   name     mass   charge  t           c6          c12\n")
+            else:
+                itp.write(";   name     mass   charge  t        sigma      epsilon\n")
         for at in ff.atom_types:
             itp.write(form_atypes.format(*at))
 
@@ -65,7 +68,7 @@ def write_itp(ff, inp, itp_file):
 
         # atoms
         itp.write("\n[ atoms ]\n")
-        itp.write(";  nr type resnr resnm   atom cgrp     charge      mass\n")
+        itp.write(";  nr     type resnr resnm   atom cgrp     charge      mass\n")
         for atom in ff.atoms:
             itp.write(form_atoms.format(*atom))
 
@@ -124,12 +127,12 @@ def write_itp(ff, inp, itp_file):
         itp.write("\n;[ dihedrals ]\n")
         itp.write(";   ai    aj    ak    al   f     th0         kth\n")
         itp.write("; flexible dihedrals\n")
-        if inp.nofrag:
-            for flexible in ff.flexible:
-                itp.write(form_unfit.format(*flexible))
-        else:
+        if inp.fragment:
             for flexible in ff.flexible:
                 itp.write(form_flex.format(*flexible))
+        else:
+            for flexible in ff.flexible:
+                itp.write(form_unfit.format(*flexible))
 
         # flexible dihedrals
         itp.write("\n;[ dihedrals ]\n")
@@ -153,7 +156,7 @@ def write_top(inp, top_file, polar):
         # defaults
         top.write("\n[ defaults ]\n")
         top.write(";nbfunc   comb-rule   gen-pairs   fudgeLJ   fudgeQQ\n")
-        top.write("      1           2          no       1.0       1.0\n\n\n")
+        top.write(f"      1           {inp.comb_rule}          no       1.0       1.0\n\n\n")
 
         top.write("; Include the molecule ITP\n")
         top.write(f'#include "./{inp.job_name}_qforce{polar}.itp"\n\n\n')

@@ -61,7 +61,7 @@ class AngleTerm(TermBase):
                 vec12, _ = get_dist(topo.coords[a1], topo.coords[a2])
                 vec32, _ = get_dist(topo.coords[a3], topo.coords[a2])
                 theta = get_angle(vec12, vec32)
-
+                print(theta, np.degrees(theta))
                 b21 = topo.edge(a2, a1)['vers']
                 b23 = topo.edge(a2, a3)['vers']
                 a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",

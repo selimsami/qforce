@@ -22,26 +22,27 @@ def calc_bonds(coords, atoms, r0, fconst, force):
     return energy
 
 
-@jit(nopython=True)
+#@jit(nopython=True)
 def calc_angles(coords, atoms, theta0, fconst, force):
     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
     vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
     theta = get_angle(vec12, vec32)
-    cos_theta = np.cos(theta)
+    cos_theta = math.cos(theta)
+    cos_theta_sq = cos_theta**2
     dtheta = theta - theta0
-
     energy = 0.5 * fconst * dtheta**2
-    st = - fconst * dtheta / np.sqrt(1. - cos_theta**2)
-    sth = st * cos_theta
-    c13 = st / r12 / r32
-    c11 = sth / r12 / r12
-    c33 = sth / r32 / r32
+    if cos_theta_sq < 1:
+        st = - fconst * dtheta / np.sqrt(1. - cos_theta_sq)
+        sth = st * cos_theta
+        c13 = st / r12 / r32
+        c11 = sth / r12 / r12
+        c33 = sth / r32 / r32
 
-    f1 = c11 * vec12 - c13 * vec32
-    f3 = c33 * vec32 - c13 * vec12
-    force[atoms[0]] += f1
-    force[atoms[2]] += f3
-    force[atoms[1]] -= f1 + f3
+        f1 = c11 * vec12 - c13 * vec32
+        f3 = c33 * vec32 - c13 * vec12
+        force[atoms[0]] += f1
+        force[atoms[2]] += f3
+        force[atoms[1]] -= f1 + f3
     return energy
 
 
@@ -150,8 +151,8 @@ def calc_pairs(coords, atoms, params, force):
     f = (qq_r + 12*c12_r12 - 6*c6_r6) * r_2
     # tiny numerical disagreement with gromacs for lj forces?? double check!
     fk = f * vec
-    force[atoms[0]] -= fk
-    force[atoms[1]] += fk
+    force[atoms[0]] += fk
+    force[atoms[1]] -= fk
     return energy
 
 

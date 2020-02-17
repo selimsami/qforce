@@ -3,8 +3,7 @@ from copy import deepcopy
 import numpy as np
 #
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm,
-                                 CrossBondAngleTerm)
+from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm, CrossBondAngleTerm)
 from .non_bonded_terms import NonBondedTerms
 #
 from .base import MappingIterator

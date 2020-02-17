@@ -29,6 +29,13 @@ class DihedralBaseTerm(TermABC):
     @classmethod
     def get_term(cls, topo, atomids, d_type):
         phi = get_dihed(topo.coords[atomids])[0]
+
+        if abs(phi) < 0.1745:  # if it's smaller than +- 10 degrees, make it 0
+            phi = 0
+        elif 2.9671 < abs(phi) < 3.3161:  # if it's smaller than 170-190 degrees, make it 180
+            phi = np.pi
+        # add more conditions ?
+
         return cls(atomids, phi, d_type)
 
 
@@ -141,7 +148,7 @@ class DihedralTerms(TermFactory):
                 atoms_r = [a for a in atoms_comb if any(set(a).issubset(set(r))
                            for r in topo.rings)][0]
                 phi = get_dihed(topo.coords[atoms_r])[0]
-                if abs(phi) < 0.07:
+                if abs(phi) < 0.1745:  # check planarity <10 degrees
                     # rigid
                     for atoms in atoms_comb:
                         d_type = get_dtype(topo, *atoms)
@@ -177,7 +184,7 @@ class DihedralTerms(TermFactory):
             if any(b == list(term.atomids[1:3]) for term in terms['rigid'] for b in bonds):
                 continue
             imp_type = f"ki_{topo.types[i]}"
-            if abs(phi) < 0.07:  # check planarity <4 degrees
+            if abs(phi) < 0.1745:  # check planarity <10 degrees
                 add_term('improper', topo, atoms, phi, imp_type)
             else:
                 add_term('constr', topo, atoms, phi, imp_type)

@@ -4,63 +4,116 @@ import sys
 from ase.io import read, write
 from qforce.make_qm_input import make_hessian_input
 from qforce.hessian import fit_forcefield
+from colt.colt import Colt
 
 
-class Initialize():
+class Initialize(Colt):
+    _questions = """
+    # Directory where the fragments are saved
+    frag_lib = ~/qforce_fragments :: str
+
+    # Number of n equivalent neighbors needed to consider two atoms equivalent
+    # Negative values turns off equivalence, 0 makes same elements equivalent
+    n_equiv = 4 :: int
+
+    # Number of first n neighbors to exclude in the forcefield
+    n_excl = 3 :: int :: [2, 3]
+
+    # Point charges used in the forcefield
+    point_charges = d4 :: str :: [d4, cm5, esp, ext]
+
+    # Lennard jones method for the forcefield
+    lennard_jones = d4 :: str :: [d4, gromos, opls]
+
+    # Combination rule for the Lennard-Jones interactions - see GROMACS manual
+    # Default is force field dependent (d4: 2, opls: 3, gromos: 1)
+    comb_rule = 0 :: int :: [1, 2, 3]
+
+    # Scaling of the vibrational frequencies (not implemented)
+    vibr_coef = 1.0 :: float
+
+    # Use Urey-Bradley angle terms
+    urey = yes :: bool
+
+    # Ignore non-bonded interactions during fitting
+    non_bonded = yes :: bool
+
+    # Make fragments and calculate flexible dihedrals
+    fragment = yes :: bool
+
+    # Use Bond-Angle cross term
+    cross_bond_angle = no :: bool
+
+    job_script = :: literal
+    exclusions = :: literal
+
+    # Number of dihedral scan steps to perform
+    scan_no = 23 :: int
+
+    # Step size for the dihedral scan
+    scan_step = 15.0 :: float
+
+    # Total charge of the system
+    charge = 0 :: int
+
+    # Multiplicity of the system
+    multi = 1 :: int
+
+    # QM method to be used
+    method = PBEPBE :: str
+
+    # QM basis set to be used
+    basis = 6-31+G(D) :: str
+
+    # Dispersion correction to include
+    disp = GD3BJ :: str
+
+    # Number of processors for the QM calculation
+    nproc = 1 :: int
+
+    # Memory setting for the QM calculation
+    mem = 4GB :: str
+
     """
-    Scope:
-    ------
-    Read the Q-Force input file containing all necessary and optional
-    the commands.
 
-    Input file has single line commands such as:
-        one_line = value
-    and multi-line commands such as:
-        [multi_line]
-        value1
-        value2
+    def __init__(self, answers):
+        for key, value in answers.items():
+            setattr(self, key, value)
 
-    Also checks if all necessary files and software are present.
-    """
-    def __init__(self, args):
-        ########## GENERAL ##########
-        self.frag_lib = os.path.expanduser("~/qforce_fragments")
-        self.n_equiv = 4
-        ########## QM INPUT #########
-        self.scan_no = "35"
-        self.scan_step = "10.0"
-        self.charge = 0
-        self.multi = 1
-        self.method = "PBEPBE"
-        self.basis = "6-31+G(D)"
-        self.disp = "GD3BJ"
-        self.nproc = ""
-        self.mem = ""
-        self.charge_method = "CM5"
-        self.job_script = []
-        ########## FITTING ##########
-        self.vibr_coef = 1.0
-        self.fchk_file = ""
-        self.qm_freq_out = ""
-        self.urey = False
-        self.cross = False
-        self.ignored_terms = ['cross_bond_angle']
-        self.n_excl = 3
-        self.param = []  # temporary
-        self.nofrag = False
-        self.point_charges = 'd4'
-        self.lennard_jones = 'd4'
-        #############################
+    @classmethod
+    def from_config(cls, answers):
+        ignored_terms = []
 
-        if args.p:
-            self.param = args.p
+        for key, value in answers.items():
+            if key == 'frag_lib':
+                answers[key] = os.path.expanduser(value)
+            elif key == 'basis':
+                answers[key] = Initialize.set_basis(value)
+            elif key == 'dispersion':
+                answers[key] = Initialize.set_dispersion(value)
+            elif key == 'method':
+                answers[key] = value.upper()
+            elif key == 'job_script' and value:
+                answers[key] = value.replace('\n\n', '\n').split('\n')
+            elif key == 'exclusions':
+                answers[key] = Initialize.set_exclusions(value)
+            elif key in ['non_bonded', 'urey', 'cross_bond_angle'] and not value:
+                ignored_terms.append(key)
+            elif key in ['fragment'] and not value:
+                ignored_terms.append('dihedral/flexible')
 
-        if args.o:
-            self.read_options(args.o)
+        answers['ignored_terms'] = ignored_terms
+        answers['comb_rule'] = Initialize.set_comb_rule(answers['comb_rule'],
+                                                        answers['lennard_jones'])
+        return cls(answers)
 
-        self.initialize(args.f, args.s)
+    def setup(self, file, param):
 
-    def initialize(self, file, start):
+        if param:  # temporary for fitting
+            self.param = param
+        else:
+            self.param = []
+
         coord = False
 
         if file.endswith('/'):
@@ -91,10 +144,14 @@ class Initialize():
             molecule = read(file)
             write(self.xyz_file, molecule, plain=True)
 
-        if not self.fchk_file or not self.qm_freq_out:
+        if not self.fchk_file and not self.qm_freq_out:
             self.job_type = 'init'
             self.check_requirements()
             make_hessian_input(self)
+        elif not self.fchk_file or not self.qm_freq_out:
+            missing = ['Checkpoint', 'Output'][[self.fchk_file, self.qm_freq_out].index(False)]
+            print('Please provide both the checkpoint and the output file of the Hessian',
+                  f'calculation.\n{missing} file is missing.')
         else:
             self.job_type = 'fit'
             self.check_requirements()
@@ -112,88 +169,52 @@ class Initialize():
             file = f'{self.job_dir}/{files[0]}'
         return file
 
-    def read_options(self, input_file):
-        with open(input_file, "r") as inp:
-            in_job_script = False
-            for line in inp:
-                line = line.strip()
-                low_line = line.lower().replace("=", " = ")
-                if in_job_script:
-                    self.job_script.append(line)
-                elif low_line == "" or low_line[0] == ";":
-                    continue
-                elif len(low_line.split()) > 1 and low_line.split()[1] == "=":
-                    prop = low_line.split()[0]
-                    value = line.replace("=", " = ").split()[2]
-                    # General
-                    if prop == "n_equiv":
-                        self.n_equiv = int(value)
-                    # related to file creation
-                    elif prop == "scan_no":
-                        self.scan_no = str(value)
-                    elif prop == "scan_step":
-                        self.scan_step = str(value)
-                    elif prop == "charge":
-                        self.charge = int(value)
-                    elif prop == "multiplicity":
-                        self.multi = int(value)
-                    elif prop == "method":
-                        self.method = value.upper()
-                    elif prop == "basis_set":
-                        self.set_basis(value.upper())
-                    elif prop == "dispersion":
-                        if value == "no":
-                            self.disp = ""
-                        else:
-                            self.disp = value.upper()
-                    elif prop == "n_procs":
-                        self.set_nproc(value)
-                    elif prop == "memory":
-                        self.set_mem(value)
-                    elif prop == "charge_method":
-                        self.charge_method = value
-                    # related to hessianfitting
-                    elif prop == "vibrational_coef":
-                        self.vibr_coef = float(value)
-                    elif prop == "n_excl" and value in ["2", "3"]:
-                        self.n_excl = int(value)
-                    # related to fragment
-                    elif prop == "frag_dir":
-                        self.frag_lib = value
-                    elif prop == "point_charges":
-                        self.point_charges = value
-                    elif prop == "lennard_jones":
-                        self.lennard_jones = value
-                    elif prop == "non_bonded" and (value == 'off' or value == 'no'):
-                        self.ignored_terms.append('non_bonded')
-                    elif prop == "fragment" and (value == 'off' or value == 'no'):
-                        self.nofrag = True
-                        self.ignored_terms.append('dihedral')
-                    elif prop == "urey" and (value == 'off' or value == 'no'):
-                        self.urey = False
-                        self.ignored_terms.append('urey')
-                    elif prop == "cross" and value == "yes":
-                        self.cross = True
-                        self.ignored_terms.remove('cross_bond_angle')
-                elif ("[" in low_line and "]" in low_line and
-                      "job_script" in low_line):
-                    in_job_script = True
-
-    def set_nproc(self, nprocs):
-        if nprocs != "no":
-            self.nproc = ("%nprocshared=" + nprocs + "\n")
-
-    def set_mem(self, memory):
-        if memory != "no":
-            self.mem = ("%mem=" + memory + "\n")
-
-    def set_basis(self, basis):
-        if '**' in basis:
-            self.basis = f'{basis[:-2]}(D,P)'
-        elif '*' in basis:
-            self.basis = f'{basis[:-1]}(D)'
+    @staticmethod
+    def set_basis(value):
+        if '**' in value:
+            basis = f'{value[:-2]}(D,P)'
+        elif '*' in value:
+            basis = f'{value[:-1]}(D)'
         else:
-            self.basis = basis
+            basis = value
+        return basis.upper()
+
+    @staticmethod
+    def set_dispersion(value):
+        if value.lower() in ["no", "false", "n", "f"]:
+            disp = False
+        else:
+            disp = value.upper()
+        return disp
+
+    @staticmethod
+    def set_comb_rule(comb_rule, lj_type):
+        if comb_rule == 0:
+            if lj_type == 'd4':
+                comb_rule = 2
+            elif lj_type == 'gromos':
+                comb_rule = 1
+            elif lj_type == 'opls':
+                comb_rule = 3
+        return comb_rule
+
+    @staticmethod
+    def set_exclusions(value):
+        exclusions = []
+        if value:
+            for line in value.split('\n'):
+                line = [int(i) for i in line.strip().partition('#')[0].split()]
+                if len(line) > 1:
+                    a1, a2s = line[0], line[1:]
+                    for a2 in a2s:
+                        pair = tuple(sorted([a1-1, a2-1]))
+                        if pair not in exclusions:
+                            exclusions.append(pair)
+                elif len(line) == 1:
+                    print('WARNING: Exclusion lines should contain at least two atom IDs:\n',
+                          'First entry is excluded from all the following entries.\n',
+                          f'Ignoring the line: {line[0]}\n')
+        return exclusions
 
     def check_requirements(self):
         if self.job_type == "fragment" or self.job_type == "fit":
@@ -203,7 +224,7 @@ class Initialize():
                          f"is/are missing in the directory: {self.job_dir} \n"
                          "Please first perform the Hessian calculation and "
                          "provide the necessary output files.\n\n")
-        if self.job_type == "fit":
+        if self.job_type == "fit" and 'd4' in [self.point_charges, self.lennard_jones]:
             self.check_exe("dftd4")
 
     def check_exe(self, exe):
