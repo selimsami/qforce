@@ -32,15 +32,14 @@ class Terms(MappingIterator):
                          if term not in ignore]
         terms = {name: factory.get_terms(topo)
                  for name, factory in cls._term_factories.items() if name not in ignore}
-        print(terms)
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
     def as_subset(cls, terms, fragment, mapping, ignore=[], not_fit_terms=[]):
         subterms = {}
         for key, termlist in terms.items():
-            if key in ['dihedral/flexible', 'dihedral/constr']:
-                continue
+            # if key in ['dihedral/flexible', 'dihedral/constr']:
+            #     continue
             subterms[key] = []
             for term in termlist:
                 if set(term.atomids).issubset(fragment):

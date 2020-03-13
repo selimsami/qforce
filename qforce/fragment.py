@@ -5,18 +5,19 @@ import sys
 import networkx.algorithms.isomorphism as iso
 import matplotlib.pyplot as plt
 import seaborn as sns
+from scipy.optimize import curve_fit
+import numpy as np
 #
 from ase.optimize.sciopt import SciPyFminBFGS
 from ase.optimize import BFGS
 from ase import Atoms
 from ase.constraints import FixInternals
 #
-from scipy.optimize import curve_fit
-import numpy as np
 from .elements import elements
 from .read_qm_out import QM
 from .make_qm_input import make_qm_input
 from .calculator import QForce
+from .forces import get_dihed
 
 
 def fragment(inp, mol, qm):
@@ -64,25 +65,25 @@ def calc_dihedral_function(inp, mol, frag_name, terms, elems, scanned):
 
     for angle, qm_energy, coord in zip(angles_radians, qm_energies, coords):
         frag = Atoms(elems, positions=coord, calculator=QForce(terms))
-
-        print(terms['bond'])
-        print(terms['angle'])
-        print(terms['dihedral'])
-        for dihed in terms['dihedral/flexible']:
-            print(dihed)
-            dihedral_constraint = [[angle, scanned]]
-            constraints = FixInternals(dihedrals=dihedral_constraint)
+        dihedral_constraints = []
+        for term in terms:
+            if term.name in ['FlexibleDihedralTerm', 'ConstrDihedralTerm']:
+                angle_const = get_dihed(coord[term.atomids])[0]
+                dihedral_constraints.append([angle_const, term.atomids])
+                print(np.degrees(angle_const), term.atomids)
+            constraints = FixInternals(dihedrals=dihedral_constraints)
             frag.set_constraint(constraints)
 
         # e_minimiz = SciPyFminBFGS(frag, logfile=f'{inp.frag_dir}/opt_{frag_name}.log')
         # try:
         #     e_minimiz.run(fmax=0.05, steps=1000)
         # except:
+
         e_minimiz = BFGS(frag, trajectory=f'{inp.frag_dir}/{frag_name}_{np.degrees(angle)}.traj',
                          logfile=f'{inp.frag_dir}/opt_{frag_name}.log')
         try:
             e_minimiz.run(fmax=0.01, steps=1000)
-        except:
+        except Exception:
             print('WARNING: Possible convergence problem in fragment the optimization procedure.')
 
         md_energies.append(frag.get_potential_energy())
