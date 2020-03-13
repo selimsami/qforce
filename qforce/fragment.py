@@ -66,18 +66,19 @@ def calc_dihedral_function(inp, mol, frag_name, terms, elems, scanned):
     for angle, qm_energy, coord in zip(angles_radians, qm_energies, coords):
         frag = Atoms(elems, positions=coord, calculator=QForce(terms))
         dihedral_constraints = []
-        for term in terms:
-            if term.name in ['FlexibleDihedralTerm', 'ConstrDihedralTerm']:
-                angle_const = get_dihed(coord[term.atomids])[0]
-                dihedral_constraints.append([angle_const, term.atomids])
-                print(np.degrees(angle_const), term.atomids)
-            constraints = FixInternals(dihedrals=dihedral_constraints)
-            frag.set_constraint(constraints)
+        for dihed in terms['dihedral/flexible']:
+            angle_const = get_dihed(coord[dihed.atomids])[0]
+            dihedral_constraints.append([angle_const, dihed.atomids])
+            print(np.degrees(angle_const), dihed.atomids)
+        constraints = FixInternals(dihedrals=dihedral_constraints)
+        frag.set_constraint(constraints)
 
         # e_minimiz = SciPyFminBFGS(frag, logfile=f'{inp.frag_dir}/opt_{frag_name}.log')
         # try:
         #     e_minimiz.run(fmax=0.05, steps=1000)
         # except:
+    #    ignores = ['dihedral/flexible', 'dihedral/constr']
+    #    with terms.add_ignore(ignores):
 
         e_minimiz = BFGS(frag, trajectory=f'{inp.frag_dir}/{frag_name}_{np.degrees(angle)}.traj',
                          logfile=f'{inp.frag_dir}/opt_{frag_name}.log')

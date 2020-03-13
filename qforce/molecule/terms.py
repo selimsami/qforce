@@ -1,7 +1,7 @@
 from contextlib import contextmanager
-from copy import deepcopy
 import numpy as np
 #
+from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
 from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm, CrossBondAngleTerm)
 from .non_bonded_terms import NonBondedTerms
@@ -35,8 +35,13 @@ class Terms(MappingIterator):
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
-    def as_subset(cls, terms, fragment, mapping, ignore=[], not_fit_terms=[]):
+    def from_terms(cls, terms, ignore, not_fit_terms):
+        return cls(terms, ignore, not_fit_terms)
+
+    def subset(self, fragment, mapping, ignore=[], not_fit_terms=[]):
+
         subterms = {}
+<<<<<<< HEAD
         for key, termlist in terms.items():
             # if key in ['dihedral/flexible', 'dihedral/constr']:
             #     continue
@@ -47,6 +52,32 @@ class Terms(MappingIterator):
                     term.atomids = np.array([mapping[i] for i in term.atomids])
                     subterms[key].append(term)
         return cls(subterms, ignore, not_fit_terms)
+=======
+        for key, term in self.ho_items():
+            if key in ignore:
+                continue
+            if isinstance(term, MultipleTermStorge):
+                key_ignore = [term.get_key_subkey(ignore_key)[1] for ignore_key in ignore if ignore_key.startswith(key)]
+                subterms[key] = term.get_subset(fragment, mapping, key_ignore)
+            elif isinstance(term, TermStorage):
+                subterms[key] = term.get_subset(fragment, mapping)
+            else:
+                raise ValueError("Term can only be TermStorage or MultipleTermStorage")
+
+        return self.from_terms(subterms, ignore, not_fit_terms)
+
+    @classmethod
+    def add_term(cls, name, term):
+        if not isinstance(term, TermFactory):
+            raise ValueError('New term needs to be a TermFactory!')
+        cls._term_factories[name] = term
+
+    @contextmanager
+    def add_ignore(self, ignore_terms):
+        self.add_ignore_keys(ignore_terms)
+        yield
+        self.remove_ignore_keys(ignore_terms)
+>>>>>>> subset
 
     def _set_fit_term_idx(self, not_fit_terms):
 
@@ -62,18 +93,3 @@ class Terms(MappingIterator):
                 term.set_idx(n_fitted_terms)
 
         return n_fitted_terms
-
-    def subset(self, fragment, mapping):
-        return self.as_subset(self, fragment, mapping)
-
-    @classmethod
-    def add_term(cls, name, term):
-        if not isinstance(term, TermFactory):
-            raise ValueError('New term needs to be a TermFactory!')
-        cls._term_factories[name] = term
-
-    @contextmanager
-    def add_ignore(self, ignore_terms):
-        self.add_ignore_keys(ignore_terms)
-        yield
-        self.remove_ignore_keys(ignore_terms)
