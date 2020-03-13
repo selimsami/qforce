@@ -1,4 +1,6 @@
+from copy import deepcopy
 from collections import UserList
+import numpy as np
 from .base import MappingIterator
 
 

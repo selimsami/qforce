@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from copy import deepcopy
 import numpy as np
 #
 from .storage import MultipleTermStorge, TermStorage
@@ -33,7 +32,6 @@ class Terms(MappingIterator):
                          if term not in ignore]
         terms = {name: factory.get_terms(topo)
                  for name, factory in cls._term_factories.items() if name not in ignore}
-        print(terms)
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
