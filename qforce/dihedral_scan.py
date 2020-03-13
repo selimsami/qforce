@@ -87,7 +87,9 @@ def remove_scanned_dihedral(itp_path, atoms):
     with open(itp_path, 'w') as itp_file:
         for line in itp:
             low_line = line.strip().lower()
-            if "[" in low_line and "]" in low_line:
+            if line.startswith(';'):
+                itp_file.write(line)
+            elif "[" in low_line and "]" in low_line:
                 no_space = low_line.replace(" ", "")
                 open_bra = no_space.index("[") + 1
                 close_bra = no_space.index("]")
@@ -95,10 +97,10 @@ def remove_scanned_dihedral(itp_path, atoms):
                 itp_file.write(line)
             elif in_section == "dihedrals" and len(line.split()) > 3:
                 atoms_check = line.split()[0:4]
-                # if atoms == atoms_check:
-                #     continue
-                # else:
-                itp_file.write(line)
+                if atoms == atoms_check:
+                    continue
+                else:
+                    itp_file.write(line)
             else:
                 itp_file.write(line)
 
@@ -209,9 +211,9 @@ def write_opt_dihedral(itp_file, atoms, c, r_squared):
     belle = ("{:>5}{:>5}{:>5}{:>5}    3 {:>11.4f}{:>11.4f}{:>11.4f}{:>11.4f}"
              "{:>11.4f}{:>11.4f}" + opt_d)
     atoms = [a+1 for a in atoms]
-    # with open(itp_file, "a") as opt_itp:
-    #     opt_itp.write("\n[ dihedrals ]\n")
-    #     opt_itp.write(belle.format(*atoms, *c))
+    with open(itp_file, "a") as opt_itp:
+        opt_itp.write("\n[ dihedrals ]\n")
+        opt_itp.write(belle.format(*atoms, *c))
 
 
 def plot_dihedral_profile(inp, qm_angles, qm_energies, md_energies, scan_name):

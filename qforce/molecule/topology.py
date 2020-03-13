@@ -56,16 +56,13 @@ class Topology(object):
         """Setup networkx graph """
         self.graph = nx.Graph()
         for iatom, iidx in enumerate(self.atomids):
-            self.graph.add_node(iatom, elem=iidx, n_bonds=qm.n_bonds[iatom],
-                                lone_e=qm.lone_e[iatom], q=qm.cm5[iatom],
-                                coords=self.coords[iatom])
+            self.graph.add_node(iatom, elem=iidx, n_bonds=qm.n_bonds[iatom], q=qm.cm5[iatom],
+                                lone_e=qm.lone_e[iatom], coords=self.coords[iatom])
             # Check electronegativity difference to H to see if breakable
-            eneg_diff = abs(ELE_ENEG[iidx] - ELE_ENEG[1])
-            #
-            if eneg_diff > 0.5 or eneg_diff == 0:
-                self.node(iatom)['breakable'] = False
-            else:
+            if 0 < abs(ELE_ENEG[iidx] - ELE_ENEG[1]) < 0.5:
                 self.node(iatom)['breakable'] = True
+            else:
+                self.node(iatom)['breakable'] = False
             # add bonds
             for jatom, jidx in enumerate(self.atomids):
                 order = qm.b_orders[iatom, jatom]
@@ -73,8 +70,7 @@ class Topology(object):
                     id1, id2 = sorted([iidx, jidx])
                     vec = self.coords[iatom] - self.coords[jatom]
                     dist = np.sqrt((vec**2).sum())
-                    self.graph.add_edge(iatom, jatom, vector=vec, length=dist,
-                                        order=order,
+                    self.graph.add_edge(iatom, jatom, vector=vec, length=dist, order=order,
                                         type=f'{id1}({order}){id2}')
             if qm.n_bonds[iatom] > ELE_MAXB[iidx]:
                 print(f"WARNING: Atom {iatom+1} ({ATOM_SYM[iidx]}) has too many",
@@ -122,8 +118,7 @@ class Topology(object):
         self.types = [None for _ in self.atomids]
         for eq in self.list:
             for i in eq:
-                self.types[i] = "{}{}".format(ATOM_SYM[self.atomids[i]],
-                                              types[self.atomids[i]])
+                self.types[i] = "{}{}".format(ATOM_SYM[self.atomids[i]], types[self.atomids[i]])
             types[self.atomids[eq[0]]] += 1
         self.types = np.array(self.types, dtype='str')
 

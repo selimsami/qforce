@@ -1,7 +1,7 @@
 ; Default energy minimization MDP file for the qforce package
 
 integrator              = steep             ; 
-nsteps                  = 50000              ; total time: 2500 ps
+nsteps                  = 50000             ; 
 emtol                   = 0.001             ; max force for convergence
 comm-mode               = Angular           ; center of mass removal
 nstcomm                 = 100               ; freq. for center of mass motion removal

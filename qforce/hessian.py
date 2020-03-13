@@ -38,15 +38,12 @@ def fit_forcefield(inp, qm=None, mol=None):
     mol = Molecule(inp, qm)
 
     fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
+    average_unique_minima(mol.terms)
 
-    # Fit - add dihedrals - fit again >> Is it enough? More iteration?
     if inp.fragment:
         fragment(inp, mol, qm)
-        # Perhaps not a good idea at all to refit ?
-        # fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=False)
 
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
-    average_unique_minima(mol.terms)
     make_ff_params_from_fit(mol.terms, mol.topo, fit_results, inp, qm)
 
     # temporary
@@ -74,11 +71,11 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
                 hessian.append(hes[:-1])
                 full_md_hessian_1d.append(hes[:-1])
                 non_fit.append(hes[-1])
-    print("Done!\n")
 
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
     fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
+    print("Done!\n")
 
     for term in mol.terms:
         if term.idx < len(fit):
@@ -143,7 +140,7 @@ def calc_forces(coords, mol, inp, ignore_flex):
 
 def average_unique_minima(terms):
     unique_terms = {}
-    averaged_terms = ['bond', 'angle', 'urey']
+    averaged_terms = ['bond', 'angle']
     for name in [term_name for term_name in averaged_terms if term_name in terms.term_names]:
         for term in terms[name]:
             if str(term) in unique_terms.keys():
@@ -153,6 +150,20 @@ def average_unique_minima(terms):
                 minimum = np.array(list(oterm.equ for oterm in terms[name]))[eq].mean()
                 term.equ = minimum
                 unique_terms[str(term)] = minimum
+
+    # For Urey, recalculate length based on the averaged bonds/angles
+    for term in terms['urey']:
+        if str(term) in unique_terms.keys():
+            term.equ = unique_terms[str(term)]
+        else:
+            bond1_atoms = sorted(term.atomids[:2])
+            bond2_atoms = sorted(term.atomids[1:])
+            bond1 = [bond.equ for bond in terms['bond'] if all(bond1_atoms == bond.atomids)][0]
+            bond2 = [bond.equ for bond in terms['bond'] if all(bond2_atoms == bond.atomids)][0]
+            angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
+            urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
+            term.equ = urey
+            unique_terms[str(term)] = urey
 
 
 def make_ff_params_from_fit(terms, topo, fit, inp, qm, polar=False):
@@ -236,9 +247,9 @@ def make_ff_params_from_fit(terms, topo, fit, inp, qm, polar=False):
         ff.angles.append(atoms + [1, np.degrees(term.equ), term.fconst])
 
     if inp.urey:
-        corresp_angles = np.array([angle[0:3:2] for angle in ff.angles])
+        angle_atoms = np.array(ff.angles)[:, :3]
         for term in terms['urey']:
-            match = np.all(corresp_angles == term.atomids+1, axis=1)
+            match = np.all(term.atomids+1 == angle_atoms, axis=1)
             match = np.nonzero(match)[0][0]
             ff.angles[match][3] = 5
             ff.angles[match].extend([term.equ*0.1, term.fconst*100])
@@ -253,16 +264,18 @@ def make_ff_params_from_fit(terms, topo, fit, inp, qm, polar=False):
         minimum = np.degrees(term.equ)
         ff.impropers.append(atoms + [2, minimum, term.fconst])
 
+    uniques = list(set(str(term) for term in terms['dihedral/flexible']))
     for term in terms['dihedral/flexible']:
         atoms = [a+1 for a in term.atomids]
         if inp.fragment:
             ff.flexible.append(atoms + [3] + list(term.equ))
         else:
-            ff.flexible.append(atoms + [3, term.idx+1])
+            ff.flexible.append(atoms + [3, uniques.index(str(term))+1])
 
+    uniques = list(set(str(term) for term in terms['dihedral/constr']))
     for term in terms['dihedral/constr']:
         atoms = [a+1 for a in term.atomids]
-        ff.constrained.append(atoms + [3, term.idx+1])
+        ff.constrained.append(atoms + [3, uniques.index(str(term))+1])
 
     write_ff(ff, inp, polar)
     print("Q-Force force field parameters (.itp, .top) can be found in the "

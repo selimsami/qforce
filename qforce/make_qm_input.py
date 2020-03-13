@@ -54,7 +54,9 @@ def change_run_settings(inp, out_dir, out_file, G):
         disp = ""
 
     if inp.job_type == 'init':
-        inp.charge_method = f'(CM5, ESP, NBOREAD)'
+        pop_analysis = '(CM5, ESP, NBOREAD)'
+    elif inp.job_type == 'fit':
+        pop_analysis = '(CM5, ESP)'
 
     with open(out_path, "w") as file:
         for line in pre_input_commands:
@@ -67,7 +69,7 @@ def change_run_settings(inp, out_dir, out_file, G):
         file.write(f"%mem={inp.mem}\n")
         file.write(f"%chk={title}.chk\n")
         file.write(f"#{key[inp.job_type]} {inp.method} {inp.basis}{disp}"
-                   f" pop={inp.charge_method} \n\n")
+                   f" pop={pop_analysis} \n\n")
         file.write(f"{title}\n\n")
         file.write(f"{inp.charge} {inp.multi}\n")
 

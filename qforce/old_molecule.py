@@ -182,10 +182,7 @@ class Molecule():
             self.bonds.add_term([a1, a2], dist, f"{b_type[0]}({t}){b_type[1]}")
 
         for a1, a2, a3 in angles:
-            vec12, _ = get_dist(self.coords[a1], self.coords[a2])
-            vec32, _ = get_dist(self.coords[a3], self.coords[a2])
-            theta = get_angle(vec12, vec32)
-
+            theta = get_angle(self.coords[[a1, a2, a3]])[0]
             b21 = self.graph.edges[a2, a1]['type']
             b23 = self.graph.edges[a2, a3]['type']
             a_type = sorted([f"{self.types[a2]}({b21}){self.types[a1]}",

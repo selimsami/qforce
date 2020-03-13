@@ -95,6 +95,8 @@ def read_ext_nonbonded_file(inp):
         file_name = 'gromos_atb3_ffnonbonded.itp'
     elif inp.lennard_jones == 'opls':
         file_name = 'opls_ffnonbonded.itp'
+    elif inp.lennard_jones == 'gaff':
+        file_name = 'gaff_ffnonbonded.itp'
 
     with open(f'{qforce_data}/{file_name}', 'r') as file:
         for line in file:

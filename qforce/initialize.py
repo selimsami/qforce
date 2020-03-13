@@ -23,10 +23,10 @@ class Initialize(Colt):
     point_charges = d4 :: str :: [d4, cm5, esp, ext]
 
     # Lennard jones method for the forcefield
-    lennard_jones = d4 :: str :: [d4, gromos, opls]
+    lennard_jones = d4 :: str :: [d4, gromos, opls, gaff]
 
     # Combination rule for the Lennard-Jones interactions - see GROMACS manual
-    # Default is force field dependent (d4: 2, opls: 3, gromos: 1)
+    # Default is force field dependent (d4: 2, opls: 3, gromos: 1, gaff: 2)
     comb_rule = 0 :: int :: [1, 2, 3]
 
     # Scaling of the vibrational frequencies (not implemented)
@@ -100,7 +100,7 @@ class Initialize(Colt):
             elif key in ['non_bonded', 'urey', 'cross_bond_angle'] and not value:
                 ignored_terms.append(key)
             elif key in ['fragment'] and not value:
-                ignored_terms.append('dihedral/flexible')
+                ignored_terms.extend(['dihedral/flexible', 'dihedral/constr'])
 
         answers['ignored_terms'] = ignored_terms
         answers['comb_rule'] = Initialize.set_comb_rule(answers['comb_rule'],
@@ -196,6 +196,8 @@ class Initialize(Colt):
                 comb_rule = 1
             elif lj_type == 'opls':
                 comb_rule = 3
+            elif lj_type == 'gaff':
+                comb_rule = 2
         return comb_rule
 
     @staticmethod

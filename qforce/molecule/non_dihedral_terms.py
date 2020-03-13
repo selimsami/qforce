@@ -58,10 +58,10 @@ class AngleTerm(TermBase):
         for a1, a2, a3 in topo.angles:
 
             if not topo.edge(a2, a1)['in_ring3'] or not topo.edge(a2, a3)['in_ring3']:
-                vec12, _ = get_dist(topo.coords[a1], topo.coords[a2])
-                vec32, _ = get_dist(topo.coords[a3], topo.coords[a2])
-                theta = get_angle(vec12, vec32)
-                print(theta, np.degrees(theta))
+                theta = get_angle(topo.coords[[a1, a2, a3]])[0]
+                if theta > 3.0543:
+                    theta = np.pi
+
                 b21 = topo.edge(a2, a1)['vers']
                 b23 = topo.edge(a2, a3)['vers']
                 a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
@@ -77,7 +77,7 @@ class UreyAngleTerm(TermBase):
     name = 'UreyAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_bonds(crd, self.atomids, self.equ, fconst, force)
+        return calc_bonds(crd, self.atomids[::2], self.equ, fconst, force)
 
     @classmethod
     def get_terms(cls, topo):
@@ -95,16 +95,17 @@ class UreyAngleTerm(TermBase):
 
         for a1, a2, a3 in topo.angles:
             dist = get_dist(topo.coords[a1], topo.coords[a3])[1]
-
-            if not topo.edge(a2, a1)['in_ring3'] or not topo.edge(a2, a3)['in_ring3']:
-
+            theta = get_angle(topo.coords[[a1, a2, a3]])[0]
+            #  No Urey term  if linear angle (>175) or if in 3-member ring
+            if theta < 3.0543 and (not topo.edge(a2, a1)['in_ring3'] or
+                                   not topo.edge(a2, a3)['in_ring3']):
                 b21, b23 = topo.edge(a2, a1)['vers'], topo.edge(a2, a3)['vers']
 
                 a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
                                  f"{topo.types[a2]}({b23}){topo.types[a3]}"])
                 a_type = f"{a_type[0]}_{a_type[1]}"
 
-                urey_terms.append(cls([a1, a3], dist, a_type))
+                urey_terms.append(cls([a1, a2, a3], dist, a_type))
 
         return urey_terms
 
@@ -132,7 +133,10 @@ class CrossBondAngleTerm(TermBase):
         cross_bond_angle_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
-            if not topo.edge(a2, a1)['in_ring3'] or not topo.edge(a2, a3)['in_ring3']:
+            theta = get_angle(topo.coords[[a1, a2, a3]])[0]
+            #  No Urey term  if linear angle (>175) or if in 3-member ring
+            if theta < 3.0543 and (not topo.edge(a2, a1)['in_ring3'] or
+                                   not topo.edge(a2, a3)['in_ring3']):
                 dist12 = get_dist(topo.coords[a1], topo.coords[a2])[1]
                 dist32 = get_dist(topo.coords[a3], topo.coords[a2])[1]
                 dist13 = get_dist(topo.coords[a1], topo.coords[a3])[1]
