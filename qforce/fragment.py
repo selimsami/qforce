@@ -3,10 +3,13 @@ import os
 import hashlib
 import sys
 import networkx.algorithms.isomorphism as iso
+import matplotlib.pyplot as plt
+import seaborn as sns
 #
-from ase.optimize import BFGS, FIRE
+from ase.optimize.sciopt import SciPyFminBFGS
+from ase.optimize import BFGS
 from ase import Atoms
-from ase.io import write
+from ase.constraints import FixInternals
 #
 from scipy.optimize import curve_fit
 import numpy as np
@@ -28,10 +31,16 @@ def fragment(inp, mol, qm):
         else:
             unique_terms.append(str(term))
 
-        frag_name, have_data, G, terms, elems = check_one_fragment(inp, mol, qm, term.atomids)
+        frag_name, have_data, G, terms, elems, scanned = check_one_fragment(inp, mol, qm,
+                                                                            term.atomids)
+
+#        if frag_name != 'CO_H8C3O2_0_1_PBEPBE-GD3BJ_6-31+G-D_0fa89da172948014ae3527354858c0aa~1':
+#            continue
+
         if have_data:
+            print(f'Fitting dihedral number {len(unique_terms)}\n')
             n_have = write_data(have_path, frag_name, inp, n_have)
-            param = calc_dihedral_function(inp, mol, frag_name, terms, elems)
+            param = calc_dihedral_function(inp, mol, frag_name, terms, elems, scanned)
             params[str(term)] = param
         else:
             n_missing = write_data(missing_path, frag_name, inp, n_missing)
@@ -43,63 +52,83 @@ def fragment(inp, mol, qm):
         term.equ = params[str(term)]
 
 
-def calc_dihedral_function(inp, mol, frag_name, terms, elems):
-    energy_diff = []
+def calc_dihedral_function(inp, mol, frag_name, terms, elems, scanned):
+    md_energies = []
     frag_id, id_no = frag_name.split('~')
     frag_dir = f'{inp.frag_lib}/{frag_id}'
 
-    angles, energies = np.loadtxt(f'{frag_dir}/scandata_{id_no}', unpack=True)
+    angles, qm_energies = np.loadtxt(f'{frag_dir}/scandata_{id_no}', unpack=True)
     coords = np.load(f'{frag_dir}/scancoords_{id_no}.npy')
-
-    coords = coords[:, :len(elems)]
-    print('NEW FRAG')
-
-    for term in terms:
-        print(term, [id+1 for id in term.atomids])
-
-    for angle, energy, coord in zip(angles, energies, coords):
-#        dihedral_constraint = [np.radians(angle), dihed_atoms]
-
-        frag = Atoms(elems, positions=coord, calculator=QForce(terms))
-        print('NEW STEP')
-        write('frag.pdb', frag)
-
-        # # print(frag.get_potential_energy())
-        # # print(frag.get_forces())
-
-        dyn = BFGS(frag)
-        dyn.run(fmax=0.05, steps=100)
-        print(frag.get_positions())
-        import sys
-        sys.exit()
-
-        # write('optimized.pdb', molecule, plain=True)
-
-        # for i, j, c6, c12, qq in pairs:
-        #     energy = calc_pair_energies(coord, i, j, c6, c12, qq, energy)
-        energy_diff.append(energy)
-
-    energy_diff = np.array(energy_diff) - np.array(energy_diff).min()
-
     angles_radians = np.radians(angles)
-    weights = np.exp(-0.2 * np.sqrt(energies))
+    coords = coords[:, :len(elems)]  # ignore the capping hydrogens during the minimization
 
+    for angle, qm_energy, coord in zip(angles_radians, qm_energies, coords):
+        frag = Atoms(elems, positions=coord, calculator=QForce(terms))
+
+        print(terms['bond'])
+        print(terms['angle'])
+        print(terms['dihedral'])
+        for dihed in terms['dihedral/flexible']:
+            print(dihed)
+            dihedral_constraint = [[angle, scanned]]
+            constraints = FixInternals(dihedrals=dihedral_constraint)
+            frag.set_constraint(constraints)
+
+        # e_minimiz = SciPyFminBFGS(frag, logfile=f'{inp.frag_dir}/opt_{frag_name}.log')
+        # try:
+        #     e_minimiz.run(fmax=0.05, steps=1000)
+        # except:
+        e_minimiz = BFGS(frag, trajectory=f'{inp.frag_dir}/{frag_name}_{np.degrees(angle)}.traj',
+                         logfile=f'{inp.frag_dir}/opt_{frag_name}.log')
+        try:
+            e_minimiz.run(fmax=0.01, steps=1000)
+        except:
+            print('WARNING: Possible convergence problem in fragment the optimization procedure.')
+
+        md_energies.append(frag.get_potential_energy())
+
+    md_energies = np.array(md_energies)
+    energy_diff = qm_energies - md_energies
+    energy_diff -= energy_diff.min()
+
+    weights = 1/np.exp(-0.2 * np.sqrt(qm_energies))
+    np.save('angles', angles)
+    np.save('diff', energy_diff)
+    np.save('qm', qm_energies)
+    np.save('md', md_energies)
     popt, _ = curve_fit(calc_rb, angles_radians, energy_diff, absolute_sigma=False, sigma=weights)
     r_squared = calc_r_squared(calc_rb, angles_radians, energy_diff, popt)
 
-    print(r_squared)
-    # Plot with r_squared
+    md_energies += calc_rb(angles_radians, *popt)
+    md_energies -= md_energies.min()
+    plot_fragment_results(inp, angles, qm_energies, md_energies, frag_name, r_squared)
+
     return popt
+
+
+def plot_fragment_results(inp, angles, qm_energies, md_energies, frag_name, r_squared):
+    width, height = plt.figaspect(0.6)
+    f = plt.figure(figsize=(width, height), dpi=300)
+    sns.set(font_scale=1.3)
+    plt.title(f'R-squared = {round(r_squared, 3)}', loc='left')
+    plt.xlabel('Angle')
+    plt.ylabel('Energy (kJ/mol)')
+    plt.plot(angles, qm_energies, linewidth=4, label='QM')
+    plt.plot(angles, md_energies, linewidth=4, label='Q-Force')
+    plt.xticks(np.arange(0, 361, 60))
+    plt.tight_layout()
+    plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
+    f.savefig(f"{inp.frag_dir}/scan_data_{frag_name}.pdf", bbox_inches='tight')
 
 
 def check_one_fragment(inp, mol, qm, dihed_atoms):
     e = elements()
     frag_atomids, capping_h = identify_fragment(dihed_atoms, mol.topo, e)
-    G, terms, elems = make_fragment(qm, mol, frag_atomids, capping_h, dihed_atoms)
+    G, terms, elems, scanned = make_fragment(qm, mol, frag_atomids, capping_h, dihed_atoms)
     frag_id, G = make_fragment_identifier(G, mol.topo, inp, e, dihed_atoms)
     have_data, frag_name, mapping_db_to_current = check_for_fragment(G, inp, frag_id)
 
-    return frag_name, have_data, G, terms, elems
+    return frag_name, have_data, G, terms, elems, scanned
 
 
 def identify_fragment(dihed_atoms, topo, e):
@@ -124,7 +153,6 @@ def identify_fragment(dihed_atoms, topo, e):
                 capping_h.append((a, topo.coords[a] - vec/bl*new_bl))
         next_neigh = [[a, n] for a in new for n in topo.neighbors[0][a] if n not in frag_atomids]
         n_neigh += 1
-
     return frag_atomids, capping_h
 
 
@@ -143,19 +171,16 @@ def make_fragment(qm, mol, frag_atomids, capping_h, dihed_atoms):
     G.edges[scanned[1:3]]['scan'] = True
 
     for _, _, d in G.edges(data=True):
-        for att in ['vector', 'length', 'order', 'breakable', 'vers',
-                    'in_ring3', 'in_ring']:
+        for att in ['vector', 'length', 'order', 'breakable', 'vers', 'in_ring3', 'in_ring']:
             d.pop(att, None)
     for _, d in G.nodes(data=True):
         for att in ['breakable', 'q', 'n_ring']:
             d.pop(att, None)
     for i, h in enumerate(capping_h):
-        G.add_node(G.graph['n_atoms']+i, elem=1, n_bonds=1, lone_e=0,
-                   coords=h[1], c6=101, c12=31405)
-        G.add_edge(G.graph['n_atoms']+i, mapping[h[0]],
-                   type=f'1(1.0){mol.topo.atomids[h[0]]}')
+        G.add_node(G.graph['n_atoms']+i, elem=1, n_bonds=1, lone_e=0, coords=h[1])
+        G.add_edge(G.graph['n_atoms']+i, mapping[h[0]], type=f'1(1.0){mol.topo.atomids[h[0]]}')
     G.graph['n_atoms'] += len(capping_h)
-    return G, terms, elems
+    return G, terms, elems, scanned
 
 
 def make_fragment_identifier(G, topo, inp, e, dihed_atoms):
@@ -285,7 +310,7 @@ def check_and_notify(inp, n_missing, n_have):
     else:
         print(f"There are {n_missing+n_have} unique flexible dihedrals.")
     if n_missing == 0:
-        print(f"All scan data is available. Continuing with the fitting...\n")
+        print(f"\nAll scan data is available. Continuing with the fitting...\n")
     else:
         print(f"{n_missing} of them are missing the scan data.")
         print(f"QM input files for them are created in: {inp.frag_dir}\n\n")
@@ -299,9 +324,11 @@ def calc_r_squared(funct, x, y, params):
     return 1 - (ss_res / ss_tot)
 
 
-def calc_rb(angle, c0, c1, c2, c3, c4, c5):
+def calc_rb(angles, c0, c1, c2, c3, c4, c5):
     params = [c0, c1, c2, c3, c4, c5]
-    rb = 0
-    for i, p in enumerate(params):
-        rb += p * np.cos(angle-np.pi)**i
+
+    rb = np.full(len(angles), c0)
+
+    for i in range(1, 6):
+        rb += params[i] * np.cos(angles-np.pi)**i
     return rb

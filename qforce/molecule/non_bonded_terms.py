@@ -19,16 +19,13 @@ class NonBondedTerms(TermBase):
         non_bonded_terms = cls.get_terms_container()
 
         eps0 = 1389.35458
-
-        for i, a1 in enumerate(topo.atoms):
-            for j, a2 in enumerate(topo.atoms):
-                if i < j and all([j not in topo.neighbors[c][i] for c in range(topo.n_excl)]):
-                    sigma = 0.5 * (topo.sigma[a1] + topo.sigma[a2])
-                    epsilon = (topo.epsilon[a1] * topo.epsilon[a2])**0.5
-                    sigma6 = sigma**6
-                    c6 = 4 * epsilon * sigma6
-                    c12 = c6 * sigma6
-                    qq = topo.q[a1] * topo.q[a2] * eps0
-                    term_type = '-'.join([topo.types[i], topo.types[j]])
-                    non_bonded_terms.append(cls([i, j], np.array([c6, c12, qq]), term_type))
+        for i in range(topo.n_atoms):
+            for j in range(i+1, topo.n_atoms):
+                close_neighbor = any([j in topo.neighbors[c][i] for c in range(topo.n_excl)])
+                if not close_neighbor and (i, j) not in topo.exclusions:
+                    pair_name = tuple(sorted([topo.lj_types[i], topo.lj_types[j]]))
+                    params = topo.lj_pairs[pair_name][:]
+                    term_type = '-'.join(pair_name)
+                    params.append(topo.q[i] * topo.q[j] * eps0)
+                    non_bonded_terms.append(cls([i, j], np.array(params), term_type))
         return non_bonded_terms

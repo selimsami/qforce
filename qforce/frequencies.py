@@ -1,12 +1,31 @@
 import numpy as np
 from scipy.linalg import eigh
+import matplotlib.pyplot as plt
+import seaborn as sns
+#
 from .elements import elements
 
 
 def calc_qm_vs_md_frequencies(inp, qm, md_hessian):
     qm_freq, qm_vec = calc_vibrational_frequencies(qm.hessian, qm)
     md_freq, md_vec = calc_vibrational_frequencies(md_hessian, qm)
-    write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp)
+    mean_percent_error = write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp)
+    plot_frequencies(inp, qm_freq, md_freq, mean_percent_error)
+
+
+def plot_frequencies(inp, qm_freq, md_freq, mean_percent_error):
+    n_freqs = np.arange(len(qm_freq))+1
+    width, height = plt.figaspect(0.6)
+    f = plt.figure(figsize=(width, height), dpi=300)
+    sns.set(font_scale=1.3)
+    plt.title(f'Mean Percent Error = {round(mean_percent_error, 2)}%', loc='left')
+    plt.xlabel('Vibrational Mode #')
+    plt.ylabel(r'Frequencies (cm$^{-1}$)')
+    plt.plot(n_freqs, qm_freq, linewidth=3, label='QM')
+    plt.plot(n_freqs, md_freq, linewidth=3, label='Q-Force')
+    plt.tight_layout()
+    plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
+    f.savefig(f"{inp.job_dir}/frequencies.pdf", bbox_inches='tight')
 
 
 def calc_vibrational_frequencies(upper, qm):
@@ -58,12 +77,15 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
     e = elements()
     freq_file = f"{inp.job_dir}/{inp.job_name}_qforce.freq"
     nmd_file = f"{inp.job_dir}/{inp.job_name}_qforce.nmd"
+    errors = []
 
     with open(freq_file, "w") as f:
         f.write(" mode  QM-Freq   MD-Freq     Diff.  %Error\n")
         for i, (q, m) in enumerate(zip(qm_freq, md_freq)):
             diff = q - m
             err = diff / q * 100
+            if q > 100:
+                errors.append(err)
             f.write(f"{i+7:>4}{q:>10.1f}{m:>10.1f}{diff:>10.1f}{err:>8.2f}\n")
         f.write("\n\n         QM vectors              MD Vectors\n")
         f.write(50*"=")
@@ -71,6 +93,9 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
             f.write(f"\nMode {i+7}\n")
             for qm2, md2 in zip(qm1, md1):
                 f.write("{:>8.3f}{:>8.3f}{:>8.3f}{:>10.3f}{:>8.3f}{:>8.3f}\n".format(*qm2, *md2))
+
+    mean_percent_error = np.abs(np.array(errors)).mean()
+
     with open(nmd_file, "w") as nmd:
         nmd.write(f"nmwiz_load {inp.job_name}_qforce.nmd\n")
         nmd.write(f"title {inp.job_name}\n")
@@ -92,3 +117,4 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
                 nmd.write(f" {c[0]:.3f} {c[1]:.3f} {c[2]:.3f}")
     print(f"QM vs MD vibrational frequencies can be found in: {freq_file}")
     print(f"Vibrational modes (can be run in VMD) is located in: {nmd_file}\n")
+    return mean_percent_error

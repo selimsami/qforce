@@ -4,3 +4,6 @@
 [submodule "dftd4"]
 	path = dftd4
 	url = https://github.com/selimsami/dftd4.git
+[submodule "colt"]
+	path = colt
+	url = https://github.com/MFSJMenger/colt

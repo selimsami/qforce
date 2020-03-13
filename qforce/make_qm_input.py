@@ -37,7 +37,7 @@ def change_run_settings(inp, out_dir, out_file, G):
 
     title = out_file
 
-    if len(inp.job_script) > 0:
+    if inp.job_script:
         out_path = f'{out_path}.inp'
         if '<input>' in inp.job_script:
             inp_line = inp.job_script.index('<input>')
@@ -48,13 +48,15 @@ def change_run_settings(inp, out_dir, out_file, G):
     else:
         out_path = f'{out_path}.com'
         pre_input_commands, post_input_commands = [], []
-    if inp.disp != "":
+    if inp.disp:
         disp = f' EmpiricalDispersion={inp.disp}'
     else:
         disp = ""
 
     if inp.job_type == 'init':
-        inp.charge_method = f'({inp.charge_method}, NBOREAD)'
+        pop_analysis = '(CM5, ESP, NBOREAD)'
+    elif inp.job_type == 'fit':
+        pop_analysis = '(CM5, ESP)'
 
     with open(out_path, "w") as file:
         for line in pre_input_commands:
@@ -63,10 +65,11 @@ def change_run_settings(inp, out_dir, out_file, G):
                 file.write(f"{line[:on]}{title}{line[off:]}\n")
             else:
                 file.write(f"{line}\n")
-        file.write(f"{inp.nproc}{inp.mem}")
+        file.write(f"%nprocshared={inp.nproc}\n")
+        file.write(f"%mem={inp.mem}\n")
         file.write(f"%chk={title}.chk\n")
         file.write(f"#{key[inp.job_type]} {inp.method} {inp.basis}{disp}"
-                   f" pop={inp.charge_method} \n\n")
+                   f" pop={pop_analysis} \n\n")
         file.write(f"{title}\n\n")
         file.write(f"{inp.charge} {inp.multi}\n")
 

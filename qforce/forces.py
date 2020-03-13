@@ -24,24 +24,23 @@ def calc_bonds(coords, atoms, r0, fconst, force):
 
 @jit(nopython=True)
 def calc_angles(coords, atoms, theta0, fconst, force):
-    vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
-    vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
-    theta = get_angle(vec12, vec32)
-    cos_theta = np.cos(theta)
+    theta, vec12, vec32, r12, r32 = get_angle(coords[atoms])
+    cos_theta = math.cos(theta)
+    cos_theta_sq = cos_theta**2
     dtheta = theta - theta0
-
     energy = 0.5 * fconst * dtheta**2
-    st = - fconst * dtheta / np.sqrt(1. - cos_theta**2)
-    sth = st * cos_theta
-    c13 = st / r12 / r32
-    c11 = sth / r12 / r12
-    c33 = sth / r32 / r32
+    if cos_theta_sq < 1:
+        st = - fconst * dtheta / np.sqrt(1. - cos_theta_sq)
+        sth = st * cos_theta
+        c13 = st / r12 / r32
+        c11 = sth / r12 / r12
+        c33 = sth / r32 / r32
 
-    f1 = c11 * vec12 - c13 * vec32
-    f3 = c33 * vec32 - c13 * vec12
-    force[atoms[0]] += f1
-    force[atoms[2]] += f3
-    force[atoms[1]] -= f1 + f3
+        f1 = c11 * vec12 - c13 * vec32
+        f3 = c33 * vec32 - c13 * vec12
+        force[atoms[0]] += f1
+        force[atoms[2]] += f3
+        force[atoms[1]] -= f1 + f3
     return energy
 
 
@@ -148,23 +147,10 @@ def calc_pairs(coords, atoms, params, force):
     c12_r12 = c12 * r_6**2
     energy = qq_r + c12_r12 - c6_r6
     f = (qq_r + 12*c12_r12 - 6*c6_r6) * r_2
-    # tiny numerical disagreement with gromacs for lj forces?? double check!
     fk = f * vec
-    force[atoms[0]] -= fk
-    force[atoms[1]] += fk
+    force[atoms[0]] += fk
+    force[atoms[1]] -= fk
     return energy
-
-
-# @jit(nopython=True)
-# def calc_pair_energies(coords, i, j, c6, c12, qq, energy):
-#     vec, r = get_dist(coords[i], coords[j])
-#     qq_r = qq/r
-#     r_2 = 1/r**2
-#     r_6 = r_2**3
-#     c6_r6 = c6 * r_6
-#     c12_r12 = c12 * r_6**2
-#     energy += qq_r + c12_r12 - c6_r6
-#     return energy
 
 
 @jit(nopython=True)
@@ -175,7 +161,19 @@ def get_dist(coord1, coord2):
 
 
 @jit(nopython=True)
-def get_angle(vec1, vec2):
+def get_angle(coords):
+    vec12, r12 = get_dist(coords[0], coords[1])
+    vec32, r32 = get_dist(coords[2], coords[1])
+    dot = np.dot(vec12/r12, vec32/r32)
+    if dot > 1.0:
+        dot = 1.0
+    elif dot < -1.0:
+        dot = -1.0
+    return math.acos(dot), vec12, vec32, r12, r32
+
+
+@jit(nopython=True)
+def get_angle_from_vectors(vec1, vec2):
     dot = np.dot(vec1/norm(vec1), vec2/norm(vec2))
     if dot > 1.0:
         dot = 1.0
@@ -191,7 +189,7 @@ def get_dihed(coords):
     vec34, r34 = get_dist(coords[2], coords[3])
     cross1 = cross_prod(vec12, vec32)
     cross2 = cross_prod(vec32, vec34)
-    phi = get_angle(cross1, cross2)
+    phi = get_angle_from_vectors(cross1, cross2)
     if dot_prod(vec12, cross2) < 0:
         phi = - phi
     return phi, vec12, vec32, vec34, cross1, cross2

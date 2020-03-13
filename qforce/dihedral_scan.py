@@ -32,36 +32,34 @@ def scan_dihedral(inp, atoms, scan_id):
     print("-"*(11+len(scan_name)))
 
     # Prepare the files for a GROMACS run in each scan step directory
-    prepare_scan_directories(atoms, qm_angles, qm_energies, inp, itp_file,
-                             scan_dir)
+    prepare_scan_directories(atoms, qm_angles, qm_energies, inp, itp_file, scan_dir)
 
     # Run gromacs without the scanned dihedral - get energies
-    # print("Running GROMACS without the scanned dihedral...")
-    # for step, angle in enumerate(qm_angles):
-    #     step_dir = f"{scan_dir}/step{step}"
-    #     run_gromacs(step_dir, "nodihed", inp)
-    #     md_energy = read_gromacs_energies(step_dir, "nodihed")
-    #     md_energies.append(md_energy)
+    print("Running GROMACS without the scanned dihedral...")
+    for step, angle in enumerate(qm_angles):
+        step_dir = f"{scan_dir}/step{step}"
+        run_gromacs(step_dir, "nodihed", inp)
+        md_energy = read_gromacs_energies(step_dir, "nodihed")
+        md_energies.append(md_energy)
 
-    # # Set minimum energies to zero and compute QM vs MD difference
-    # # and the dihedral potential to be fitted
-    # md_energies = set_minimum_to_zero(md_energies)
-    # dihedral_fitting = set_minimum_to_zero(qm_energies - md_energies)
+    # Set minimum energies to zero and compute QM vs MD difference
+    # and the dihedral potential to be fitted
+    md_energies = set_minimum_to_zero(md_energies)
+    dihedral_fitting = set_minimum_to_zero(qm_energies - md_energies)
 
-    # # fit the data
-    # print("Fitting the dihedral function...")
-    # c, r_squared, fitted_dihedral = do_fitting(qm_angles, qm_energies, inp,
-    #                                            dihedral_fitting)
+    # fit the data
+    print("Fitting the dihedral function...")
+    c, r_squared, fitted_dihedral = do_fitting(qm_angles, qm_energies, inp, dihedral_fitting)
 
     # print optmized dihedrals
-    # write_opt_dihedral(itp_file, atoms, c, r_squared)
+    write_opt_dihedral(itp_file, atoms, c, r_squared)
 
     # run gromacs again with optimized dihedrals
     print("Running GROMACS with the fitted dihedral...")
     for step, angle in enumerate(qm_angles):
         step_dir = f"{scan_dir}/step{step}"
-        # itp_loc = f"{step_dir}/{inp.job_name}_qforce.itp"
-        # write_opt_dihedral(itp_loc, atoms, c, r_squared)
+        itp_loc = f"{step_dir}/{inp.job_name}_qforce.itp"
+        write_opt_dihedral(itp_loc, atoms, c, r_squared)
         run_gromacs(step_dir, "opt", inp)
         md_energy = read_gromacs_energies(step_dir, "opt")
         opt_md_energies.append(md_energy)
@@ -89,7 +87,9 @@ def remove_scanned_dihedral(itp_path, atoms):
     with open(itp_path, 'w') as itp_file:
         for line in itp:
             low_line = line.strip().lower()
-            if "[" in low_line and "]" in low_line:
+            if line.startswith(';'):
+                itp_file.write(line)
+            elif "[" in low_line and "]" in low_line:
                 no_space = low_line.replace(" ", "")
                 open_bra = no_space.index("[") + 1
                 close_bra = no_space.index("]")
@@ -97,10 +97,10 @@ def remove_scanned_dihedral(itp_path, atoms):
                 itp_file.write(line)
             elif in_section == "dihedrals" and len(line.split()) > 3:
                 atoms_check = line.split()[0:4]
-#                if atoms == atoms_check:
-#                    continue
-#                else:
-                itp_file.write(line)
+                if atoms == atoms_check:
+                    continue
+                else:
+                    itp_file.write(line)
             else:
                 itp_file.write(line)
 
@@ -186,10 +186,10 @@ def do_fitting(qm_angles, qm_energies, inp, dihedral_fitting):
              + c5 * cos(angle_rad - pi)**5}
 
     angles_rad = np.deg2rad(qm_angles)
-    weights = np.exp(-0.2 * np.sqrt(qm_energies))
+    weights = 1/np.exp(-0.2 * np.sqrt(qm_energies))
 
     fit = Fit(model, angle_rad=angles_rad, y=dihedral_fitting,
-              sigma_y=1/weights, absolute_sigma=False)
+              sigma_y=weights, absolute_sigma=False)
 
     fit_result = fit.execute()
 
@@ -211,9 +211,9 @@ def write_opt_dihedral(itp_file, atoms, c, r_squared):
     belle = ("{:>5}{:>5}{:>5}{:>5}    3 {:>11.4f}{:>11.4f}{:>11.4f}{:>11.4f}"
              "{:>11.4f}{:>11.4f}" + opt_d)
     atoms = [a+1 for a in atoms]
-#    with open(itp_file, "a") as opt_itp:
-#        opt_itp.write("\n[ dihedrals ]\n")
-#        opt_itp.write(belle.format(*atoms, *c))
+    with open(itp_file, "a") as opt_itp:
+        opt_itp.write("\n[ dihedrals ]\n")
+        opt_itp.write(belle.format(*atoms, *c))
 
 
 def plot_dihedral_profile(inp, qm_angles, qm_energies, md_energies, scan_name):

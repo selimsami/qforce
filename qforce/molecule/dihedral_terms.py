@@ -4,7 +4,7 @@ import numpy as np
 #
 from .baseterms import TermABC, TermFactory
 #
-from ..forces import get_dihed
+from ..forces import get_dihed, get_angle
 from ..forces import calc_imp_diheds, calc_rb_diheds
 from ..elements import ATOMMASS
 
@@ -26,9 +26,25 @@ class DihedralBaseTerm(TermABC):
             t23.reverse()
         return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
 
+    @staticmethod
+    def remove_linear_angles(coords, a1s, a2, a3, a4s):
+        # Don't add a dihedral if its 3-atom planes have an angle > 175 degrees
+        a1s = [a1 for a1 in a1s if get_angle(coords[[a1, a2, a3]])[0] < 3.0543]
+        a4s = [a4 for a4 in a4s if get_angle(coords[[a4, a3, a2]])[0] < 3.0543]
+        return a1s, a4s
+
+    @staticmethod
+    def check_angle(phi):
+        if abs(phi) < 0.5236:  # if it's smaller than +- 30 degrees, make it 0
+            phi = 0
+        elif 2.6180 < abs(phi):  # if it's larger than 150 degrees, make it 180
+            phi = np.pi
+        return phi
+
     @classmethod
     def get_term(cls, topo, atomids, d_type):
         phi = get_dihed(topo.coords[atomids])[0]
+        phi = DihedralBaseTerm.check_angle(phi)
         return cls(atomids, phi, d_type)
 
 
@@ -49,6 +65,7 @@ class ImproperDihedralTerm(DihedralBaseTerm):
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
+        phi = DihedralBaseTerm.check_angle(phi)
         return cls(atomids, phi, d_type)
 
 
@@ -124,11 +141,14 @@ class DihedralTerms(TermFactory):
             a1s = [a1 for a1 in topo.neighbors[0][a2] if a1 != a3]
             a4s = [a4 for a4 in topo.neighbors[0][a3] if a4 != a2]
 
+            a1s, a4s = DihedralBaseTerm.remove_linear_angles(topo.coords, a1s, a2, a3, a4s)
+
             if a1s == [] or a4s == []:
                 continue
 
             atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
                           a4s) if d[0] != d[-1]]
+
             if (central['order'] > 1.5 or central["in_ring3"]
                     or (central['in_ring'] and central['order'] > 1)
                     or all([topo.node(a)['n_ring'] > 2 for a in [a2, a3]])):
@@ -141,7 +161,7 @@ class DihedralTerms(TermFactory):
                 atoms_r = [a for a in atoms_comb if any(set(a).issubset(set(r))
                            for r in topo.rings)][0]
                 phi = get_dihed(topo.coords[atoms_r])[0]
-                if abs(phi) < 0.07:
+                if abs(phi) < 0.1745:  # check planarity <10 degrees
                     # rigid
                     for atoms in atoms_comb:
                         d_type = get_dtype(topo, *atoms)
@@ -177,7 +197,7 @@ class DihedralTerms(TermFactory):
             if any(b == list(term.atomids[1:3]) for term in terms['rigid'] for b in bonds):
                 continue
             imp_type = f"ki_{topo.types[i]}"
-            if abs(phi) < 0.07:  # check planarity <4 degrees
+            if abs(phi) < 0.1745:  # check planarity <10 degrees
                 add_term('improper', topo, atoms, phi, imp_type)
             else:
                 add_term('constr', topo, atoms, phi, imp_type)

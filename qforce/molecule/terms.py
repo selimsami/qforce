@@ -3,8 +3,7 @@ from copy import deepcopy
 import numpy as np
 #
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm,
-                                 CrossBondAngleTerm)
+from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm, CrossBondAngleTerm)
 from .non_bonded_terms import NonBondedTerms
 #
 from .base import MappingIterator
@@ -24,7 +23,7 @@ class Terms(MappingIterator):
 
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
-        self.n_fitted_terms = self._set_fitting_term_idx(not_fit_terms)
+        self.n_fitted_terms = self._set_fit_term_idx(not_fit_terms)
         self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
 
     @classmethod
@@ -33,13 +32,14 @@ class Terms(MappingIterator):
                          if term not in ignore]
         terms = {name: factory.get_terms(topo)
                  for name, factory in cls._term_factories.items() if name not in ignore}
+        print(terms)
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
     def as_subset(cls, terms, fragment, mapping, ignore=[], not_fit_terms=[]):
         subterms = {}
         for key, termlist in terms.items():
-            if key == 'dihedral/flexible':
+            if key in ['dihedral/flexible', 'dihedral/constr']:
                 continue
             subterms[key] = []
             for term in termlist:
@@ -49,7 +49,7 @@ class Terms(MappingIterator):
                     subterms[key].append(term)
         return cls(subterms, ignore, not_fit_terms)
 
-    def _set_fitting_term_idx(self, not_fit_terms):
+    def _set_fit_term_idx(self, not_fit_terms):
 
         with self.add_ignore(not_fit_terms):
             names = list(set(str(term) for term in self))

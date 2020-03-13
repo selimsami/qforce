@@ -18,6 +18,5 @@ class QForce(Calculator):
 
         if 'forces' not in self.results or 'energy' not in self.results:
             self.results = {'energy': 0.0, 'forces': np.zeros((len(atoms), 3))}
-
             for term in self.terms:
                 self.results['energy'] += term.do_force(coords, self.results['forces'])

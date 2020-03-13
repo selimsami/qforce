@@ -1,7 +1,7 @@
 import math
 import numpy as np
-#
-from .dftd4 import run_dftd4
+from ase.io import write
+from ase import Atoms
 
 
 class QM():
@@ -15,12 +15,9 @@ class QM():
 
     def __init__(self, inp, job_type, fchk_file=False, out_file=False):
         # if qm_software == "Gaussian": (in the future)
-        self.read_gaussian(fchk_file, out_file, job_type)
+        self.read_gaussian(inp, fchk_file, out_file, job_type)
 
-        if job_type == 'freq':
-            self.get_nonbonded(inp)
-
-    def read_gaussian(self, fchk_file, out_file, job_type):
+    def read_gaussian(self, inp, fchk_file, out_file, job_type):
         if out_file:
             self.normal_term = False
             self.n_atoms = 0
@@ -37,51 +34,12 @@ class QM():
 
             self.read_gaussian_fchk(fchk_file)
             self.prepare()
+            self.write_optimized_xyz(inp)
 
-    def get_nonbonded(self, inp):
-        if 'd4' in [inp.point_charges, inp.lennard_jones]:
-            run_dftd4(inp, self)
-        if inp.point_charges == 'ext':
-            self.q = np.loadtxt(f'{inp.job_dir}/ext_q')
-        elif inp.point_charges == 'cm5':
-            self.q = self.cm5
-
-        if inp.lennard_jones == 'ext':
-            self.read_external_lennard_jones(inp)
-        else:
-            print('WARNING: You are using Q-Force Lennard-Jones parameters. This is not finished.',
-                  '\nYou are advised to provide external LJ parameters for production runs.\n')
-
-    def read_external_lennard_jones(self, inp):
-        unit_type = 'c6/c12'
-        all_lj, lj_types, lj_dict = [], [], {}
-
-        with open(f'{inp.job_dir}/ext_lj', 'r') as file:
-            for line in file:
-                line = line.strip()
-                if line == '':
-                    continue
-                elif line.startswith('@'):
-                    unit_type = line.partition('@')[2].strip().lower()
-                    print(unit_type)
-                elif line.startswith('#'):
-                    line = line[1:].split()
-                    lj_dict[line[0]] = [float(line[1]), float(line[2])]
-                else:
-                    lj_types.append(line)
-
-        for lj_type in lj_types:
-            all_lj.append(lj_dict[lj_type])
-
-        all_lj = np.array(all_lj)
-        if unit_type == 'sigma/epsilon':
-            self.c6 = 4 * all_lj[:, 1] * all_lj[:, 0]**6
-            self.c12 = 4 * all_lj[:, 1] * all_lj[:, 0]**12
-        elif unit_type == 'c6/c12':
-            self.c6 = all_lj[:, 0]
-            self.c12 = all_lj[:, 1]
-        self.c6 = self.c6 * 1e6
-        self.c12 = self.c12 * 1e12
+    def write_optimized_xyz(self, inp):
+        inp.xyz_file = f'{inp.job_dir}/opt.xyz'
+        mol = Atoms(numbers=self.atomids, positions=self.coords)
+        write(inp.xyz_file, mol, plain=True, comment=f'{inp.job_name} - optimized geometry')
 
     def read_gaussian_fchk(self, fchk_file):
         with open(fchk_file, "r", encoding='utf-8') as fchk:
@@ -122,6 +80,7 @@ class QM():
         self.dipole = np.asfarray(self.dipole, float)
         self.rot_tr = np.asfarray(self.rot_tr, float)
         self.coords = np.reshape(self.coords, (-1, 3))
+        self.atomids = np.array(self.atomids)
 
         # convert to input coords
         if self.rot_tr != []:

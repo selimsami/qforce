@@ -13,7 +13,7 @@ print("""\n
   \___\_\      |_|  \___/|_|  \___\___|
 
 Written by: Selim Sami
-University of Groningen - 2019
+University of Groningen - 2020
 ==============================
 """)
 
@@ -22,6 +22,7 @@ args, depriciated = parse()
 if depriciated:
     inp = old_Input(args)
 else:
-    inp = Initialize(args)
+    inp = Initialize.from_questions("qforce", check_only=True, config=args.o)
+    inp.setup(args.f, args.p)
 
 print("\n")

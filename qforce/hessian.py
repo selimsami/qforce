@@ -12,10 +12,6 @@ from .fragment import fragment
 from .elements import elements
 from .frequencies import calc_qm_vs_md_frequencies
 # from .decorators import timeit, print_timelog
-from ase.optimize import BFGS
-from ase import Atoms
-from ase.io import write
-from .calculator import QForce
 
 
 def fit_forcefield(inp, qm=None, mol=None):
@@ -42,27 +38,14 @@ def fit_forcefield(inp, qm=None, mol=None):
     mol = Molecule(inp, qm)
 
     fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
-
-    # Fit - add dihedrals - fit again >> Is it enough? More iteration?
-    if not inp.nofrag:
-        fragment(inp, mol, qm)
-        fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=False)
-
-    molecule = Atoms(qm.atomids, positions=qm.coords, calculator=QForce(mol.terms))
-
-    dyn = BFGS(molecule)
-    dyn.run(fmax=0.005, )
-
-    # print(molecule.get_positions())
-    # write('optimized.xyz', molecule, plain=True)
-
-    #
-    #
-    calc_qm_vs_md_frequencies(inp, qm, md_hessian)
     average_unique_minima(mol.terms)
-    make_ff_params_from_fit(mol, fit_results, inp, qm)
-    #
-    #
+
+    if inp.fragment:
+        fragment(inp, mol, qm)
+
+    calc_qm_vs_md_frequencies(inp, qm, md_hessian)
+    make_ff_params_from_fit(mol.terms, mol.topo, fit_results, inp, qm)
+
     # temporary
     # fit_dihedrals(inp, mol, qm)
 
@@ -88,11 +71,11 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
                 hessian.append(hes[:-1])
                 full_md_hessian_1d.append(hes[:-1])
                 non_fit.append(hes[-1])
-    print("Done!\n")
 
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
     fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
+    print("Done!\n")
 
     for term in mol.terms:
         if term.idx < len(fit):
@@ -107,10 +90,9 @@ def fit_dihedrals(inp, mol, qm):
     """
     Temporary - to be removed
     """
-
     from .fragment import check_one_fragment
     for term in mol.terms['dihedral/flexible']:
-        frag_name, _, _, _ = check_one_fragment(inp, mol.topo, term.atomids)
+        frag_name, _, _, _, _, _ = check_one_fragment(inp, mol, qm, term.atomids)
         scan_dihedral(inp, term.atomids, frag_name)
 
 
@@ -158,7 +140,7 @@ def calc_forces(coords, mol, inp, ignore_flex):
 
 def average_unique_minima(terms):
     unique_terms = {}
-    averaged_terms = ['bond', 'angle', 'urey']
+    averaged_terms = ['bond', 'angle']
     for name in [term_name for term_name in averaged_terms if term_name in terms.term_names]:
         for term in terms[name]:
             if str(term) in unique_terms.keys():
@@ -169,8 +151,22 @@ def average_unique_minima(terms):
                 term.equ = minimum
                 unique_terms[str(term)] = minimum
 
+    # For Urey, recalculate length based on the averaged bonds/angles
+    for term in terms['urey']:
+        if str(term) in unique_terms.keys():
+            term.equ = unique_terms[str(term)]
+        else:
+            bond1_atoms = sorted(term.atomids[:2])
+            bond2_atoms = sorted(term.atomids[1:])
+            bond1 = [bond.equ for bond in terms['bond'] if all(bond1_atoms == bond.atomids)][0]
+            bond2 = [bond.equ for bond in terms['bond'] if all(bond2_atoms == bond.atomids)][0]
+            angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
+            urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
+            term.equ = urey
+            unique_terms[str(term)] = urey
 
-def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
+
+def make_ff_params_from_fit(terms, topo, fit, inp, qm, polar=False):
     """
     Scope:
     -----
@@ -181,13 +177,14 @@ def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
     e = elements()
     bohr2nm = 0.052917721067
     ff.mol_type = inp.job_name
-    ff.natom = mol.topo.n_atoms
+    ff.natom = topo.n_atoms
     ff.box = [10., 10., 10.]
     ff.n_mol = 1
     ff.coords = list(qm.coords/10)
-    mass = [round(e.mass[i], 5) for i in qm.atomids]
-    atom_no = range(1, mol.topo.n_atoms + 1)
-    atoms = []
+    ff.exclu = [[] for _ in range(topo.n_atoms)]
+    masses = [round(e.mass[i], 5) for i in qm.atomids]
+    atom_no = range(1, topo.n_atoms + 1)
+    atom_names = []
     atom_dict = {}
 
     for i, a in enumerate(qm.atomids):
@@ -196,86 +193,89 @@ def make_ff_params_from_fit(mol, fit, inp, qm, polar=False):
             atom_dict[sym] = 1
         else:
             atom_dict[sym] += 1
-        atoms.append(f'{sym}{atom_dict[sym]}')
+        atom_names.append(f'{sym}{atom_dict[sym]}')
 
-    for i, (sigma, epsilon) in enumerate(zip(mol.topo.sigma, mol.topo.epsilon)):
-        unique = mol.topo.types[mol.topo.list[i][0]]
-        ff.atom_types.append([unique, 0, 0, "A", sigma*0.1, epsilon])
+    for lj_type, lj_params in topo.lj_type_dict.items():
+        ff.atom_types.append([lj_type, 0, 0, "A", lj_params[0], lj_params[1]])
 
-    for n, at, a_uniq, a, m in zip(atom_no, mol.topo.types, mol.topo.atoms, atoms, mass):
-        ff.atoms.append([n, at, 1, "MOL", a, n, mol.topo.q[a_uniq], m])
+    for n, lj_type, atom_name, q, mass in zip(atom_no, topo.lj_types, atom_names, topo.q, masses):
+        ff.atoms.append([n, lj_type, 1, "MOL", atom_name, n, q, mass])
 
-    if polar:
-        alphas = qm.alpha*bohr2nm**3
-        drude = {}
-        n_drude = 1
-        ff.atom_types.append(["DP", 0, 0, "S", 0, 0])
+    for exclusion in topo.exclusions:
+        ff.exclu[exclusion[0]].append(exclusion[1]+1)
 
-        for i, alpha in enumerate(alphas):
-            if alpha > 0:
-                drude[i] = mol.topo.n_atoms+n_drude
-                ff.atoms[i][6] += 8
-                # drude atoms
-                ff.atoms.append([drude[i], 'DP', 2, 'MOL', f'D{atoms[i]}',
-                                 i+1, -8., 0.])
-                ff.coords.append(ff.coords[i])
-                # polarizability
-                ff.polar.append([i+1, drude[i], 1, alpha])
-                n_drude += 1
-        ff.exclu = [[] for _ in ff.atoms]
-        ff.natom = len(ff.atoms)
-        for i, alpha in enumerate(alphas):
-            if alpha > 0:
-                # exclusions for balancing the drude particles
-                for j in mol.topo.neighbors[inp.nrexcl-2][i]+mol.topo.neighbors[inp.nrexcl-1][i]:
-                    if alphas[j] > 0:
-                        ff.exclu[drude[i]-1].extend([drude[j]])
-                for j in mol.topo.neighbors[inp.nrexcl-1][i]:
-                    ff.exclu[drude[i]-1].extend([j+1])
-                ff.exclu[drude[i]-1].sort()
-                # thole polarizability
-                for neigh in [mol.topo.neighbors[n][i] for n in range(inp.nrexcl)]:
-                    for j in neigh:
-                        if i < j and alphas[j] > 0:
-                            ff.thole.append([i+1, drude[i], j+1, drude[j], "2", 2.6, alpha,
-                                             alphas[j]])
+    # if polar:
+    #     alphas = qm.alpha*bohr2nm**3
+    #     drude = {}
+    #     n_drude = 1
+    #     ff.atom_types.append(["DP", 0, 0, "S", 0, 0])
 
-    for term in mol.terms['bond']:
+    #     for i, alpha in enumerate(alphas):
+    #         if alpha > 0:
+    #             drude[i] = mol.topo.n_atoms+n_drude
+    #             ff.atoms[i][6] += 8
+    #             # drude atoms
+    #             ff.atoms.append([drude[i], 'DP', 2, 'MOL', f'D{atoms[i]}',
+    #                              i+1, -8., 0.])
+    #             ff.coords.append(ff.coords[i])
+    #             # polarizability
+    #             ff.polar.append([i+1, drude[i], 1, alpha])
+    #             n_drude += 1
+    #     ff.natom = len(ff.atoms)
+    #     for i, alpha in enumerate(alphas):
+    #         if alpha > 0:
+    #             # exclusions for balancing the drude particles
+    #             for j in mol.topo.neighbors[inp.nrexcl-2][i]+mol.topo.neighbors[inp.nrexcl-1][i]:
+    #                 if alphas[j] > 0:
+    #                     ff.exclu[drude[i]-1].extend([drude[j]])
+    #             for j in mol.topo.neighbors[inp.nrexcl-1][i]:
+    #                 ff.exclu[drude[i]-1].extend([j+1])
+    #             ff.exclu[drude[i]-1].sort()
+    #             # thole polarizability
+    #             for neigh in [mol.topo.neighbors[n][i] for n in range(inp.nrexcl)]:
+    #                 for j in neigh:
+    #                     if i < j and alphas[j] > 0:
+    #                         ff.thole.append([i+1, drude[i], j+1, drude[j], "2", 2.6, alpha,
+    #                                          alphas[j]])
+
+    for term in terms['bond']:
         atoms = [a+1 for a in term.atomids]
         ff.bonds.append(atoms + [1, term.equ*0.1, term.fconst*100])
 
-    for term in mol.terms['angle']:
+    for term in terms['angle']:
         atoms = [a+1 for a in term.atomids]
         ff.angles.append(atoms + [1, np.degrees(term.equ), term.fconst])
 
     if inp.urey:
-        corresp_angles = np.array([angle[0:3:2] for angle in ff.angles])
-        for term in mol.terms['urey']:
-            match = np.all(corresp_angles == term.atomids+1, axis=1)
+        angle_atoms = np.array(ff.angles)[:, :3]
+        for term in terms['urey']:
+            match = np.all(term.atomids+1 == angle_atoms, axis=1)
             match = np.nonzero(match)[0][0]
             ff.angles[match][3] = 5
             ff.angles[match].extend([term.equ*0.1, term.fconst*100])
 
-    for term in mol.terms['dihedral/rigid']:
+    for term in terms['dihedral/rigid']:
         atoms = [a+1 for a in term.atomids]
         minimum = np.degrees(term.equ)
         ff.dihedrals.append(atoms + [2, minimum, term.fconst])
 
-    for term in mol.terms['dihedral/improper']:
+    for term in terms['dihedral/improper']:
         atoms = [a+1 for a in term.atomids]
         minimum = np.degrees(term.equ)
         ff.impropers.append(atoms + [2, minimum, term.fconst])
 
-    for term in mol.terms['dihedral/flexible']:
+    uniques = list(set(str(term) for term in terms['dihedral/flexible']))
+    for term in terms['dihedral/flexible']:
         atoms = [a+1 for a in term.atomids]
-        if inp.nofrag:
-            ff.flexible.append(atoms + [3, term.idx+1])
-        else:
+        if inp.fragment:
             ff.flexible.append(atoms + [3] + list(term.equ))
+        else:
+            ff.flexible.append(atoms + [3, uniques.index(str(term))+1])
 
-    for term in mol.terms['dihedral/constr']:
+    uniques = list(set(str(term) for term in terms['dihedral/constr']))
+    for term in terms['dihedral/constr']:
         atoms = [a+1 for a in term.atomids]
-        ff.constrained.append(atoms + [3, term.idx+1])
+        ff.constrained.append(atoms + [3, uniques.index(str(term))+1])
 
     write_ff(ff, inp, polar)
     print("Q-Force force field parameters (.itp, .top) can be found in the "
