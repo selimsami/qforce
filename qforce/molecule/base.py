@@ -60,7 +60,7 @@ class MappingIterator(Mapping):
     def _goto_key(self, subkey):
         data = self._data
         while True:
-            key, subkey = self._get_substring(subkey)
+            key, subkey = self.get_key_subkey(subkey)
             if subkey is None:
                 break
             data = data[key]
@@ -70,7 +70,7 @@ class MappingIterator(Mapping):
 
         ignore_keys = {'__REGULAR_KEY__': []}
         for ign in ignore:
-            key, subkey = self._get_substring(ign)
+            key, subkey = self.get_key_subkey(ign)
             if subkey is None:
                 ignore_keys['__REGULAR_KEY__'].append(key)
                 continue
