@@ -16,11 +16,20 @@ class MappingIterator(Mapping):
         self.ignore = set(self._set_ignore(dct, ignore))
 
     @classmethod
-    def _get_substring(cls, string):
+    def get_key_subkey(cls, string):
         match = cls._regex_substring.match(string)
         if match is None:
             return string, None
         return match.group('key'), match.group('subkey')
+
+    def ho_keys(self):
+        return self._data.keys()
+
+    def ho_items(self):
+        return self._data.items()
+
+    def ho_values(self):
+        return self._data.values()
 
     def add_ignore_key(self, value):
         regular = self._set_ignore(self._data, [value])

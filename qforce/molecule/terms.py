@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 import numpy as np
 #
+from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
 from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm, CrossBondAngleTerm)
 from .non_bonded_terms import NonBondedTerms
@@ -36,33 +37,24 @@ class Terms(MappingIterator):
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
-    def as_subset(cls, terms, fragment, mapping, ignore=[], not_fit_terms=[]):
+    def from_terms(cls, terms, ignore, not_fit_terms):
+        return cls(terms, ignore, not_fit_terms)
+
+    def get_subset(self, fragment, mapping, ignore=[], not_fit_terms=[]):
+
         subterms = {}
-        for key, termlist in terms.items():
-            if key in ['dihedral/flexible', 'dihedral/constr']:
+        for key, term in self.ho_items():
+            if key in ignore:
                 continue
-            subterms[key] = []
-            for term in termlist:
-                if set(term.atomids).issubset(fragment):
-                    term = deepcopy(term)
-                    term.atomids = np.array([mapping[i] for i in term.atomids])
-                    subterms[key].append(term)
-        return cls(subterms, ignore, not_fit_terms)
+            if isinstance(term, MultipleTermStorge):
+                key_ignore = [term.get_key_subkey(ignore_key)[1] for ignore_key in ignore if ignore_key.startswith(key)]
+                subterms[key] = term.get_subset(fragment, mapping, key_ignore)
+            elif isinstance(term, TermStorage):
+                subterms[key] = term.get_subset(fragment, mapping)
+            else:
+                raise ValueError("Term can only be TermStorage or MultipleTermStorage")
 
-    def _set_fit_term_idx(self, not_fit_terms):
-
-        with self.add_ignore(not_fit_terms):
-            names = list(set(str(term) for term in self))
-            for term in self:
-                term.set_idx(names.index(str(term)))
-
-        n_fitted_terms = len(names)
-
-        for key in not_fit_terms:
-            for term in self[key]:
-                term.set_idx(n_fitted_terms)
-
-        return n_fitted_terms
+        return self.from_terms(subterms, ignore, not_fit_terms)
 
     def subset(self, fragment, mapping):
         return self.as_subset(self, fragment, mapping)
@@ -78,3 +70,18 @@ class Terms(MappingIterator):
         self.add_ignore_keys(ignore_terms)
         yield
         self.remove_ignore_keys(ignore_terms)
+
+    def _set_fit_term_idx(self, not_fit_terms):
+
+        with self.add_ignore(not_fit_terms):
+            names = list(set(str(term) for term in self))
+            for term in self:
+                term.set_idx(names.index(str(term)))
+
+        n_fitted_terms = len(names)
+
+        for key in not_fit_terms:
+            for term in self[key]:
+                term.set_idx(n_fitted_terms)
+
+        return n_fitted_terms
