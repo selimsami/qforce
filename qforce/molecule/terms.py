@@ -41,18 +41,6 @@ class Terms(MappingIterator):
     def subset(self, fragment, mapping, ignore=[], not_fit_terms=[]):
 
         subterms = {}
-<<<<<<< HEAD
-        for key, termlist in terms.items():
-            # if key in ['dihedral/flexible', 'dihedral/constr']:
-            #     continue
-            subterms[key] = []
-            for term in termlist:
-                if set(term.atomids).issubset(fragment):
-                    term = deepcopy(term)
-                    term.atomids = np.array([mapping[i] for i in term.atomids])
-                    subterms[key].append(term)
-        return cls(subterms, ignore, not_fit_terms)
-=======
         for key, term in self.ho_items():
             if key in ignore:
                 continue
@@ -77,7 +65,6 @@ class Terms(MappingIterator):
         self.add_ignore_keys(ignore_terms)
         yield
         self.remove_ignore_keys(ignore_terms)
->>>>>>> subset
 
     def _set_fit_term_idx(self, not_fit_terms):
 
