@@ -1,6 +1,5 @@
 from collections.abc import Mapping
 import re
-from functools import partial
 
 
 class MappingIterator(Mapping):

@@ -1,6 +1,5 @@
 import numpy as np
 from ase.calculators.calculator import Calculator
-from .forces import get_dihed
 
 
 class QForce(Calculator):

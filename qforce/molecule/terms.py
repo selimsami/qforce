@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-import numpy as np
+from copy import deepcopy
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
@@ -46,7 +46,8 @@ class Terms(MappingIterator):
             if key in ignore:
                 continue
             if isinstance(term, MultipleTermStorge):
-                key_ignore = [term.get_key_subkey(ignore_key)[1] for ignore_key in ignore if ignore_key.startswith(key)]
+                key_ignore = [term.get_key_subkey(ignore_key)[1] for ignore_key in ignore
+                              if ignore_key.startswith(key)]
                 subterms[key] = term.get_subset(fragment, mapping, key_ignore)
             elif isinstance(term, TermStorage):
                 subterms[key] = term.get_subset(fragment, mapping)
@@ -94,7 +95,7 @@ class Terms(MappingIterator):
 
     def _get_term_paths(self, terms):
         paths = {}
-        for name, term in terms.ho_items():
+        for name, term in terms.items():
             if isinstance(term, TermStorage):
                 paths[term.name] = name
             elif isinstance(term, MultipleTermStorge):
@@ -119,9 +120,8 @@ class Terms(MappingIterator):
     def _get_terms(self, termname):
         names = self._term_paths.get(termname, None)
         if names is None:
-            raise ValueError(f"Term name {termtyp} not known!")
+            raise ValueError(f"Term name {termname} not known!")
         return get_entry(self._data, names)
-
 
 
 def get_entry(dct, names):
