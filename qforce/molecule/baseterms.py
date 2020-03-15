@@ -7,7 +7,7 @@ from .storage import TermStorage, MultipleTermStorge
 
 class TermABC(ABC):
 
-    __slots__ = ('atomids', 'equ', 'idx', 'fconst', '_typename')
+    __slots__ = ('atomids', 'equ', 'idx', 'fconst', '_typename', '_name')
 
     name = 'NOT_NAMED'
 
@@ -18,12 +18,13 @@ class TermABC(ABC):
         self.idx = 0
         self.fconst = fconst
         self._typename = typename
+        self._name = f"{self.name}({typename})"
 
     def __repr__(self):
-        return f"{self.name}({self._typename})"
+        return self._name
 
     def __str__(self):
-        return f"{self.name}({self._typename})"
+        return self._name
 
     def set_idx(self, idx):
         self.idx = idx
@@ -43,6 +44,22 @@ class TermABC(ABC):
     @classmethod
     def get_terms_container(cls):
         return TermStorage(cls.name)
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return other == self._name
+        if isinstance(other, TermABC):
+            return str(other) == self._name
+        else:
+            raise Exception("Cannot compare Term with")
+
+    def __ne__(self, other):
+        if isinstance(other, str):
+            return other != self._name
+        if isinstance(other, TermABC):
+            return str(other) != self._name
+        else:
+            raise Exception("Cannot compare Term with")
 
 
 class TermFactory(ABC):
