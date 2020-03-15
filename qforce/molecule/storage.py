@@ -1,5 +1,7 @@
-from collections import UserList
 from copy import deepcopy
+from collections import UserList
+#
+import numpy as np
 #
 from .base import MappingIterator
 
@@ -53,6 +55,9 @@ class TermStorage(UserList):
 
     def __repr__(self):
         return f"TermStorage({self.name})"
+
+    def remove_term(self, name):
+        self.data = [term for term in self.data if term != name]
 
     @classmethod
     def new_storage(cls, name, data=None):

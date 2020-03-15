@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from copy import deepcopy
 import numpy as np
 #
 from .storage import MultipleTermStorge, TermStorage
@@ -34,7 +33,6 @@ class Terms(MappingIterator):
                          if term not in ignore]
         terms = {name: factory.get_terms(topo)
                  for name, factory in cls._term_factories.items() if name not in ignore}
-        print(terms)
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
@@ -76,6 +74,14 @@ class Terms(MappingIterator):
             raise ValueError(f"Term name {termtyp} not known!")
         terms = get_entry(self._data, names)
         return (term for term in terms if term == name)
+
+    def remove_terms_by_name(self, name):
+        termtyp = name.partition('(')[0]
+        names = self._term_paths.get(termtyp, None)
+        if names is None:
+            raise ValueError(f"Term name {termtyp} not known!")
+        terms = get_entry(self._data, names)
+        terms.remove_term(name)
 
     def _set_fit_term_idx(self, not_fit_terms):
 

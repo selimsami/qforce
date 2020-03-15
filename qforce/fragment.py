@@ -65,9 +65,6 @@ def calc_dihedral_function(inp, mol, frag_name, terms, elems, scanned):
     for angle, qm_energy, coord in zip(angles_radians, qm_energies, coords):
         frag = Atoms(elems, positions=coord, calculator=QForce(terms))
 
-        print(terms['bond'])
-        print(terms['angle'])
-        print(terms['dihedral'])
         for dihed in terms['dihedral/flexible']:
             print(dihed)
             dihedral_constraint = [[angle, scanned]]
@@ -78,6 +75,9 @@ def calc_dihedral_function(inp, mol, frag_name, terms, elems, scanned):
         # try:
         #     e_minimiz.run(fmax=0.05, steps=1000)
         # except:
+    #    ignores = ['dihedral/flexible', 'dihedral/constr']
+    #    with terms.add_ignore(ignores):
+
         e_minimiz = BFGS(frag, trajectory=f'{inp.frag_dir}/{frag_name}_{np.degrees(angle)}.traj',
                          logfile=f'{inp.frag_dir}/opt_{frag_name}.log')
         try:
