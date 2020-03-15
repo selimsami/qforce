@@ -1,4 +1,6 @@
 from collections import UserList
+from copy import deepcopy
+#
 from .base import MappingIterator
 
 
