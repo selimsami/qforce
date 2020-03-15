@@ -69,18 +69,12 @@ class Terms(MappingIterator):
 
     def get_terms_from_name(self, name):
         termtyp = name.partition('(')[0]
-        names = self._term_paths.get(termtyp, None)
-        if names is None:
-            raise ValueError(f"Term name {termtyp} not known!")
-        terms = get_entry(self._data, names)
+        terms = self._get_terms(termtyp)
         return (term for term in terms if term == name)
 
     def remove_terms_by_name(self, name):
         termtyp = name.partition('(')[0]
-        names = self._term_paths.get(termtyp, None)
-        if names is None:
-            raise ValueError(f"Term name {termtyp} not known!")
-        terms = get_entry(self._data, names)
+        terms = self._get_terms(termtyp)
         terms.remove_term(name)
 
     def _set_fit_term_idx(self, not_fit_terms):
@@ -121,6 +115,13 @@ class Terms(MappingIterator):
                 self._get_storage_paths(result, termstorage, key, names)
         else:
             raise ValueError("Terms can only be stored in TermStorage or MultipleTermStorge")
+
+    def _get_terms(self, termname):
+        names = self._term_paths.get(termname, None)
+        if names is None:
+            raise ValueError(f"Term name {termtyp} not known!")
+        return get_entry(self._data, names)
+
 
 
 def get_entry(dct, names):
