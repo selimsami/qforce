@@ -61,16 +61,20 @@ class TermStorage(UserList):
         self.data = list(self.fullfill(name, atomids, notthis=True))
 
     def fullfill(self, name, atomids=None, notthis=False):                            
-        if notthis is True:
-            operation = ne
-        else:
-            operation = eq
 
         if atomids is None
+            if notthis is True:
+                operation = ne
+            else:
+                operation = eq
             condition = lambda term: operation(term, name)
         else:
-            condition = lambda term: (operation(term, name) and all(operator(termid, idx)
-                                      for termid, idx in zip(term.atomids, atomids)))
+            if notthis is True:
+                condition = lambda term: (term != name or any(termid != idx
+                                          for termid, idx in zip(term.atomids, atomids)))
+            else:
+                condition = lambda term: (term == name and all(termid == idx
+                                          for termid, idx in zip(term.atomids, atomids)))
         return filter(condition, self.data)
 
     @classmethod
