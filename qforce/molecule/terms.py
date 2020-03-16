@@ -68,7 +68,7 @@ class Terms(MappingIterator):
         yield
         self.remove_ignore_keys(ignore_terms)
 
-    def get_terms_from_name(self, name):
+    def get_terms_from_name(self, name, atomids):
         termtyp = name.partition('(')[0]
         terms = self._get_terms(termtyp)
         return terms.fullfill(name, atomids)
