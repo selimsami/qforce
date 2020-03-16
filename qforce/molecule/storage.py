@@ -69,9 +69,8 @@ class TermStorage(UserList):
         if atomids is None
             condition = lambda term: operation(term, name)
         else:
-            condition = lambda term: (operation(term, name) and all(termid == idx
+            condition = lambda term: (operation(term, name) and all(operator(termid, idx)
                                       for termid, idx in zip(term.atomids, atomids)))
-
         return filter(condition, self.data)
 
     @classmethod
