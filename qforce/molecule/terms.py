@@ -73,10 +73,10 @@ class Terms(MappingIterator):
         terms = self._get_terms(termtyp)
         return (term for term in terms if term == name)
 
-    def remove_terms_by_name(self, name):
+    def remove_terms_by_name(self, name, atomids=None):
         termtyp = name.partition('(')[0]
         terms = self._get_terms(termtyp)
-        terms.remove_term(name)
+        terms.remove_term(name, atomids)
 
     def _set_fit_term_idx(self, not_fit_terms):
 
