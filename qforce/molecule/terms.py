@@ -71,7 +71,7 @@ class Terms(MappingIterator):
     def get_terms_from_name(self, name):
         termtyp = name.partition('(')[0]
         terms = self._get_terms(termtyp)
-        return (term for term in terms if term == name)
+        return terms.fullfill(name, atomids)
 
     def remove_terms_by_name(self, name, atomids=None):
         termtyp = name.partition('(')[0]

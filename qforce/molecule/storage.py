@@ -57,12 +57,16 @@ class TermStorage(UserList):
         return f"TermStorage({self.name})"
 
     def remove_term(self, name, atomids=None):
+        self.data = list(self.fullfill(name, atomids))
+
+    def fullfill(self, name, atomids=None):                            
         if atomids is None:
-            self.data = [term for term in self.data if term != name]
+            data = (term for term in self.data if term != name)
         else:
-            self.data = [term for term in self.data
-                         if (term != name and all(termid == idx
-                                                  for termid, idx in zip(term.atomids, atomids))]
+            data = (term for term in self.data
+                    if (term != name and all(termid == idx
+                                             for termid, idx in zip(term.atomids, atomids)))
+        return data
 
     @classmethod
     def new_storage(cls, name, data=None):
