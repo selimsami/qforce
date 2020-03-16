@@ -1,4 +1,5 @@
 from copy import deepcopy
+from operator import eq, neq
 from collections import UserList
 #
 import numpy as np
@@ -57,16 +58,21 @@ class TermStorage(UserList):
         return f"TermStorage({self.name})"
 
     def remove_term(self, name, atomids=None):
-        self.data = list(self.fullfill(name, atomids))
+        self.data = list(self.fullfill(name, atomids, notthis=True))
 
-    def fullfill(self, name, atomids=None):                            
-        if atomids is None:
-            data = (term for term in self.data if term != name)
+    def fullfill(self, name, atomids=None, notthis=False):                            
+        if notthis is True:
+            operation = neq
         else:
-            data = (term for term in self.data
-                    if (term != name and all(termid == idx
-                                             for termid, idx in zip(term.atomids, atomids))))
-        return data
+            operation = eq
+
+        if atomids is None
+            condition = lambda term: operation(term, name)
+        else:
+            condition = lambda term: (operation(term, name) and all(termid == idx
+                                      for termid, idx in zip(term.atomids, atomids)))
+
+        return filter(condition, self.data)
 
     @classmethod
     def new_storage(cls, name, data=None):
