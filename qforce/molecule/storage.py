@@ -58,23 +58,18 @@ class TermStorage(UserList):
         return f"TermStorage({self.name})"
 
     def remove_term(self, name, atomids=None):
-        self.data = list(self.fullfill(name, atomids, notthis=True))
+        self.data = list(self.fulfill(name, atomids, notthis=True))
 
-    def fullfill(self, name, atomids=None, notthis=False):                            
+    def fulfill(self, name, atomids=None, notthis=False):                            
 
         if atomids is None
-            if notthis is True:
-                operation = ne
-            else:
-                operation = eq
-            condition = lambda term: operation(term, name)
+            condition = lambda term: term == name
         else:
-            if notthis is True:
-                condition = lambda term: (term != name or any(termid != idx
-                                          for termid, idx in zip(term.atomids, atomids)))
-            else:
-                condition = lambda term: (term == name and all(termid == idx
-                                          for termid, idx in zip(term.atomids, atomids)))
+            condition = lambda term: (term == name and all(termid == idx
+                                      for termid, idx in zip(term.atomids, atomids)))
+        if notthis is True:
+            condition = lambda term: not condition(term) 
+
         return filter(condition, self.data)
 
     @classmethod
