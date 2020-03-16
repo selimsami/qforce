@@ -68,7 +68,7 @@ class TermStorage(UserList):
             condition = lambda term: (term == name and all(termid == idx
                                       for termid, idx in zip(term.atomids, atomids)))
         if notthis is True:
-            condition = lambda term: not condition(term) 
+            return filter(lambda term: not condition(term), self.data)
 
         return filter(condition, self.data)
 
