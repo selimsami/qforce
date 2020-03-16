@@ -65,7 +65,7 @@ class TermStorage(UserList):
         else:
             data = (term for term in self.data
                     if (term != name and all(termid == idx
-                                             for termid, idx in zip(term.atomids, atomids)))
+                                             for termid, idx in zip(term.atomids, atomids))))
         return data
 
     @classmethod
