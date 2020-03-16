@@ -1,5 +1,5 @@
 from copy import deepcopy
-from operator import eq, neq
+from operator import eq, ne
 from collections import UserList
 #
 import numpy as np
@@ -62,7 +62,7 @@ class TermStorage(UserList):
 
     def fullfill(self, name, atomids=None, notthis=False):                            
         if notthis is True:
-            operation = neq
+            operation = ne
         else:
             operation = eq
 
