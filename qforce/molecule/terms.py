@@ -96,11 +96,12 @@ class Terms(MappingIterator):
     def _get_term_paths(self, terms):
         paths = {}
         for name, term in terms.items():
+            result = [name]
             if isinstance(term, TermStorage):
-                paths[term.name] = [name]
+                paths[term.name] = result
             elif isinstance(term, MultipleTermStorge):
                 for key, termstorage in term.ho_items():
-                    self._get_storage_paths(paths, termstorage, key, [name])
+                    self._get_storage_paths(paths, termstorage, key, result)
             else:
                 raise ValueError("Terms can only be stored in TermStorage or MultipleTermStorge")
         return paths
