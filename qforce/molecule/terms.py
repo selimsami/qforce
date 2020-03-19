@@ -97,7 +97,7 @@ class Terms(MappingIterator):
         paths = {}
         for name, term in terms.items():
             if isinstance(term, TermStorage):
-                paths[term.name] = name
+                paths[term.name] = [name]
             elif isinstance(term, MultipleTermStorge):
                 for key, termstorage in term.ho_items():
                     self._get_storage_paths(paths, termstorage, key, [name])
