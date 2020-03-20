@@ -8,58 +8,69 @@ import seaborn as sns
 from . import qforce_data
 
 
-def scan_dihedral(inp, atoms, scan_id):
+def scan_dihedral(inp, atoms, scan_id, fit=False, frag=False):
     """
     For each different dihedral in the input file, do dihedral optimization:
     Read scan QM output(s), run GROMACS with the same angles, get the fitting
     data, fit into a choice function of choice, run GROMACS again with fitted
     dihedrals, print the dihedral profile.
+
+    run = check or fit
     """
     md_energies, opt_md_energies = [], []
     frag_id, id_no = scan_id.split('~')
-    scan_name = '_'.join([str(a+1) for a in atoms])
-    scan_dir = f'{inp.frag_dir}/{scan_name}'
-    itp_file = f'{inp.job_dir}/{inp.job_name}_qforce.itp'
     data_file = f'{inp.frag_lib}/{frag_id}/scandata_{id_no}'
     qm_angles, qm_energies = np.loadtxt(data_file, unpack=True)
 
-    remove_scanned_dihedral(itp_file, atoms)
+    if frag:
+        scan_name = scan_id
+        scan_dir = f'{inp.frag_dir}/{scan_name}'
+        itp_file = f'{scan_dir}/{inp.job_name}_qforce.itp'
+    else:
+        scan_name = '_'.join([str(a+1) for a in atoms])
+        itp_file = f'{inp.job_dir}/{inp.job_name}_qforce.itp'
+        scan_dir = f'{inp.frag_dir}/{scan_name}'
+        make_scan_dir(scan_dir)
 
-    make_scan_dir(scan_dir)
+    if fit:
+        remove_scanned_dihedral(itp_file, atoms)
 
     # print job info
-    print(f"Scan name: {scan_name}")
+    print(f"\nScan name: {scan_name}")
+    print(f"Fragment: {frag}")
     print("-"*(11+len(scan_name)))
 
     # Prepare the files for a GROMACS run in each scan step directory
     prepare_scan_directories(atoms, qm_angles, qm_energies, inp, itp_file, scan_dir)
 
-    # Run gromacs without the scanned dihedral - get energies
-    print("Running GROMACS without the scanned dihedral...")
-    for step, angle in enumerate(qm_angles):
-        step_dir = f"{scan_dir}/step{step}"
-        run_gromacs(step_dir, "nodihed", inp)
-        md_energy = read_gromacs_energies(step_dir, "nodihed")
-        md_energies.append(md_energy)
+    if fit:
+        # Run gromacs without the scanned dihedral - get energies
+        print("Running GROMACS without the scanned dihedral...")
+        for step, angle in enumerate(qm_angles):
+            step_dir = f"{scan_dir}/step{step}"
+            run_gromacs(step_dir, "nodihed", inp)
+            md_energy = read_gromacs_energies(step_dir, "nodihed")
+            md_energies.append(md_energy)
 
-    # Set minimum energies to zero and compute QM vs MD difference
-    # and the dihedral potential to be fitted
-    md_energies = set_minimum_to_zero(md_energies)
-    dihedral_fitting = set_minimum_to_zero(qm_energies - md_energies)
+        # Set minimum energies to zero and compute QM vs MD difference
+        # and the dihedral potential to be fitted
+        md_energies = set_minimum_to_zero(md_energies)
+        dihedral_fitting = set_minimum_to_zero(qm_energies - md_energies)
 
-    # fit the data
-    print("Fitting the dihedral function...")
-    c, r_squared, fitted_dihedral = do_fitting(qm_angles, qm_energies, inp, dihedral_fitting)
+        # fit the data
+        print("Fitting the dihedral function...")
+        c, r_squared, fitted_dihedral = do_fitting(qm_angles, qm_energies, inp, dihedral_fitting)
 
-    # print optmized dihedrals
-    write_opt_dihedral(itp_file, atoms, c, r_squared)
+        # print optmized dihedrals
+        write_opt_dihedral(itp_file, atoms, c, r_squared)
 
     # run gromacs again with optimized dihedrals
     print("Running GROMACS with the fitted dihedral...")
     for step, angle in enumerate(qm_angles):
         step_dir = f"{scan_dir}/step{step}"
         itp_loc = f"{step_dir}/{inp.job_name}_qforce.itp"
-        write_opt_dihedral(itp_loc, atoms, c, r_squared)
+        if fit:
+            write_opt_dihedral(itp_loc, atoms, c, r_squared)
         run_gromacs(step_dir, "opt", inp)
         md_energy = read_gromacs_energies(step_dir, "opt")
         opt_md_energies.append(md_energy)
@@ -131,7 +142,7 @@ def prepare_scan_directories(atoms, qm_angles, qm_energies, inp, itp_dir,
     for step, angle in enumerate(qm_angles):
 
         step_dir = f"{scan_dir}/step{step}"
-        os.makedirs(step_dir)
+        os.makedirs(step_dir, exist_ok=True)
 
         # copy the .itp file to each scan directory & add the dihedral restrain
         shutil.copy2(itp_dir, step_dir)
@@ -228,4 +239,4 @@ def plot_dihedral_profile(inp, qm_angles, qm_energies, md_energies, scan_name):
     plt.xticks(np.arange(0, 361, 60))
     plt.legend(ncol=2, loc=9)
     plt.tight_layout()
-    f.savefig(f"{inp.frag_dir}/{scan_name}.pdf", bbox_inches='tight')
+    f.savefig(f"{inp.frag_dir}/gromacs_{scan_name}.pdf", bbox_inches='tight')

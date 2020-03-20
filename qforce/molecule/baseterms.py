@@ -17,7 +17,7 @@ class TermABC(ABC):
         self.equ = equ
         self.idx = 0
         self.fconst = fconst
-        self._typename = typename
+        self.typename = typename
         self._name = f"{self.name}({typename})"
 
     def __repr__(self):
@@ -78,11 +78,13 @@ class TermFactory(ABC):
 
     @classmethod
     @abstractmethod
-    def get_terms(cls, topo):
+    def get_terms(cls, topo, non_bonded):
         """
             Args:
                 topo: Topology object, const
                     Stores all topology information
+                non_bonded: NonBonded object, const
+                    Stores all non bonded interaction information
 
             Return:
                 list of cls objects

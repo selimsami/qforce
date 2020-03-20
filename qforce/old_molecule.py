@@ -1,6 +1,6 @@
 import numpy as np
 import networkx as nx
-from .elements import elements
+from .elements import ELE_COV, ELE_MAXB, ATOM_SYM
 from .forces import get_dist, get_angle, get_dihed
 
 class Terms():
@@ -51,6 +51,7 @@ class Molecule():
     - Flexible dihedrals should be treated differently:
         For type only A2 and A3 matters. Relevant when scanning is added.
     """
+
     def __init__(self, coords, atomids, inp):
         self.n_atoms = len(atomids)
         self.no = [[[i] for i in range(self.n_atoms)]]
@@ -81,7 +82,6 @@ class Molecule():
 
     def find_bonds_and_rings(self):
         bond_id, bond = [], []
-        e = elements()
         self.graph = nx.Graph()
         for i, i_id in enumerate(self.id[0]):
             b, b_id = [], []
@@ -90,16 +90,15 @@ class Molecule():
                 order = 's'
                 vector = self.coords[i] - self.coords[j]
                 dist = np.sqrt((vector**2).sum())
-                if dist > 0.4 and dist < e.cov[i_id] + e.cov[j_id] + 0.45:
+                if dist > 0.4 and dist < ELE_COV[i_id] + ELE_COV[j_id] + 0.45:
                     b.append(j)
                     b_id.append(j_id)
-                    cov_len = e.cov[self.id[0][i]]+e.cov[self.id[0][j]]
+                    cov_len = ELE_COV[self.id[0][i]]+ELE_COV[self.id[0][j]]
                     sorted_a = sorted([i,j])
                     if dist < cov_len - 0.04 and sorted_a not in self.conj:
                         self.conj.append(sorted_a)
                     if dist < cov_len - 0.15 and sorted_a not in self.double:
                         self.double.append(sorted_a)
-
 
                     if dist < cov_len - 0.15:
                         order = 'd'
@@ -110,9 +109,9 @@ class Molecule():
                                         b_vector = vector, b_length = dist)
             bond.append(sorted(b))
             bond_id.append(sorted(b_id))
-            if len(bond[-1]) > e.maxb[i_id]:
+            if len(bond[-1]) > ELE_MAXB[i_id]:
                 print("WARNING: Atom {} ({}) has too many ({}) neighbors?"
-                      .format(i+1, e.sym[i_id], len(bond[-1])))
+                      .format(i+1, ATOM_SYM[i_id], len(bond[-1])))
         self.no.append(bond)
         self.id.append(bond_id)
 
@@ -143,12 +142,11 @@ class Molecule():
             self.atoms[eq] = self.n_types
             self.n_types += 1
 
-        e = elements()
         types = {i : 1 for i in set(self.atomids)}
         self.types = [None] * len(self.atomids)
         for eq in self.list:
             for i in eq:
-                self.types[i] = "{}{}".format(e.sym[self.atomids[i]],
+                self.types[i] = "{}{}".format(ATOM_SYM[self.atomids[i]],
                                               types[self.atomids[i]])
             types[self.atomids[eq[0]]] += 1
 

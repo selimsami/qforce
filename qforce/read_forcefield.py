@@ -1,4 +1,5 @@
-from .elements import elements
+from .elements import ATOM_SYM
+
 
 class Forcefield():
     """
@@ -6,7 +7,8 @@ class Forcefield():
     -----
     Read GROMACS force field files (ITP and GRO) and create an object
     """
-    def __init__(self, itp_file = None, gro_file = None):
+
+    def __init__(self, itp_file=None, gro_file=None):
         self.atom_types = []
         self.atoms = []
         self.atype = []
@@ -30,40 +32,40 @@ class Forcefield():
         self.thole = []
         self.exclu = []
         self.natom = 0
-        
-        if itp_file != None:
+
+        if itp_file is not None:
             self.read_itp(itp_file)
             self.maxresnr = self.atoms[-1][2]
-        if gro_file != None:
+        if gro_file is not None:
             self.read_gro(gro_file)
-        
+
     def read_itp(self, itp_file):
-        with open(itp_file,"r") as itp:
-            in_section = [] 
-            bond_atoms, bond_r0, bond_k = [], [], []  
-            
+        with open(itp_file, "r") as itp:
+            in_section = []
+            bond_atoms, bond_r0, bond_k = [], [], []
+
             for line in itp:
-                low_line = line.lower().strip().replace(" ","")
+                low_line = line.lower().strip().replace(" ", "")
                 unsplit = line
                 line = line.split()
-                if low_line is "" or low_line[0] == ";":
-                    continue  
+                if low_line == "" or low_line[0] == ";":
+                    continue
                 elif "[" in low_line and "]" in low_line:
                     open_bra = low_line.index("[") + 1
                     close_bra = low_line.index("]")
                     in_section = low_line[open_bra:close_bra]
                 elif in_section == "atomtypes":
-                    self.atom_types.append([line[0], float(line[1]), 
-                                            float(line[2]),line[3],
-                                            float(line[4]),float(line[5])])
+                    self.atom_types.append([line[0], float(line[1]),
+                                            float(line[2]), line[3],
+                                            float(line[4]), float(line[5])])
                     self.atype.append(line[0])
                     self.c6.append(line[4])
                     self.c12.append(line[5])
                 elif in_section == "moleculetype":
                     self.mol_type = line[0]
                 elif in_section == "atoms":
-                    self.atoms.append([int(line[0]),line[1],int(line[2]),
-                                       line[3],line[4],line[5],float(line[6]),
+                    self.atoms.append([int(line[0]), line[1], int(line[2]),
+                                       line[3], line[4], line[5], float(line[6]),
                                        float(line[7])])
                     self.natom += 1
                 elif in_section == "bonds":
@@ -86,10 +88,9 @@ class Forcefield():
                         self.idihed.append([line[0:4], line[4:]])
 
                 elif in_section == "pairs":
-                    self.pairs.append(sorted([int(line[0]),int(line[1])]))
-        
+                    self.pairs.append(sorted([int(line[0]), int(line[1])]))
+
     def read_gro(self, gro_file):
-        e = elements()
         with open(gro_file, "r") as gro:
             self.title = gro.readline()
             self.gro_natom = int(gro.readline())
@@ -100,6 +101,6 @@ class Forcefield():
                 y = float(line[29:37].strip())
                 z = float(line[37:45].strip())
                 self.symbols.append(sym)
-                self.atomids.append(e.sym.index(sym))
+                self.atomids.append(ATOM_SYM.index(sym))
                 self.coords.append([x, y, z])
             self.box = gro.readline()

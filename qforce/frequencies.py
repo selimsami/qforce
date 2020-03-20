@@ -3,7 +3,7 @@ from scipy.linalg import eigh
 import matplotlib.pyplot as plt
 import seaborn as sns
 #
-from .elements import elements
+from .elements import ATOMMASS, ATOM_SYM
 
 
 def calc_qm_vs_md_frequencies(inp, qm, md_hessian):
@@ -40,14 +40,13 @@ def calc_vibrational_frequencies(upper, qm):
     to_omega2 = kj2j/ang2meter**2/(const_avogadro*const_amu)  # 1/s**2
     to_waveno = 1e-5/(2.0*np.pi*const_speedoflight)  # cm-1
 
-    e = elements()
     matrix = np.zeros((3*qm.n_atoms, 3*qm.n_atoms))
     count = 0
 
     for i in range(3*qm.n_atoms):
         for j in range(i+1):
-            mass_i = e.mass[qm.atomids[int(np.floor(i/3))]]
-            mass_j = e.mass[qm.atomids[int(np.floor(j/3))]]
+            mass_i = ATOMMASS[qm.atomids[int(np.floor(i/3))]]
+            mass_j = ATOMMASS[qm.atomids[int(np.floor(j/3))]]
             matrix[i, j] = upper[count]/np.sqrt(mass_i*mass_j)
             matrix[j, i] = matrix[i, j]
             count += 1
@@ -55,7 +54,7 @@ def calc_vibrational_frequencies(upper, qm):
     vec = np.reshape(np.transpose(vec), (3*qm.n_atoms, qm.n_atoms, 3))[6:]
 
     for i in range(qm.n_atoms):
-        vec[:, i, :] = vec[:, i, :] / np.sqrt(e.mass[qm.atomids[i]])
+        vec[:, i, :] = vec[:, i, :] / np.sqrt(ATOMMASS[qm.atomids[i]])
 
     freq = np.sqrt(val.clip(min=0)[6:] * to_omega2) * to_waveno
     return freq, vec
@@ -74,7 +73,6 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
     JOBNAME_qforce.nmd : MD eigenvectors that can be played in VMD with:
                                 vmd -e filename
     """
-    e = elements()
     freq_file = f"{inp.job_dir}/{inp.job_name}_qforce.freq"
     nmd_file = f"{inp.job_dir}/{inp.job_name}_qforce.nmd"
     errors = []
@@ -101,7 +99,7 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
         nmd.write(f"title {inp.job_name}\n")
         nmd.write("names")
         for ids in qm.atomids:
-            nmd.write(f" {e.sym[ids]}")
+            nmd.write(f" {ATOM_SYM[ids]}")
         nmd.write("\nresnames")
         for i in range(qm.n_atoms):
             nmd.write(" RES")

@@ -39,7 +39,8 @@ class Initialize(Colt):
     non_bonded = yes :: bool
 
     # Make fragments and calculate flexible dihedrals
-    fragment = yes :: bool
+    # Use 'available' option to skip dihedrals with missing scan data
+    fragment = yes :: str :: [yes, no, available]
 
     # Use Bond-Angle cross term
     cross_bond_angle = no :: bool
@@ -99,8 +100,8 @@ class Initialize(Colt):
                 answers[key] = Initialize.set_exclusions(value)
             elif key in ['non_bonded', 'urey', 'cross_bond_angle'] and not value:
                 ignored_terms.append(key)
-            elif key in ['fragment'] and not value:
-                ignored_terms.extend(['dihedral/flexible', 'dihedral/constr'])
+            elif key in ['fragment']:
+                answers[key], ignored_terms = Initialize.set_fragments(value, ignored_terms)
 
         answers['ignored_terms'] = ignored_terms
         answers['comb_rule'] = Initialize.set_comb_rule(answers['comb_rule'],
@@ -199,6 +200,13 @@ class Initialize(Colt):
             elif lj_type == 'gaff':
                 comb_rule = 2
         return comb_rule
+
+    @staticmethod
+    def set_fragments(value, ignored_terms):
+        if value.lower() == 'no':
+            value = False
+            ignored_terms.extend(['dihedral/flexible', 'dihedral/constr'])
+        return value, ignored_terms
 
     @staticmethod
     def set_exclusions(value):

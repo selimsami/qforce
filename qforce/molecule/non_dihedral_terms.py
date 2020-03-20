@@ -7,16 +7,13 @@ from ..forces import calc_bonds, calc_angles, calc_cross_bond_angle
 
 
 class BondTerm(TermBase):
-
     name = 'BondTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_bonds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo):
-        """get terms"""
-
+    def get_terms(cls, topo, non_bonded):
         bond_terms = cls.get_terms_container()
 
         for a1, a2 in topo.bonds:
@@ -34,25 +31,13 @@ class BondTerm(TermBase):
 
 
 class AngleTerm(TermBase):
-
     name = 'AngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_angles(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo):
-        """
-
-            Args:
-                topo: Topology object, const
-                    Stores all topology information
-
-            Return:
-                list of cls objects
-
-        """
-
+    def get_terms(cls, topo, non_bonded):
         angle_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
@@ -73,24 +58,13 @@ class AngleTerm(TermBase):
 
 
 class UreyAngleTerm(TermBase):
-
     name = 'UreyAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_bonds(crd, self.atomids[::2], self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo):
-        """
-
-            Args:
-                topo: Topology object, const
-                    Stores all topology information
-
-            Return:
-                list of cls objects
-
-        """
+    def get_terms(cls, topo, non_bonded):
         urey_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
@@ -111,24 +85,13 @@ class UreyAngleTerm(TermBase):
 
 
 class CrossBondAngleTerm(TermBase):
-
     name = 'CrossBondAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo):
-        """
-
-            Args:
-                topo: Topology object, const
-                    Stores all topology information
-
-            Return:
-                list of cls objects
-
-        """
+    def get_terms(cls, topo, non_bonded):
 
         cross_bond_angle_terms = cls.get_terms_container()
 

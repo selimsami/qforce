@@ -1,5 +1,6 @@
 from .topology import Topology
 from .terms import Terms
+from .non_bonded import NonBonded
 
 
 class Molecule(object):
@@ -20,5 +21,8 @@ class Molecule(object):
     """
 
     def __init__(self, inp, qm):
+        self.elems = qm.atomids
+        self.n_atoms = len(self.elems)
         self.topo = Topology(inp, qm)
-        self.terms = Terms.from_topology(self.topo, ignore=inp.ignored_terms)
+        self.non_bonded = NonBonded.from_topology(inp, qm, self.topo)
+        self.terms = Terms.from_topology(self.topo, self.non_bonded, ignore=inp.ignored_terms)

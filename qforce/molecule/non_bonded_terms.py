@@ -13,7 +13,7 @@ class NonBondedTerms(TermBase):
         return calc_pairs(crd, self.atomids, self.equ, force)
 
     @classmethod
-    def get_terms(cls, topo):
+    def get_terms(cls, topo, non_bonded):
         """get terms"""
 
         non_bonded_terms = cls.get_terms_container()
@@ -21,11 +21,11 @@ class NonBondedTerms(TermBase):
         eps0 = 1389.35458
         for i in range(topo.n_atoms):
             for j in range(i+1, topo.n_atoms):
-                close_neighbor = any([j in topo.neighbors[c][i] for c in range(topo.n_excl)])
-                if not close_neighbor and (i, j) not in topo.exclusions:
-                    pair_name = tuple(sorted([topo.lj_types[i], topo.lj_types[j]]))
-                    params = topo.lj_pairs[pair_name][:]
+                close_neighbor = any([j in topo.neighbors[c][i] for c in range(non_bonded.n_excl)])
+                if not close_neighbor and (i, j) not in non_bonded.exclusions:
+                    pair_name = tuple(sorted([non_bonded.lj_types[i], non_bonded.lj_types[j]]))
+                    params = non_bonded.lj_pairs[pair_name][:]
                     term_type = '-'.join(pair_name)
-                    params.append(topo.q[i] * topo.q[j] * eps0)
+                    params.append(non_bonded.q[i] * non_bonded.q[j] * eps0)
                     non_bonded_terms.append(cls([i, j], np.array(params), term_type))
         return non_bonded_terms

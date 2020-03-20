@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import networkx as nx
-from .elements import elements
+from .elements import ELE_COV
 from .read_forcefield import Forcefield
 from .old_write_forcefield import write_itp, write_gro
 
@@ -101,7 +101,6 @@ def find_neighbors(G, n_atoms):
 
 
 def make_graph(atomids, coords):
-    e = elements()
     G = nx.Graph()
     for i, i_id in enumerate(atomids):
         G.add_node(i, elem=i_id)
@@ -109,6 +108,6 @@ def make_graph(atomids, coords):
             id1, id2 = sorted([i_id, j_id])
             vec = coords[i] - coords[j]
             dist = np.sqrt((vec**2).sum())
-            if dist > 0.4 and dist < e.cov[i_id] + e.cov[j_id] + 0.45:
+            if dist > 0.4 and dist < ELE_COV[i_id] + ELE_COV[j_id] + 0.45:
                 G.add_edge(i, j, vector=vec, length=dist)
     return G

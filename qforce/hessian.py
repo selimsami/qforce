@@ -1,17 +1,11 @@
 import scipy.optimize as optimize
-# import scipy.linalg as la
-# import scipy.optimize.nnls as nnls
 import numpy as np
 from .read_qm_out import QM
-from .read_forcefield import Forcefield
-from .write_forcefield import write_ff
+from .forcefield import ForceField
 from .dihedral_scan import scan_dihedral
 from .molecule import Molecule
 from .fragment import fragment
-# , calc_g96angles
-from .elements import elements
 from .frequencies import calc_qm_vs_md_frequencies
-# from .decorators import timeit, print_timelog
 
 
 def fit_forcefield(inp, qm=None, mol=None):
@@ -41,13 +35,17 @@ def fit_forcefield(inp, qm=None, mol=None):
     average_unique_minima(mol.terms)
 
     if inp.fragment:
-        fragment(inp, mol, qm)
+        fragments = fragment(inp, mol, qm)
 
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
-    make_ff_params_from_fit(mol.terms, mol.topo, fit_results, inp, qm)
+    ff = ForceField(inp, mol, qm.coords, inp.job_dir)
+    ff.write_gromacs(inp, mol)
+
+    print(f'Q-Forcefield parameters (.itp, .top) can be found in the directory: {inp.job_dir}\n')
 
     # temporary
-    # fit_dihedrals(inp, mol, qm)
+    # if inp.fragment:
+    #     fit_dihedrals(inp, mol, qm, fragments)
 
 
 def fit_hessian(inp, mol, qm, ignore_flex=True):
@@ -86,14 +84,14 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
     return fit, full_md_hessian_1d
 
 
-def fit_dihedrals(inp, mol, qm):
+def fit_dihedrals(inp, mol, qm, fragments):
     """
     Temporary - to be removed
     """
-    from .fragment import check_one_fragment
-    for term in mol.terms['dihedral/flexible']:
-        frag_name, _, _, _, _, _ = check_one_fragment(inp, mol, qm, term.atomids)
-        scan_dihedral(inp, term.atomids, frag_name)
+
+    for frag in fragments:
+        term = list(mol.terms.get_terms_from_name(frag.name))[0]
+        scan_dihedral(inp, term.atomids, frag.id, fit=False)
 
 
 def calc_hessian(coords, mol, inp, ignore_flex):
@@ -164,119 +162,3 @@ def average_unique_minima(terms):
             urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
             term.equ = urey
             unique_terms[str(term)] = urey
-
-
-def make_ff_params_from_fit(terms, topo, fit, inp, qm, polar=False):
-    """
-    Scope:
-    -----
-    Convert units, average over equivalent minima and prepare everything
-    to be written as a forcefield file.
-    """
-    ff = Forcefield()
-    e = elements()
-    bohr2nm = 0.052917721067
-    ff.mol_type = inp.job_name
-    ff.natom = topo.n_atoms
-    ff.box = [10., 10., 10.]
-    ff.n_mol = 1
-    ff.coords = list(qm.coords/10)
-    ff.exclu = [[] for _ in range(topo.n_atoms)]
-    masses = [round(e.mass[i], 5) for i in qm.atomids]
-    atom_no = range(1, topo.n_atoms + 1)
-    atom_names = []
-    atom_dict = {}
-
-    for i, a in enumerate(qm.atomids):
-        sym = e.sym[a]
-        if sym not in atom_dict:
-            atom_dict[sym] = 1
-        else:
-            atom_dict[sym] += 1
-        atom_names.append(f'{sym}{atom_dict[sym]}')
-
-    for lj_type, lj_params in topo.lj_type_dict.items():
-        ff.atom_types.append([lj_type, 0, 0, "A", lj_params[0], lj_params[1]])
-
-    for n, lj_type, atom_name, q, mass in zip(atom_no, topo.lj_types, atom_names, topo.q, masses):
-        ff.atoms.append([n, lj_type, 1, "MOL", atom_name, n, q, mass])
-
-    for exclusion in topo.exclusions:
-        ff.exclu[exclusion[0]].append(exclusion[1]+1)
-
-    # if polar:
-    #     alphas = qm.alpha*bohr2nm**3
-    #     drude = {}
-    #     n_drude = 1
-    #     ff.atom_types.append(["DP", 0, 0, "S", 0, 0])
-
-    #     for i, alpha in enumerate(alphas):
-    #         if alpha > 0:
-    #             drude[i] = mol.topo.n_atoms+n_drude
-    #             ff.atoms[i][6] += 8
-    #             # drude atoms
-    #             ff.atoms.append([drude[i], 'DP', 2, 'MOL', f'D{atoms[i]}',
-    #                              i+1, -8., 0.])
-    #             ff.coords.append(ff.coords[i])
-    #             # polarizability
-    #             ff.polar.append([i+1, drude[i], 1, alpha])
-    #             n_drude += 1
-    #     ff.natom = len(ff.atoms)
-    #     for i, alpha in enumerate(alphas):
-    #         if alpha > 0:
-    #             # exclusions for balancing the drude particles
-    #             for j in mol.topo.neighbors[inp.nrexcl-2][i]+mol.topo.neighbors[inp.nrexcl-1][i]:
-    #                 if alphas[j] > 0:
-    #                     ff.exclu[drude[i]-1].extend([drude[j]])
-    #             for j in mol.topo.neighbors[inp.nrexcl-1][i]:
-    #                 ff.exclu[drude[i]-1].extend([j+1])
-    #             ff.exclu[drude[i]-1].sort()
-    #             # thole polarizability
-    #             for neigh in [mol.topo.neighbors[n][i] for n in range(inp.nrexcl)]:
-    #                 for j in neigh:
-    #                     if i < j and alphas[j] > 0:
-    #                         ff.thole.append([i+1, drude[i], j+1, drude[j], "2", 2.6, alpha,
-    #                                          alphas[j]])
-
-    for term in terms['bond']:
-        atoms = [a+1 for a in term.atomids]
-        ff.bonds.append(atoms + [1, term.equ*0.1, term.fconst*100])
-
-    for term in terms['angle']:
-        atoms = [a+1 for a in term.atomids]
-        ff.angles.append(atoms + [1, np.degrees(term.equ), term.fconst])
-
-    if inp.urey:
-        angle_atoms = np.array(ff.angles)[:, :3]
-        for term in terms['urey']:
-            match = np.all(term.atomids+1 == angle_atoms, axis=1)
-            match = np.nonzero(match)[0][0]
-            ff.angles[match][3] = 5
-            ff.angles[match].extend([term.equ*0.1, term.fconst*100])
-
-    for term in terms['dihedral/rigid']:
-        atoms = [a+1 for a in term.atomids]
-        minimum = np.degrees(term.equ)
-        ff.dihedrals.append(atoms + [2, minimum, term.fconst])
-
-    for term in terms['dihedral/improper']:
-        atoms = [a+1 for a in term.atomids]
-        minimum = np.degrees(term.equ)
-        ff.impropers.append(atoms + [2, minimum, term.fconst])
-
-    uniques = list(set(str(term) for term in terms['dihedral/flexible']))
-    for term in terms['dihedral/flexible']:
-        atoms = [a+1 for a in term.atomids]
-        if inp.fragment:
-            ff.flexible.append(atoms + [3] + list(term.equ))
-        else:
-            ff.flexible.append(atoms + [3, uniques.index(str(term))+1])
-
-    uniques = list(set(str(term) for term in terms['dihedral/constr']))
-    for term in terms['dihedral/constr']:
-        atoms = [a+1 for a in term.atomids]
-        ff.constrained.append(atoms + [3, uniques.index(str(term))+1])
-
-    write_ff(ff, inp, polar)
-    print("Q-Force force field parameters (.itp, .top) can be found in the "
-          f"directory: {inp.job_dir}/")

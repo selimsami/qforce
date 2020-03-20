@@ -3,4 +3,4 @@ from .topology import Topology
 from .molecule import Molecule
 
 
-__all__ = ['Terms', 'Topology', 'Molecule']
+__all__ = ['Terms', 'Topology', 'NonBonded', 'Molecule']

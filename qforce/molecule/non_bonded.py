@@ -7,47 +7,76 @@ from itertools import combinations_with_replacement
 from .. import qforce_data
 
 
-def handle_non_bonded_interactions(inp, qm, topo):
-    # RUN D4 IF NECESSARY
-    if 'd4' in [inp.point_charges, inp.lennard_jones]:
-        q, lj_a, lj_b = handle_d4(inp, qm, topo)
+class NonBonded():
+    def __init__(self, inp, q, lj_type_dict, lj_types, lj_pairs):
+        self.q = q
+        self.lj_type_dict = lj_type_dict  # in GROMACS UNITS
+        self.lj_types = lj_types
+        self.lj_pairs = lj_pairs
+        self.exclusions = inp.exclusions
+        self.n_excl = inp.n_excl
 
-    # CHARGES - esp and resp
-    if inp.point_charges == 'ext':
-        q = np.loadtxt(f'{inp.job_dir}/ext_q', comments=['#', ';'])
-    elif inp.point_charges == 'cm5':
-        q = qm.cm5
-    topo.q = average_equivalent_terms(topo, [q])[0]
-    sum_charges_to_qtotal(topo)
+    @classmethod
+    def from_topology(cls, inp, qm, topo):
+        # RUN D4 IF NECESSARY
+        if 'd4' in [inp.point_charges, inp.lennard_jones]:
+            q, lj_a, lj_b = handle_d4(inp, qm, topo)
 
-    # LENNARD-JONES
-    if inp.lennard_jones != 'd4':
-        topo.lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', dtype='str', comments=['#', ';'])
-        set_external_lennard_jones(topo, inp)
-    else:
-        set_qforce_lennard_jones(topo, inp, lj_a, lj_b)
-        print('WARNING: You are using Q-Force Lennard-Jones parameters. This is not finished.',
-              '\nYou are advised to provide external LJ parameters for production runs.\n')
+        # CHARGES - esp and resp
+        if inp.point_charges == 'ext':
+            q = np.loadtxt(f'{inp.job_dir}/ext_q', comments=['#', ';'])
+        elif inp.point_charges == 'cm5':
+            q = qm.cm5
+        q = average_equivalent_terms(topo, [q])[0]
+        q = sum_charges_to_qtotal(topo, q)
+
+        # LENNARD-JONES
+        if inp.lennard_jones != 'd4':
+            lj_types, lj_type_dict, lj_pairs = set_external_lennard_jones(inp)
+        else:
+            lj_types, lj_type_dict, lj_pairs = set_qforce_lennard_jones(topo, inp, lj_a, lj_b)
+            print('WARNING: You are using Q-Force Lennard-Jones parameters. This is not finished.',
+                  '\nYou are advised to provide external LJ parameters for production runs.\n')
+
+        return cls(inp, q, lj_type_dict, lj_types, lj_pairs)
+
+    @classmethod
+    def subset(cls, inp, atomids, non_bonded, mapping):
+        q = np.array([non_bonded.q[mapping[idx]] for idx in atomids])
+        lj_types = np.array([non_bonded.lj_types[mapping[idx]] for idx in atomids])
+        lj_type_dict = {key: val for key, val in non_bonded.lj_type_dict.items()
+                        if key in lj_types}
+        lj_pairs = {key: val for key, val in list(non_bonded.lj_pairs.items())
+                    if key[0] in lj_types and key[1] in lj_types}
+
+        return cls(inp, q, lj_type_dict, lj_types, lj_pairs)
 
 
 def set_qforce_lennard_jones(topo, inp, lj_a, lj_b):
-    topo.lj_types = topo.types
-    for i, atype in enumerate(topo.lj_types[topo.unique_atomids]):
-        topo.lj_type_dict[atype] = [lj_a[i], lj_b[i]]
+    lj_type_dict = {}
+    lj_pairs = {}
+    lj_types = topo.types
+    for i, atype in enumerate(lj_types[topo.unique_atomids]):
+        lj_type_dict[atype] = [lj_a[i], lj_b[i]]
 
-    for comb in combinations_with_replacement(topo.lj_type_dict.keys(), 2):
+    for comb in combinations_with_replacement(lj_type_dict.keys(), 2):
         comb = tuple(sorted(comb))
-        params = use_combination_rule(topo.lj_type_dict[comb[0]], topo.lj_type_dict[comb[1]], inp)
-        topo.lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(inp, params)
+        params = use_combination_rule(lj_type_dict[comb[0]], lj_type_dict[comb[1]], inp)
+        lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(inp, params)
+    return lj_types, lj_type_dict, lj_pairs
 
 
-def set_external_lennard_jones(topo, inp):
+def set_external_lennard_jones(inp):
+    lj_type_dict = {}
+    lj_pairs = {}
+
+    lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', dtype='str', comments=['#', ';'])
     atom_types, nonbond_params = read_ext_nonbonded_file(inp)
 
-    for ext_type in set(topo.lj_types):
-        topo.lj_type_dict[ext_type] = atom_types[ext_type]
+    for ext_type in set(lj_types):
+        lj_type_dict[ext_type] = atom_types[ext_type]
 
-    for comb in combinations_with_replacement(set(topo.lj_types), 2):
+    for comb in combinations_with_replacement(set(lj_types), 2):
         comb = tuple(sorted(comb))
 
         if comb in nonbond_params.keys():
@@ -57,7 +86,9 @@ def set_external_lennard_jones(topo, inp):
         else:
             params = use_combination_rule(atom_types[comb[0]], atom_types[comb[1]], inp)
 
-        topo.lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(inp, params)
+        lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(inp, params)
+
+    return lj_types, lj_type_dict, lj_pairs
 
 
 def get_c6_c12_for_diff_comb_rules(inp, params):
@@ -128,8 +159,8 @@ def average_equivalent_terms(topo, terms):
     return avg_terms
 
 
-def sum_charges_to_qtotal(topo):
-    total = topo.q.sum()
+def sum_charges_to_qtotal(topo, q):
+    total = q.sum()
     q_integer = round(total)
     extra = int(100000 * round(total - q_integer, 5))
     if extra != 0:
@@ -150,10 +181,11 @@ def sum_charges_to_qtotal(topo):
 
         if prob.status == 1:
             for i, v in enumerate(prob.variables()):
-                topo.q[topo.list[i]] -= sign * v.varValue / 100000
+                q[topo.list[i]] -= sign * v.varValue / 100000
         else:
             print('Failed to equate total of charges to the total charge of '
                   'the system. Do so manually')
+    return q
 
 
 def handle_d4(inp, qm, topo):

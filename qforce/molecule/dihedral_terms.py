@@ -116,17 +116,7 @@ class DihedralTerms(TermFactory):
     }
 
     @classmethod
-    def get_terms(cls, topo):
-        """
-
-            Args:
-                topo: Topology object, const
-                    Stores all topology information
-
-            Return:
-                list of cls objects
-
-        """
+    def get_terms(cls, topo, non_bonded):
         terms = cls.get_terms_container()
 
         # helper functions to improve readability

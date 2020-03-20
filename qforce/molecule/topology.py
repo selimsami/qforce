@@ -2,8 +2,6 @@ import networkx as nx
 import numpy as np
 #
 from ..elements import ATOM_SYM, ELE_ENEG, ELE_MAXB
-#
-from .non_bonded_interactions import handle_non_bonded_interactions
 
 
 class Topology(object):
@@ -24,7 +22,6 @@ class Topology(object):
 
     def __init__(self, inp, qm):
         self.n_equiv = inp.n_equiv
-        self.n_excl = inp.n_excl
         self.atomids = qm.atomids
         self.n_atoms = len(self.atomids)
         self.coords = qm.coords
@@ -35,13 +32,7 @@ class Topology(object):
         self.neighbors = [[[] for j in range(self.n_atoms)] for i in range(3)]
         self.list = []
         self.unique_atomids = []
-        self.exclusions = inp.exclusions
         self.atoms = np.zeros(self.n_atoms, dtype='int8')
-        self.pair_list = []
-        self.lennard_jones = inp.lennard_jones
-        self.lj_type_dict = {}  # in GROMACS UNITS
-        self.lj_types = []
-        self.lj_pairs = {}
         #
         self._setup(inp, qm)
 
@@ -50,7 +41,6 @@ class Topology(object):
         self._find_atom_types()
         self._find_neighbors(inp)
         self._find_bonds_angles_dihedrals()
-        handle_non_bonded_interactions(inp, qm, self)
 
     def _find_bonds_and_rings(self, qm):
         """Setup networkx graph """

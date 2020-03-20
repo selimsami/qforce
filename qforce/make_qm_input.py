@@ -1,6 +1,6 @@
 from ase.io import read
 import networkx as nx
-from .elements import elements
+from .elements import ATOM_SYM
 
 
 def make_qm_input(inp, G, out_file):
@@ -31,7 +31,6 @@ def make_hessian_input(inp):
 
 
 def change_run_settings(inp, out_dir, out_file, G):
-    e = elements()
     key = {"fit": "opt=modredundant ", "init": "freq opt"}
     out_path = f'{out_dir}/{out_file}'
 
@@ -74,7 +73,7 @@ def change_run_settings(inp, out_dir, out_file, G):
         file.write(f"{inp.charge} {inp.multi}\n")
 
         for data in sorted(G.nodes.data()):
-            atom, [c1, c2, c3] = e.sym[data[1]['elem']], data[1]['coords']
+            atom, [c1, c2, c3] = ATOM_SYM[data[1]['elem']], data[1]['coords']
             file.write(f'{atom:>3s} {c1:>12.6f} {c2:>12.6f} {c3:>12.6f}\n')
 
         if inp.job_type == "fit":
