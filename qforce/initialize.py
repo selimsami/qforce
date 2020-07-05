@@ -5,6 +5,7 @@ from ase.io import read, write
 from qforce.make_qm_input import make_hessian_input
 from qforce.hessian import fit_forcefield
 from colt.colt import Colt
+from .polarize import polarize
 
 
 class Initialize(Colt):
@@ -41,6 +42,24 @@ class Initialize(Colt):
     # Make fragments and calculate flexible dihedrals
     # Use 'available' option to skip dihedrals with missing scan data
     fragment = yes :: str :: [yes, no, available]
+
+    # Set all dihedrals as rigid
+    all_rigid = no :: bool
+
+    # Method for doing the MM relaxed dihedral scan
+    scan_method = qforce :: str :: [qforce, gromacs]
+
+    # Number of iterations of dihedral fitting
+    n_dihed_scans = 3 :: int
+
+    # Make a polarizable FF
+    polar = no :: bool
+
+    # Polarize a coordinate file and quit (requires itp_file)
+    polarize = no :: bool
+
+    # Name of itp file (only needed for polarize option)
+    itp_file = itp_file_missing :: str
 
     # Use Bond-Angle cross term
     cross_bond_angle = no :: bool
@@ -130,6 +149,10 @@ class Initialize(Colt):
             self.coord_file = file
         else:
             self.job_name = file.split('_qforce')[0]
+
+        if self.polarize:
+            polarize(self)
+            sys.exit()
 
         self.job_dir = f'{path}{self.job_name}_qforce'
         os.makedirs(self.job_dir, exist_ok=True)

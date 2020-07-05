@@ -3,53 +3,44 @@ import os
 import hashlib
 import sys
 import networkx.algorithms.isomorphism as iso
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.optimize import curve_fit
 import numpy as np
 #
-from ase.optimize import BFGS
-from ase import Atoms
-#
-from .elements import ELE_COV, ATOM_SYM
+from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
 from .read_qm_out import QM
 from .make_qm_input import make_qm_input
-from .calculator import QForce
-from .forces import get_dihed
-from .forcefield import ForceField
-from .dihedral_scan import scan_dihedral
 
 
-def fragment(inp, mol, qm):
-    fragments = []
+"""
+
+Removing non-bonded: Only hydrogens excluded for the equi - make it more general
+
+"""
+
+
+def fragment(inp, mol):
+    fragments, missing = [], []
     unique_dihedrals = {}
 
     reset_data_files(inp)
+
+    inp.scan_method = 'gromacs'
 
     for term in mol.terms['dihedral/flexible']:
         if str(term) not in unique_dihedrals:
             unique_dihedrals[str(term)] = term.atomids
 
     for name, atomids in unique_dihedrals.items():
-        frag = Fragment(inp, mol, qm, atomids, name)
+        frag = Fragment(inp, mol, atomids, name)
 
         if frag.has_data:
             fragments.append(frag)
         else:
-            mol.terms.remove_terms_by_name(name=frag.name)
+            missing.append(frag)
 
     check_and_notify(inp, len(unique_dihedrals), len(fragments))
 
-    n_runs = 2
-    ignore = ['dihedral/flexible', 'dihedral/constr']
-    for n_run in range(n_runs):
-        fit_dihedrals(inp, mol, fragments, n_run, ignores=ignore, nsteps=1000)
-        ignore = []
-
-    for frag in fragments:
-        ff = ForceField(inp, frag, frag.coords[0], f'{inp.frag_dir}/{frag.id}')
-        ff.write_gromacs(inp, frag)
-        scan_dihedral(inp, frag.scanned_atomids, frag.id, frag=True)
+    for frag in missing:
+        mol.terms.remove_terms_by_name(name=frag.name)
 
     return fragments
 
@@ -80,63 +71,50 @@ def check_and_notify(inp, n_unique, n_have):
             sys.exit()
 
 
-def fit_dihedrals(inp, mol, fragments, n_run, ignores=[], nsteps=50):
-    n_fitted = 1
-    for frag in fragments:
-        print(f'\nFitting dihedral {n_fitted}: {frag.id} \n')
-
-        scanned = list(frag.terms.get_terms_from_name(name=frag.name,
-                                                      atomids=frag.scanned_atomids))[0]
-        scanned.equ = np.zeros(6)
-
-        frag.calc_dihedral_function(inp, mol, ignores, nsteps, n_run)
-        n_fitted += 1
-
-        for frag2 in fragments:
-            for term in frag2.terms.get_terms_from_name(frag.name):
-                term.equ = frag.params
-
-        for term in mol.terms.get_terms_from_name(frag.name):
-            term.equ = frag.params
-
-        print(frag.params)
-
-
 class Fragment():
-    def __init__(self, inp, mol, qm, scanned_atomids, name):
+    """
+    Issue: using capping categorization is not ideal - different capped fragments can be identical
+    For now necessary because of the mapping - but should be fixed at some point
+    """
+
+    def __init__(self, inp, mol, scanned_atomids, name):
         self.scanned_atomids = scanned_atomids
         self.atomids = list(self.scanned_atomids[1:3])
         self.name = name
-        self.capping_h = []
+        self.caps = []
         self.n_atoms = 0
-        self.n_atoms_with_capping = 0
+        self.n_atoms_without_cap = 0
         self.hash = ''
         self.hash_idx = 0
         self.id = ''
         self.has_data = False
         self.mapping_frag_to_db = {}
         self.mapping_mol_to_frag = {}
-        self.elems = []
+        self.elements = []
         self.terms = None
-        self.params = None
-        self.r_squared = None
-        self.capping_atoms = []
+        self.non_bonded = None
+        self.remove_non_bonded = []
+        self.angles = []
+        self.qm_energies = []
+        self.coords = []
 
-        self.check_fragment(inp, mol, qm)
+        self.check_fragment(inp, mol)
 
-    def check_fragment(self, inp, mol, qm):
+    def check_fragment(self, inp, mol):
         self.identify_fragment(mol)
-        self.make_fragment_graph(qm, mol)
+        self.make_fragment_graph(mol)
         self.make_fragment_identifier(inp, mol)
         self.check_for_fragment(inp)
-        self.make_fragment_terms(inp, qm, mol)
+        self.make_fragment_terms(inp, mol)
         self.write_have_or_missing(inp)
+        self.get_qm_data(inp)
 
         if not self.has_data:
             make_qm_input(inp, self.graph, self.id)
 
     def identify_fragment(self, mol):
-        n_neigh = 0
+        n_neigh, n_cap = 0, 0
+        possible_h_caps = {i: [] for i in range(mol.n_atoms)}
         next_neigh = [[a, n] for a in self.atomids for n
                       in mol.topo.neighbors[0][a] if n not in self.atomids]
         while next_neigh != []:
@@ -144,26 +122,40 @@ class Fragment():
             for a, n in next_neigh:
                 if n in self.atomids:
                     pass
-                elif (n_neigh < 3 or not mol.topo.edge(a, n)['breakable']
-                      or not mol.topo.node(n)['breakable']):
+                elif (n_neigh < 3  # don't break first 3 neighbors
+                      or not mol.topo.edge(a, n)['breakable']  # don't break conjug./double bonds
+                      or ELE_ENEG[mol.elements[a]] > 3  # don't break if very electronegative
+                      or mol.topo.n_neighbors[n] == 1):  # don't break terminal atoms
                     new.append(n)
                     self.atomids.append(n)
+                    if mol.topo.node(n)['elem'] == 1:
+                        possible_h_caps[a].append(n)
                 else:
                     bl = mol.topo.edge(a, n)['length']
-                    new_bl = ELE_COV[mol.topo.atomids[a]] + ELE_COV[1]
+                    new_bl = ELE_COV[mol.topo.elements[a]] + ELE_COV[1]
                     vec = mol.topo.node(a)['coords'] - mol.topo.node(n)['coords']
-                    self.capping_atoms.append(n)
-                    self.capping_h.append((a, mol.topo.coords[a] - vec/bl*new_bl))
+                    coord = mol.topo.coords[a] - vec/bl*new_bl
+                    self.caps.append({'connected': a, 'idx': n, 'n_cap': n_cap, 'coord': coord})
+                    n_cap += 1
             next_neigh = [[a, n] for a in new for n in mol.topo.neighbors[0][a] if n not in
                           self.atomids]
             n_neigh += 1
-        self.n_atoms = len(self.atomids)
-        self.n_atoms_with_capping = self.n_atoms + len(self.capping_h)
 
-    def make_fragment_graph(self, qm, mol):
-        self.mapping_mol_to_frag = {self.atomids[i]: i for i in range(self.n_atoms)}
+        self.n_atoms_without_cap = len(self.atomids)
+        self.n_atoms = self.n_atoms_without_cap + len(self.caps)
+
+        self.remove_non_bonded = [cap['idx'] for cap in self.caps]
+        for cap in self.caps:
+            hydrogens = possible_h_caps[cap['connected']]
+            for h in hydrogens:
+                if h not in self.remove_non_bonded:
+                    self.remove_non_bonded.append(h)
+
+    def make_fragment_graph(self, mol):
+        self.mapping_mol_to_frag = {self.atomids[i]: i for i in range(self.n_atoms_without_cap)}
         self.scanned_atomids = [self.mapping_mol_to_frag[a] for a in self.scanned_atomids]
-        self.elems = [qm.atomids[idx] for idx in self.atomids+self.capping_atoms]
+        self.elements = [mol.elements[idx] for idx in self.atomids+[cap['idx'] for cap in
+                                                                    self.caps]]
         self.graph = mol.topo.graph.subgraph(self.atomids)
         self.graph = nx.relabel_nodes(self.graph, self.mapping_mol_to_frag)
         self.graph.edges[[0, 1]]['scan'] = True
@@ -174,23 +166,23 @@ class Fragment():
             for att in ['vector', 'length', 'order', 'breakable', 'vers', 'in_ring3', 'in_ring']:
                 d.pop(att, None)
         for _, d in self.graph.nodes(data=True):
-            for att in ['breakable', 'q', 'n_ring']:
+            for att in ['q', 'n_ring']:
                 d.pop(att, None)
 
-        for i, cap in enumerate(self.capping_atoms):
-            self.atomids.append(cap)
-            self.mapping_mol_to_frag[cap] = i + self.n_atoms
-
-        for i, h in enumerate(self.capping_h):
-            h_type = f'1(1.0){mol.topo.atomids[h[0]]}'
-            self.graph.add_node(self.n_atoms+i, elem=1, n_bonds=1, lone_e=0, coords=h[1],
-                                capping=True)
-            self.graph.add_edge(self.n_atoms+i, self.mapping_mol_to_frag[h[0]], type=h_type)
-        self.graph.graph['n_atoms'] = self.n_atoms_with_capping
+        for cap in self.caps:
+            self.atomids.append(cap['idx'])
+            self.mapping_mol_to_frag[cap['idx']] = self.n_atoms_without_cap + cap['n_cap']
+            h_type = f'1(1.0){mol.topo.elements[cap["connected"]]}'
+            self.graph.add_node(self.n_atoms_without_cap + cap['n_cap'], elem=1, n_bonds=1,
+                                lone_e=0, coords=cap['coord'], capping=True)
+            self.graph.add_edge(self.n_atoms_without_cap + cap['n_cap'],
+                                self.mapping_mol_to_frag[cap["connected"]], type=h_type)
 
     def make_fragment_identifier(self, inp, mol):
         atom_ids = [[], []]
-        comp_dict = {i: 0 for i in mol.topo.atomids}
+        comp_dict = {i: 0 for i in set(self.elements[:self.n_atoms_without_cap])}
+        if 1 not in comp_dict.keys() and len(self.cap) > 0:
+            comp_dict[1] = 0
         mult = 1
         composition = ""
         for a in range(2):
@@ -205,9 +197,9 @@ class Fragment():
         frag_hash = hashlib.md5(frag_hash.encode()).hexdigest()
 
         charge = int(round(sum(nx.get_node_attributes(self.graph, 'q').values())))
-        s1, s2 = sorted([ATOM_SYM[elem] for elem in self.elems[:2]])
+        s1, s2 = sorted([ATOM_SYM[elem] for elem in self.elements[:2]])
         self.graph.graph['charge'] = charge
-        if (sum(mol.topo.atomids) + charge) % 2 == 1:
+        if (sum(mol.topo.elements) + charge) % 2 == 1:
             mult = 2
         self.graph.graph['mult'] = mult
         for elem in nx.get_node_attributes(self.graph, 'elem').values():
@@ -285,24 +277,37 @@ class Fragment():
                 atom_name, [c1, c2, c3] = ATOM_SYM[data[1]['elem']], data[1]['coords']
                 xyz.write(f'{atom_name:>3s} {c1:>12.6f} {c2:>12.6f} {c3:>12.6f}\n')
 
-    def make_fragment_terms(self, inp, qm, mol):
+    def make_fragment_terms(self, inp, mol):
         mapping_mol_to_db = {}
 
-        for i in range(self.n_atoms, self.n_atoms_with_capping+1):
+        for i in range(self.n_atoms_without_cap, self.n_atoms):
             self.mapping_frag_to_db[i] = i
 
         mapping_db_to_frag = {v: k for k, v in self.mapping_frag_to_db.items()}
 
-        self.elems = [self.elems[mapping_db_to_frag[i]] for i in range(self.n_atoms_with_capping)]
+        self.elements = [self.elements[mapping_db_to_frag[i]] for i in range(self.n_atoms)]
 
         self.scanned_atomids = [self.mapping_frag_to_db[s] for s in self.scanned_atomids]
 
         for id_mol, id_frag in self.mapping_mol_to_frag.items():
             mapping_mol_to_db[id_mol] = self.mapping_frag_to_db[id_frag]
 
-        self.terms = mol.terms.subset(self.atomids, mapping_mol_to_db)
-        self.non_bonded = mol.non_bonded.subset(inp, self.atomids, mol.non_bonded,
-                                                mapping_mol_to_db)
+        mapping_db_to_mol = {v: k for k, v in mapping_mol_to_db.items()}
+
+        self.terms = mol.terms.subset(self.atomids, mapping_mol_to_db,
+                                      remove_non_bonded=self.remove_non_bonded)
+        self.non_bonded = mol.non_bonded.subset(inp, mol.non_bonded, mapping_mol_to_db)
+
+        self.remove_non_bonded = [mapping_mol_to_db[i] for i in self.remove_non_bonded]
+
+        # Reorder neighbors
+        self.neighbors = [[] for _ in range(3)]
+        for n in range(3):
+            for i in range(self.n_atoms):
+                neighs = mol.topo.neighbors[n][mapping_db_to_mol[i]]
+                self.neighbors[n].append([mapping_mol_to_db[neigh] for neigh in neighs
+                                          if neigh in mapping_mol_to_db.keys() and
+                                          mapping_mol_to_db[neigh] < self.n_atoms])
 
     def write_have_or_missing(self, inp):
         if self.has_data:
@@ -313,74 +318,7 @@ class Fragment():
         with open(data_path, 'a+') as data_file:
             data_file.write(f'{self.id}\n')
 
-    def calc_dihedral_function(self, inp, mol, ignores, nsteps, n_run):
-        md_energies = []
-
-        angles, qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}', unpack=True)
-
-        if n_run == 0:
-            self.coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')
-
-        angles_rad = np.radians(angles)
-
-        for i, (angle, qm_energy, coord) in enumerate(zip(angles_rad, qm_energies, self.coords)):
-            restraints = []
-            for term in self.terms['dihedral/flexible']:
-                phi0 = get_dihed(coord[term.atomids])[0]
-                restraints.append([term.atomids, phi0])
-            restraints.append([np.array(self.scanned_atomids), angle])
-
-            frag = Atoms(self.elems, positions=coord,
-                         calculator=QForce(self.terms, ignores, dihedral_restraints=restraints))
-
-            # if n_run != 0:
-            traj_name = f'{inp.frag_dir}/{self.id}_{np.degrees(angle).round()}.traj'
-            log_name = f'{inp.frag_dir}/opt_{self.id}.log'
-            e_minimiz = BFGS(frag, trajectory=traj_name, logfile=log_name)
-            e_minimiz.run(fmax=0.01, steps=nsteps)
-            self.coords[i] = frag.get_positions()
-
-            md_energies.append(frag.get_potential_energy())
-
-        md_energies = np.array(md_energies)
-        energy_diff = qm_energies - md_energies
-        energy_diff -= energy_diff.min()
-
-        weights = 1/np.exp(-0.2 * np.sqrt(qm_energies))
-        self.params = curve_fit(calc_rb, angles_rad, energy_diff, absolute_sigma=False,
-                                sigma=weights)[0]
-        self.calc_r_squared(calc_rb, angles_rad, energy_diff)
-
-        md_energies += calc_rb(angles_rad, *self.params)
-        md_energies -= md_energies.min()
-        self.plot_results(inp, angles, qm_energies, md_energies)
-
-    def plot_results(self, inp, angles, qm_energies, md_energies):
-        width, height = plt.figaspect(0.6)
-        f = plt.figure(figsize=(width, height), dpi=300)
-        sns.set(font_scale=1.3)
-        plt.title(f'R-squared = {round(self.r_squared, 3)}', loc='left')
-        plt.xlabel('Angle')
-        plt.ylabel('Energy (kJ/mol)')
-        plt.plot(angles, qm_energies, linewidth=4, label='QM')
-        plt.plot(angles, md_energies, linewidth=4, label='Q-Force')
-        plt.xticks(np.arange(0, 361, 60))
-        plt.tight_layout()
-        plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
-        f.savefig(f"{inp.frag_dir}/scan_data_{self.id}.pdf", bbox_inches='tight')
-        plt.close()
-
-    def calc_r_squared(self, funct, x, y):
-        residuals = y - funct(x, *self.params)
-        ss_res = np.sum(residuals**2)
-        ss_tot = np.sum((y-np.mean(y))**2)
-        self.r_squared = 1 - (ss_res / ss_tot)
-
-
-def calc_rb(angles, c0, c1, c2, c3, c4, c5):
-    params = [c0, c1, c2, c3, c4, c5]
-
-    rb = np.full(len(angles), c0)
-    for i in range(1, 6):
-        rb += params[i] * np.cos(angles-np.pi)**i
-    return rb
+    def get_qm_data(self, inp):
+        self.angles, self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}',
+                                                   unpack=True)
+        self.coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')

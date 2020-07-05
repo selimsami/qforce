@@ -2,9 +2,9 @@ import scipy.optimize as optimize
 import numpy as np
 from .read_qm_out import QM
 from .forcefield import ForceField
-from .dihedral_scan import scan_dihedral
 from .molecule import Molecule
 from .fragment import fragment
+from .dihedral_scan import scan_dihedrals
 from .frequencies import calc_qm_vs_md_frequencies
 
 
@@ -35,17 +35,14 @@ def fit_forcefield(inp, qm=None, mol=None):
     average_unique_minima(mol.terms)
 
     if inp.fragment:
-        fragments = fragment(inp, mol, qm)
+        fragments = fragment(inp, mol)
+        scan_dihedrals(fragments, inp, mol)
 
     calc_qm_vs_md_frequencies(inp, qm, md_hessian)
-    ff = ForceField(inp, mol, qm.coords, inp.job_dir)
-    ff.write_gromacs(inp, mol)
+    ff = ForceField(inp, mol, mol.topo.neighbors)
+    ff.write_gromacs(inp, mol, inp.job_dir, qm.coords)
 
-    print(f'Q-Forcefield parameters (.itp, .top) can be found in the directory: {inp.job_dir}\n')
-
-    # temporary
-    # if inp.fragment:
-    #     fit_dihedrals(inp, mol, qm, fragments)
+    print(f'Q-Force parameters (.itp, .top) can be found in the directory: {inp.job_dir}\n')
 
 
 def fit_hessian(inp, mol, qm, ignore_flex=True):
@@ -61,7 +58,7 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
     for i in range(mol.topo.n_atoms*3):
         for j in range(i+1):
             hes = (full_md_hessian[i, j] + full_md_hessian[j, i]) / 2
-            if all([h == 0 for h in hes]) or np.abs(qm_hessian[count]) < 1e+1:
+            if all([h == 0 for h in hes]) or np.abs(qm_hessian[count]) < 0.0001:
                 qm_hessian = np.delete(qm_hessian, count)
                 full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_terms))
             else:
@@ -82,16 +79,6 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
     return fit, full_md_hessian_1d
-
-
-def fit_dihedrals(inp, mol, qm, fragments):
-    """
-    Temporary - to be removed
-    """
-
-    for frag in fragments:
-        term = list(mol.terms.get_terms_from_name(frag.name))[0]
-        scan_dihedral(inp, term.atomids, frag.id, fit=False)
 
 
 def calc_hessian(coords, mol, inp, ignore_flex):

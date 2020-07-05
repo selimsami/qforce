@@ -1,10 +1,3 @@
-import numpy as np
-import os
-import networkx as nx
-from .elements import ELE_COV
-from .read_forcefield import Forcefield
-from .old_write_forcefield import write_itp, write_gro
-
 
 def polarize(inp):
     """
@@ -12,102 +5,77 @@ def polarize(inp):
     for both GRO and ITP files
     """
     polar_coords = []
-    ff = Forcefield(itp_file=inp.itp_file, gro_file=inp.coord_file)
 
-    G = make_graph(ff.atomids[0:ff.natom], np.array(ff.coords)*10)
-    neighbors = find_neighbors(G, ff.natom)
-
-    ff.exclu = [[] for i in range(ff.natom*2)]
-
-#    polar_dict = { 1: 0.000413835,  6: 0.00145,  7: 0.000971573,
-#                   8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
-#                  17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
-#    polar_dict = { 1: 0.000413835,  6: 0.001288599,  7: 0.000971573,
-#                   8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
-#                  17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
-#    polar_dict = { 1: 0.000205221,  6: 0.000974759,  7: 0.000442405,
-#                   8: 0.000343551,  9: 0.000220884, 16: 0.001610042,
-#                  17: 0.000994749, 35: 0.001828362, 53: 0.002964895}
-    polar_dict = {1: 0.00045330, 6: 0.00130300, 7: 0.00098850, 8: 0.00083690}
-    # current PTEGs
-
-    # add drude atom type
-    ff.atom_types.append(["DP", 0, 0, "S", 0, 0])
+    atoms, mol_natoms, max_resnr = read_itp(inp.itp_file)
+    coords, gro_natoms, box_dim = read_gro(inp.coord_file)
 
     # add coords
-    ff.n_mol = int(ff.gro_natom/ff.natom)
-    for i in range(ff.n_mol):
-        polar_coords.extend(ff.coords[i*ff.natom:(i+1)*ff.natom]*2)
-    ff.coords = polar_coords
+    n_mols = int(gro_natoms/mol_natoms)
 
-    for i in range(ff.natom):
+    for i in range(n_mols):
+        polar_coords.extend(coords[i*mol_natoms:(i+1)*mol_natoms]*2)
 
-        # add exclusions for nrexcl=3
-        for n3 in neighbors[1][i]:
-            ff.exclu[i+ff.natom].extend([n3+ff.natom+1])
-        for n4 in neighbors[2][i]:
-            if sorted([i+1, n4+1]) not in ff.pairs:
-                ff.exclu[i+ff.natom].extend([n4+ff.natom+1, n4+1])
-
-        # add exclusions for nrexcl=2
-#        for n2 in mol.neighbors[0][i]:
-#            ff.exclu[i].extend([n2+ff.natom+1])
-#        for n3 in mol.neighbors[1][i]:
-#            if sorted([i+1, n3+1]) not in ff.pairs:
-#                ff.exclu[i].extend([n3+ff.natom+1, n3+1])
-
+    for i in range(mol_natoms):
         # add atoms
-        ff.atoms.append([i+ff.natom+1, "DP", ff.atoms[i][2]+ff.maxresnr,
-                         ff.atoms[i][3], "D{}".format(i+1), ff.atoms[i][5],
-                         -8, 0])
-        ff.atoms[i][6] = ff.atoms[i][6]+8
+        atoms.append({'nr': i+mol_natoms+1, 'resnr': max_resnr+atoms[i]['resnr'],
+                      'resname': atoms[i]['resname'], 'atom_name': 'D'})
 
-        # add polarization
-        ff.polar.append([i+1, i+1+ff.natom, 1, polar_dict[ff.atomids[i]]])
-
-#        # add thole
-#        for a in neighbors[0][i]+neighbors[1][i]+neighbors[2][i]:
-#            if i < a:
-#                ff.thole.append([i+1, i+ff.natom+1, a+1, a+ff.natom+1, "2",
-#                                 "2.6", polar_dict[ff.atomids[i]],
-#                                 polar_dict[ff.atomids[a]]])  # 2.1304 2.899
-
-    polar_itp = "{}_polar.itp".format(os.path.splitext(inp.itp_file)[0])
-    polar_gro = "{}_polar.gro".format(os.path.splitext(inp.coord_file)[0])
-    write_itp(ff, polar_itp, inp)
-    write_gro(ff, polar_gro)
+    polar_gro_file = f"{inp.job_name}_polar.gro"
+    write_gro(inp, atoms, mol_natoms, gro_natoms, n_mols, polar_coords, box_dim, polar_gro_file)
 
     print("Done!")
-    print(f"Polarizable coordinate file in: {polar_gro}")
-    print(f"Polarizable force field file in: {polar_itp}")
+    print(f"Polarizable coordinate file in: {polar_gro_file}\n\n")
 
 
-def find_neighbors(G, n_atoms):
-    all_neighbors = [[[] for j in range(n_atoms)] for i in range(3)]
-    for i in range(n_atoms):
-        neighbors = nx.bfs_tree(G, source=i,  depth_limit=3).nodes
-        for n in neighbors:
-            paths = nx.all_shortest_paths(G, i, n)
-            for path in paths:
-                if len(path) == 2:
-                    all_neighbors[0][i].append(path[-1])
-                elif len(path) == 3:
-                    if path[-1] not in all_neighbors[1][i]:
-                        all_neighbors[1][i].append(path[-1])
-                elif len(path) == 4:
-                    if path[-1] not in all_neighbors[2][i]:
-                        all_neighbors[2][i].append(path[-1])
-    return all_neighbors
+def read_gro(gro_file):
+    coords = []
+    with open(gro_file, "r") as gro:
+        gro.readline()
+        gro_natoms = int(gro.readline())
+        for i in range(gro_natoms):
+            line = gro.readline()
+            x = float(line[21:29].strip())
+            y = float(line[29:37].strip())
+            z = float(line[37:45].strip())
+            coords.append([x, y, z])
+        box_dim = gro.readline()
+    return coords, gro_natoms, box_dim
 
 
-def make_graph(atomids, coords):
-    G = nx.Graph()
-    for i, i_id in enumerate(atomids):
-        G.add_node(i, elem=i_id)
-        for j, j_id in enumerate(atomids):
-            id1, id2 = sorted([i_id, j_id])
-            vec = coords[i] - coords[j]
-            dist = np.sqrt((vec**2).sum())
-            if dist > 0.4 and dist < ELE_COV[i_id] + ELE_COV[j_id] + 0.45:
-                G.add_edge(i, j, vector=vec, length=dist)
-    return G
+def read_itp(itp_file):
+    atoms = []
+    max_resnr = 0
+
+    with open(itp_file, "r") as itp:
+        in_section = []
+        for line in itp:
+            low_line = line.lower().strip().replace(" ", "")
+            line = line.split()
+            if low_line == "" or low_line[0] == ";":
+                continue
+            elif "[" in low_line and "]" in low_line:
+                open_bra = low_line.index("[") + 1
+                close_bra = low_line.index("]")
+                in_section = low_line[open_bra:close_bra]
+
+            elif in_section == "atoms":
+                if line[4] == 'D' or line[2] == 'DP':
+                    continue
+                atoms.append({'nr': int(line[0]), 'resnr': int(line[2]), 'resname': line[3],
+                              'atom_name': line[4]})
+                if atoms[-1]['resnr'] > max_resnr:
+                    max_resnr = atoms[-1]['resnr']
+    return atoms, len(atoms), max_resnr
+
+
+def write_gro(inp, atoms, mol_natoms, gro_natoms, n_mols, coords, box_dim, gro_file):
+    with open(gro_file, "w") as gro:
+        gro.write(f"{inp.job_name} - polarized\n")
+        gro.write("{}\n".format(gro_natoms*2))
+        for m in range(n_mols):
+            for i, atom in enumerate(atoms):
+                gro.write(f"{(str(atom['resnr'])+atom['resname']):>9}")
+                gro.write(f"{atom['atom_name']:>6}{m*mol_natoms*2+atom['nr']:>5}")
+                coord = coords[m*mol_natoms*2+i]
+                gro.write(f"{coord[0]:>8.3f}{coord[1]:>8.3f}{coord[2]:>8.3f}\n")
+        gro.write(f"{box_dim}")

@@ -1,38 +1,31 @@
 import networkx as nx
 import numpy as np
 #
-from ..elements import ATOM_SYM, ELE_ENEG, ELE_MAXB
+from ..elements import ATOM_SYM, ELE_MAXB
 
 
 class Topology(object):
 
     """"
-
     Contains all bonding etc. information of the system
-
-    self.list : atom numbers of unique atoms grouped together
-    self.atoms : unique atom numbers of each atom
-    self.types : atom types of each atom
-    self.neighbors : First 3 neighbors of each atom
-
-    TODO:
-        * include parts of qm, related to graph info
-
     """
 
     def __init__(self, inp, qm):
         self.n_equiv = inp.n_equiv
-        self.atomids = qm.atomids
-        self.n_atoms = len(self.atomids)
+        self.elements = qm.elements
+        self.n_atoms = len(self.elements)
         self.coords = qm.coords
         #
         self.n_types = 0
         self.n_terms = 0
         #
-        self.neighbors = [[[] for j in range(self.n_atoms)] for i in range(3)]
-        self.list = []
-        self.unique_atomids = []
-        self.atoms = np.zeros(self.n_atoms, dtype='int8')
+        self.neighbors = [[[] for j in range(self.n_atoms)] for i in range(3)]  # First 3 neighbors
+        self.n_neighbors = []  # number of first neighbors for each atom
+        self.list = []  # atom numbers of unique atoms grouped together
+        self.types = [None for _ in self.elements]  # atom types of each atom
+        self.unique_atomids = []  #
+        self.atoms = np.zeros(self.n_atoms, dtype='int8')  # unique atom numbers of each atom
+        self.all_rigid = inp.all_rigid
         #
         self._setup(inp, qm)
 
@@ -45,28 +38,23 @@ class Topology(object):
     def _find_bonds_and_rings(self, qm):
         """Setup networkx graph """
         self.graph = nx.Graph()
-        for iatom, iidx in enumerate(self.atomids):
-            self.graph.add_node(iatom, elem=iidx, n_bonds=qm.n_bonds[iatom], q=qm.cm5[iatom],
-                                lone_e=qm.lone_e[iatom], coords=self.coords[iatom])
-            # Check electronegativity difference to H to see if breakable
-            if 0 < abs(ELE_ENEG[iidx] - ELE_ENEG[1]) < 0.5:
-                self.node(iatom)['breakable'] = True
-            else:
-                self.node(iatom)['breakable'] = False
+        for i_idx, i_elem in enumerate(self.elements):
+            self.graph.add_node(i_idx, elem=i_elem, n_bonds=qm.n_bonds[i_idx], q=qm.cm5[i_idx],
+                                lone_e=qm.lone_e[i_idx], coords=self.coords[i_idx])
             # add bonds
-            for jatom, jidx in enumerate(self.atomids):
-                order = qm.b_orders[iatom, jatom]
+            for j_idx, j_elem in enumerate(self.elements):
+                order = qm.b_orders[i_idx, j_idx]
                 if order > 0:
-                    id1, id2 = sorted([iidx, jidx])
-                    vec = self.coords[iatom] - self.coords[jatom]
+                    id1, id2 = sorted([i_elem, j_elem])
+                    vec = self.coords[i_idx] - self.coords[j_idx]
                     dist = np.sqrt((vec**2).sum())
-                    self.graph.add_edge(iatom, jatom, vector=vec, length=dist, order=order,
+                    self.graph.add_edge(i_idx, j_idx, vector=vec, length=dist, order=order,
                                         type=f'{id1}({order}){id2}')
-            if qm.n_bonds[iatom] > ELE_MAXB[iidx]:
-                print(f"WARNING: Atom {iatom+1} ({ATOM_SYM[iidx]}) has too many",
-                      " ({qm.n_bonds[iatom]}) bonds?")
-            elif qm.n_bonds[iatom] == 0:
-                print(f"WARNING: Atom {iatom+1} ({ATOM_SYM[iidx]}) has no bonds")
+            if qm.n_bonds[i_idx] > ELE_MAXB[i_elem]:
+                print(f"WARNING: Atom {i_idx+1} ({ATOM_SYM[i_elem]}) has too many",
+                      " ({qm.n_bonds[i_idx]}) bonds?")
+            elif qm.n_bonds[i_idx] == 0:
+                print(f"WARNING: Atom {i_idx+1} ({ATOM_SYM[i_elem]}) has no bonds")
         # add rings
         self.rings = nx.minimum_cycle_basis(self.graph)
         self.rings3 = [r for r in self.rings if len(r) == 3]
@@ -104,12 +92,12 @@ class Topology(object):
             self.unique_atomids.append(n)
             self.n_types += 1
 
-        types = {i: 1 for i in set(self.atomids)}
-        self.types = [None for _ in self.atomids]
+        types = {i: 1 for i in set(self.elements)}
+
         for eq in self.list:
             for i in eq:
-                self.types[i] = "{}{}".format(ATOM_SYM[self.atomids[i]], types[self.atomids[i]])
-            types[self.atomids[eq[0]]] += 1
+                self.types[i] = "{}{}".format(ATOM_SYM[self.elements[i]], types[self.elements[i]])
+            types[self.elements[eq[0]]] += 1
         self.types = np.array(self.types, dtype='str')
 
     def _find_neighbors(self, inp):
@@ -126,6 +114,8 @@ class Topology(object):
                     elif len(path) == 4:
                         if path[-1] not in self.neighbors[2][i]:
                             self.neighbors[2][i].append(path[-1])
+            self.n_neighbors.append(len(self.neighbors[0][i]))
+        self.n_neighbors = np.array(self.n_neighbors)
 
     def _find_bonds_angles_dihedrals(self):
 

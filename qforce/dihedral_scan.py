@@ -3,117 +3,132 @@ import os
 import shutil
 import numpy as np
 import matplotlib.pyplot as plt
-from symfit import Fit, cos, pi, parameters, variables
 import seaborn as sns
+from ase.optimize import BFGS
+from ase import Atoms
+from scipy.optimize import curve_fit
+#
 from . import qforce_data
+from .forcefield import ForceField
+from .calculator import QForce
+from .forces import get_dihed
+
+"""
+
+Fit all dihedrals togethers after  the scans?
+
+"""
 
 
-def scan_dihedral(inp, atoms, scan_id, fit=False, frag=False):
-    """
-    For each different dihedral in the input file, do dihedral optimization:
-    Read scan QM output(s), run GROMACS with the same angles, get the fitting
-    data, fit into a choice function of choice, run GROMACS again with fitted
-    dihedrals, print the dihedral profile.
+def scan_dihedrals(fragments, inp, mol):
 
-    run = check or fit
-    """
-    md_energies, opt_md_energies = [], []
-    frag_id, id_no = scan_id.split('~')
-    data_file = f'{inp.frag_lib}/{frag_id}/scandata_{id_no}'
-    qm_angles, qm_energies = np.loadtxt(data_file, unpack=True)
+    for n_run in range(inp.n_dihed_scans):
+        for n_fit, frag in enumerate(fragments, start=1):
 
-    if frag:
-        scan_name = scan_id
-        scan_dir = f'{inp.frag_dir}/{scan_name}'
-        itp_file = f'{scan_dir}/{inp.job_name}_qforce.itp'
-    else:
-        scan_name = '_'.join([str(a+1) for a in atoms])
-        itp_file = f'{inp.job_dir}/{inp.job_name}_qforce.itp'
-        scan_dir = f'{inp.frag_dir}/{scan_name}'
-        make_scan_dir(scan_dir)
+            print(f'\nFitting dihedral {n_fit}/{len(fragments)}: {frag.id} \n')
 
-    if fit:
-        remove_scanned_dihedral(itp_file, atoms)
+            scanned = list(frag.terms.get_terms_from_name(name=frag.name,
+                                                          atomids=frag.scanned_atomids))[0]
+            scanned.equ = np.zeros(6)
 
-    # print job info
-    print(f"\nScan name: {scan_name}")
-    print(f"Fragment: {frag}")
-    print("-"*(11+len(scan_name)))
+            scan_dir = f'{inp.frag_dir}/{frag.id}'
+            make_scan_dir(scan_dir)
 
-    # Prepare the files for a GROMACS run in each scan step directory
-    prepare_scan_directories(atoms, qm_angles, qm_energies, inp, itp_file, scan_dir)
+            if inp.scan_method == 'qforce':
+                md_energies = scan_dihed_qforce(frag, scan_dir, inp, mol, n_run)
 
-    if fit:
-        # Run gromacs without the scanned dihedral - get energies
-        print("Running GROMACS without the scanned dihedral...")
-        for step, angle in enumerate(qm_angles):
-            step_dir = f"{scan_dir}/step{step}"
-            run_gromacs(step_dir, "nodihed", inp)
-            md_energy = read_gromacs_energies(step_dir, "nodihed")
-            md_energies.append(md_energy)
+            elif inp.scan_method == 'gromacs':
+                md_energies = scan_dihed_gromacs(frag, scan_dir, inp, mol, n_run)
 
-        # Set minimum energies to zero and compute QM vs MD difference
-        # and the dihedral potential to be fitted
-        md_energies = set_minimum_to_zero(md_energies)
-        dihedral_fitting = set_minimum_to_zero(qm_energies - md_energies)
+            params = fit_dihedrals(frag, md_energies, inp)
 
-        # fit the data
-        print("Fitting the dihedral function...")
-        c, r_squared, fitted_dihedral = do_fitting(qm_angles, qm_energies, inp, dihedral_fitting)
+            for frag2 in fragments:
+                for term in frag2.terms.get_terms_from_name(frag.name):
+                    term.equ = params
 
-        # print optmized dihedrals
-        write_opt_dihedral(itp_file, atoms, c, r_squared)
+            for term in mol.terms.get_terms_from_name(frag.name):
+                term.equ = params
 
-    # run gromacs again with optimized dihedrals
-    print("Running GROMACS with the fitted dihedral...")
-    for step, angle in enumerate(qm_angles):
-        step_dir = f"{scan_dir}/step{step}"
-        itp_loc = f"{step_dir}/{inp.job_name}_qforce.itp"
-        if fit:
-            write_opt_dihedral(itp_loc, atoms, c, r_squared)
-        run_gromacs(step_dir, "opt", inp)
-        md_energy = read_gromacs_energies(step_dir, "opt")
-        opt_md_energies.append(md_energy)
-
-    # set minimum energy to zero
-    opt_md_energies = set_minimum_to_zero(opt_md_energies)
-
-    # Plot optimized dihedral profile vs QM profile
-    plot_dihedral_profile(inp, qm_angles, qm_energies, opt_md_energies,
-                          scan_name)
-
-    print(f"QM vs MD dihedral scan profile: {scan_name}.pdf\n")
+            print(params)
 
 
-def remove_scanned_dihedral(itp_path, atoms):
-    """
-    Read the itp file, create an initial optimized itp file minus the scanned
-    dihedrals. Get molecule residue info and atom names from the ITP file
-    """
-    in_section = None
-    atoms = [str(a+1) for a in atoms]
-    with open(itp_path, 'r') as itp_file:
-        itp = itp_file.readlines()
+def scan_dihed_qforce(frag, scan_dir, inp, mol, n_run, nsteps=1000):
+    md_energies, ignores = [], []
 
-    with open(itp_path, 'w') as itp_file:
-        for line in itp:
-            low_line = line.strip().lower()
-            if line.startswith(';'):
-                itp_file.write(line)
-            elif "[" in low_line and "]" in low_line:
-                no_space = low_line.replace(" ", "")
-                open_bra = no_space.index("[") + 1
-                close_bra = no_space.index("]")
-                in_section = no_space[open_bra:close_bra]
-                itp_file.write(line)
-            elif in_section == "dihedrals" and len(line.split()) > 3:
-                atoms_check = line.split()[0:4]
-                if atoms == atoms_check:
-                    continue
-                else:
-                    itp_file.write(line)
-            else:
-                itp_file.write(line)
+    angles_rad = np.radians(frag.angles)
+
+    for i, (angle, qm_energy, coord) in enumerate(zip(angles_rad, frag.qm_energies, frag.coords)):
+        restraints = find_restraints(frag, coord, n_run)
+
+        atom = Atoms(frag.elements, positions=coord,
+                     calculator=QForce(frag.terms, ignores, dihedral_restraints=restraints))
+
+        traj_name = f'{scan_dir}/{frag.id}_run{n_run+1}_{np.degrees(angle).round()}.traj'
+        log_name = f'{scan_dir}/opt_{frag.id}_run{n_run+1}.log'
+        e_minimiz = BFGS(atom, trajectory=traj_name, logfile=log_name)
+        e_minimiz.run(fmax=0.01, steps=nsteps)
+        frag.coords[i] = atom.get_positions()
+
+        md_energies.append(atom.get_potential_energy())
+
+    return np.array(md_energies)
+
+
+def scan_dihed_gromacs(frag, scan_dir, inp, mol, n_run):
+    md_energies = []
+
+    ff = ForceField(inp, frag, frag.neighbors, exclude_all=frag.remove_non_bonded)
+
+    angles_rad = np.radians(frag.angles)
+
+    for i, (angle, qm_energy, coord) in enumerate(zip(angles_rad, frag.qm_energies, frag.coords)):
+
+        step_dir = f"{scan_dir}/step{i}"
+        make_scan_dir(step_dir)
+
+        ff.write_gromacs(inp, frag, step_dir, coord)
+        shutil.copy2(f'{qforce_data}/default.mdp', step_dir)
+
+        restraints = find_restraints(frag, coord, n_run)
+        ff.add_restraints(restraints, step_dir)
+
+        run_gromacs(step_dir, inp, ff.polar_title)
+        md_energy = read_gromacs_energies(step_dir)
+        md_energies.append(md_energy)
+
+    return np.array(md_energies)
+
+
+def find_restraints(frag, coord, n_run):
+    restraints = []
+    for term in frag.terms['dihedral/flexible']:
+        phi0 = get_dihed(coord[term.atomids])[0]
+        if (n_run == 0
+                or all([term.atomids[i] == frag.scanned_atomids[i] for i in range(3)])
+                or not all([idx in term.atomids for idx in frag.scanned_atomids[1:3]])):
+            restraints.append([term.atomids, phi0])
+    return restraints
+
+
+def fit_dihedrals(frag, md_energies, inp):
+
+    energy_diff = frag.qm_energies - md_energies
+    energy_diff -= energy_diff.min()
+
+    angles_rad = np.radians(frag.angles)
+    weights = 1/np.exp(-0.2 * np.sqrt(frag.qm_energies))
+    params = curve_fit(calc_rb, angles_rad, energy_diff, absolute_sigma=False, sigma=weights)[0]
+    r_squared = calc_r_squared(calc_rb, angles_rad, energy_diff, params)
+
+    md_energies += calc_rb(angles_rad, *params)
+    md_energies -= md_energies.min()
+
+    plot_fit(inp, frag, energy_diff, calc_rb(angles_rad, *params))
+    plot_results(inp, frag, md_energies, r_squared)
+
+    np.save(f'{inp.frag_dir}/scan_data_{frag.id}', np.vstack((frag.angles, frag.qm_energies,
+                                                              md_energies)))
+    return params
 
 
 def make_scan_dir(scan_name):
@@ -122,54 +137,24 @@ def make_scan_dir(scan_name):
     os.makedirs(scan_name)
 
 
-def set_minimum_to_zero(energies):
-    energies = energies - np.amin(energies)
-    return energies
-
-
-def prepare_scan_directories(atoms, qm_angles, qm_energies, inp, itp_dir,
-                             scan_dir):
-    """
-    Create the .gro file for each scan step from QM optimized geometriesl
-    Add dihedral restrain to each scan step ITP
-    Copy all necessary files for a GROMACS run to scan directories
-    """
-    dihed_res = "{:>5}{:>5}{:>5}{:>5}{:>5}{:>10.4f}  0.0  1000\n"
-    atoms = [a+1 for a in atoms]
-    itp_file = f'{inp.job_name}_qforce.itp'
-    top_dir = f'{inp.job_dir}/gas.top'
-
-    for step, angle in enumerate(qm_angles):
-
-        step_dir = f"{scan_dir}/step{step}"
-        os.makedirs(step_dir, exist_ok=True)
-
-        # copy the .itp file to each scan directory & add the dihedral restrain
-        shutil.copy2(itp_dir, step_dir)
-        with open(f'{step_dir}/{itp_file}', "a") as itp_step:
-            itp_step.write("\n")
-            itp_step.write("[ dihedral_restraints ]\n")
-            itp_step.write(";  ai   aj   ak   al type       phi   dp   kfac\n")
-            itp_step.write(dihed_res.format(*atoms, "1", angle))
-
-        # copy the .top file and the extra .itp files (if they exist)
-        shutil.copy2(top_dir, step_dir)
-        shutil.copy2(f'{qforce_data}/default.mdp', step_dir)
-
-
-def run_gromacs(directory, em_type, inp):
-    grompp = subprocess.Popen(['gmx', 'grompp', '-f', 'default.mdp', '-p',
-                               'gas.top', '-c', '../../../gas.gro', '-o',
-                               ('em_' + em_type + '.tpr'), '-po',
-                               ('em_' + em_type + '.mdp'), '-maxwarn', '10'],
+def run_gromacs(directory, inp, polar_title):
+    attempt, returncode = 0, 1
+    grompp = subprocess.Popen(['gmx_d', 'grompp', '-f', 'default.mdp', '-p',
+                               f'gas{polar_title}.top', '-c', f'gas{polar_title}.gro', '-o',
+                               'em.tpr', '-po', 'em.mdp', '-maxwarn', '10'],
                               cwd=directory, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT)
     grompp.wait()
-    check_gromacs_termination(grompp)
-    mdrun = subprocess.Popen(['gmx', 'mdrun', '-deffnm', ('em_'+em_type)],
-                             cwd=directory, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
-    mdrun.wait()
+
+    while returncode != 0 and attempt < 3:
+        check_gromacs_termination(grompp)
+        mdrun = subprocess.Popen(['gmx_d', 'mdrun', '-deffnm', 'em'],
+                                 cwd=directory, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+        mdrun.wait()
+        returncode = mdrun.returncode
+        attempt += 1
+
     check_gromacs_termination(mdrun)
 
 
@@ -179,8 +164,8 @@ def check_gromacs_termination(process):
         raise RuntimeError({"GROMACS run has terminated unsuccessfully"})
 
 
-def read_gromacs_energies(directory, em_type):
-    log_dir = "{}/em_{}.log".format(directory, em_type)
+def read_gromacs_energies(directory):
+    log_dir = f"{directory}/em.log"
     with open(log_dir, "r", encoding='utf-8') as em_log:
         for line in em_log:
             if "Potential Energy  =" in line:
@@ -188,55 +173,48 @@ def read_gromacs_energies(directory, em_type):
     return md_energy
 
 
-def do_fitting(qm_angles, qm_energies, inp, dihedral_fitting):
-    angle_rad, y = variables('angle_rad, y')
-
-    c0, c1, c2, c3, c4, c5 = parameters('c0, c1, c2, c3, c4, c5')
-    model = {y: c0 + c1 * cos(angle_rad - pi) + c2 * cos(angle_rad - pi)**2
-             + c3 * cos(angle_rad - pi)**3 + c4 * cos(angle_rad - pi)**4
-             + c5 * cos(angle_rad - pi)**5}
-
-    angles_rad = np.deg2rad(qm_angles)
-    weights = 1/np.exp(-0.2 * np.sqrt(qm_energies))
-
-    fit = Fit(model, angle_rad=angles_rad, y=dihedral_fitting,
-              sigma_y=weights, absolute_sigma=False)
-
-    fit_result = fit.execute()
-
-    params = np.round(list(fit_result.params.values()), 4)
-    r_squared = np.round(fit_result.r_squared, 4)
-
-    fitted_dihedral = fit.model(angles_rad, **fit_result.params)[0]
-
-    return params, r_squared, fitted_dihedral
-
-
-def write_opt_dihedral(itp_file, atoms, c, r_squared):
-    """
-    Write the optimized dihedrals into the new itp file.
-    3 options can be provided for the dihedral function :
-    bellemans, periodic, improper
-    """
-    opt_d = f" ; optimized dihedral with r-squared: {r_squared:6.4f}\n"
-    belle = ("{:>5}{:>5}{:>5}{:>5}    3 {:>11.4f}{:>11.4f}{:>11.4f}{:>11.4f}"
-             "{:>11.4f}{:>11.4f}" + opt_d)
-    atoms = [a+1 for a in atoms]
-    with open(itp_file, "a") as opt_itp:
-        opt_itp.write("\n[ dihedrals ]\n")
-        opt_itp.write(belle.format(*atoms, *c))
-
-
-def plot_dihedral_profile(inp, qm_angles, qm_energies, md_energies, scan_name):
+def plot_results(inp, frag, md_energies, r_squared):
     width, height = plt.figaspect(0.6)
     f = plt.figure(figsize=(width, height), dpi=300)
     sns.set(font_scale=1.3)
-    sns.set_style("ticks", {'legend.frameon': True})
+    plt.title(f'R-squared = {round(r_squared, 3)}', loc='left')
     plt.xlabel('Angle')
     plt.ylabel('Energy (kJ/mol)')
-    plt.plot(qm_angles, qm_energies, linewidth=4, label='QM')
-    plt.plot(qm_angles, md_energies, linewidth=4, label='Q-Force')
+    plt.plot(frag.angles, frag.qm_energies, linewidth=4, label='QM')
+    plt.plot(frag.angles, md_energies, linewidth=4, label='Q-Force')
     plt.xticks(np.arange(0, 361, 60))
-    plt.legend(ncol=2, loc=9)
     plt.tight_layout()
-    f.savefig(f"{inp.frag_dir}/gromacs_{scan_name}.pdf", bbox_inches='tight')
+    plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
+    f.savefig(f"{inp.frag_dir}/scan_data_{frag.id}.pdf", bbox_inches='tight')
+    plt.close()
+
+
+def plot_fit(inp, frag, diff, fit):
+    width, height = plt.figaspect(0.6)
+    f = plt.figure(figsize=(width, height), dpi=300)
+    sns.set(font_scale=1.3)
+    plt.xlabel('Angle')
+    plt.ylabel('Energy (kJ/mol)')
+    plt.plot(frag.angles, diff, linewidth=4, label='Diff')
+    plt.plot(frag.angles, fit, linewidth=4, label='Fit')
+    plt.xticks(np.arange(0, 361, 60))
+    plt.tight_layout()
+    plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
+    f.savefig(f"{inp.frag_dir}/fit_data_{frag.id}.pdf", bbox_inches='tight')
+    plt.close()
+
+
+def calc_r_squared(funct, x, y, params):
+    residuals = y - funct(x, *params)
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((y-np.mean(y))**2)
+    return 1 - (ss_res / ss_tot)
+
+
+def calc_rb(angles, c0, c1, c2, c3, c4, c5):
+    params = [c0, c1, c2, c3, c4, c5]
+
+    rb = np.full(len(angles), c0)
+    for i in range(1, 6):
+        rb += params[i] * np.cos(angles-np.pi)**i
+    return rb

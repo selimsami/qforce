@@ -1,29 +1,39 @@
 import numpy as np
 
 
-def relax_drude(coords, mol):
+def relax_drude(coords, mol, nonpolar_charges):
     """
     Drude energy minimization using the same procedure as GROMACS.
     Work in progress - to be implemented with polarizable FF derivataions.
     """
+    EPS0 = 1389.35458  # kJ*ang/mol/e2
     gro2cgs = 0.376730313488167
     cgs2au = 18.8972612545**3 / 4 / np.pi
 
+    k = []
+    pair_list = []
     mu = []
+    q_a = nonpolar_charges + 8.0
 
-    pair_list = mol.non_bonded.polar_pairs
-    q_a = mol.non_bonded.polar_q
-    k = mol.non_bonded.polar_fcs
-    n_atoms = mol.n_atoms
+    for i in q_a:
+        print(i)
+
+    for p in mol.polar:
+        k.append(64.0 * EPS0/p)  # units???
+
+    for i in range(mol.n_atoms):
+        for j in range(i+1, mol.n_atoms):
+            if j not in mol.neighbors[0][i]+mol.neighbors[1][i]+mol.neighbors[2][i]:
+                pair_list.append([i, j])
 
     print("No Field")
-    xyz = minimize_drude(coords, k, n_atoms, q_a, pair_list, -1)
+    xyz = minimize_drude(coords, k, mol, q_a, pair_list, -1)
     print("Field-X")
-    x = minimize_drude(coords, k, n_atoms, q_a, pair_list, 0)
+    x = minimize_drude(coords, k, mol, q_a, pair_list, 0)
     print("Field-Y")
-    y = minimize_drude(coords, k, n_atoms, q_a, pair_list, 1)
+    y = minimize_drude(coords, k, mol, q_a, pair_list, 1)
     print("Field-Z")
-    z = minimize_drude(coords, k, n_atoms, q_a, pair_list, 2)
+    z = minimize_drude(coords, k, mol, q_a, pair_list, 2)
 
     mu.append(sum(xyz[:, 0] * q_a - 8 * x[:, 0]))
     mu.append(sum(xyz[:, 1] * q_a - 8 * y[:, 1]))
@@ -35,7 +45,7 @@ def relax_drude(coords, mol):
     print("Polarizabilities: ", mu)
 
 
-def minimize_drude(coords, k, n_atoms, q_a, pair_list, field):
+def minimize_drude(coords, k, mol, q_a, pair_list, field):
     xyz = np.array(coords)  # + np.array([0, 0, 0.1]) #
     ###
     f_tol = 0.01  # kj/mol/ang
@@ -46,7 +56,7 @@ def minimize_drude(coords, k, n_atoms, q_a, pair_list, field):
     n_max_step = 30
     step = 0
     ###
-    force = calc_force(xyz, coords, k, n_atoms, q_a, pair_list, field)
+    force = calc_force(xyz, coords, k, mol, q_a, pair_list, field)
     norm = np.linalg.norm(force, axis=1)
     f_rms = np.sqrt(np.mean(norm**2))
     f_rms_min = f_rms
@@ -59,7 +69,7 @@ def minimize_drude(coords, k, n_atoms, q_a, pair_list, field):
             step_size = 1 / np.tile(np.array([k]).T, 3)
         else:
             df = force - f_old
-            k_est = np.divide(-dx, df, out=np.full((n_atoms, 3), np.inf), where=df!=0)
+            k_est = np.divide(-dx, df, out=np.full((mol.n_atoms, 3), np.inf), where=df!=0)
 
             for i, s_atom in enumerate(step_size):
                 for d in range(3):
@@ -74,7 +84,7 @@ def minimize_drude(coords, k, n_atoms, q_a, pair_list, field):
         dx = f_old * step_size
         xyz = xyz_old + dx
 
-        force = calc_force(xyz, coords, k, n_atoms, q_a, pair_list, field)
+        force = calc_force(xyz, coords, k, mol, q_a, pair_list, field)
         norm = np.linalg.norm(force, axis=1)
         f_rms = np.sqrt(np.mean(norm**2))
 
@@ -89,7 +99,7 @@ def minimize_drude(coords, k, n_atoms, q_a, pair_list, field):
     return xyz
 
 
-def calc_force(d_xyz, xyz, k, n_atoms, q_a, pair_list, field):
+def calc_force(d_xyz, xyz, k, mol, q_a, pair_list, field):
     jaco = np.zeros((len(xyz), 3))
     field_strength = 0.2  # V/Ang
     ev2kjmol = 96.48533645956869
@@ -97,13 +107,13 @@ def calc_force(d_xyz, xyz, k, n_atoms, q_a, pair_list, field):
     for i, (d, a) in enumerate(zip(d_xyz, xyz)):
         vec12, _ = get_dist(a, d)
         jaco[i] += k[i] * vec12
-    # # thole
-    # for i, j, afac in mol.thole:
-    #     f = calc_thole(d_xyz[i], d_xyz[j], afac, 64)  # drude-drude
-    #     jaco[i] += f
-    #     jaco[j] -= f
-    #     jaco[i] += calc_thole(d_xyz[i], xyz[j], afac, -64)  # drude-atom
-    #     jaco[j] += calc_thole(d_xyz[j], xyz[i], afac, -64)  # atom-drude
+    # thole
+    for i, j, afac in mol.thole:
+        f = calc_thole(d_xyz[i], d_xyz[j], afac, 64)  # drude-drude
+        jaco[i] += f
+        jaco[j] -= f
+        jaco[i] += calc_thole(d_xyz[i], xyz[j], afac, -64)  # drude-atom
+        jaco[j] += calc_thole(d_xyz[j], xyz[i], afac, -64)  # atom-drude
     # Coulomb
     for i, j in pair_list:
         f = calc_coulomb(d_xyz[i], d_xyz[j], 64)  # drude-drude
@@ -113,7 +123,7 @@ def calc_force(d_xyz, xyz, k, n_atoms, q_a, pair_list, field):
         jaco[j] += calc_coulomb(d_xyz[j], xyz[i], -8*q_a[i])  # atom-drude
     # Applied field
     if field >= 0:
-        for i in range(n_atoms):
+        for i in range(mol.n_atoms):
             jaco[i, field] += -8 * ev2kjmol * field_strength / 10
     return jaco
 

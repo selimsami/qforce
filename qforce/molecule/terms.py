@@ -39,7 +39,7 @@ class Terms(MappingIterator):
     def from_terms(cls, terms, ignore, not_fit_terms):
         return cls(terms, ignore, not_fit_terms)
 
-    def subset(self, fragment, mapping, ignore=[], not_fit_terms=[]):
+    def subset(self, fragment, mapping, remove_non_bonded=[], ignore=[], not_fit_terms=[]):
 
         subterms = {}
         for key, term in self.ho_items():
@@ -50,7 +50,7 @@ class Terms(MappingIterator):
                               if ignore_key.startswith(key)]
                 subterms[key] = term.get_subset(fragment, mapping, key_ignore)
             elif isinstance(term, TermStorage):
-                subterms[key] = term.get_subset(fragment, mapping)
+                subterms[key] = term.get_subset(fragment, mapping, remove_non_bonded)
             else:
                 raise ValueError("Term can only be TermStorage or MultipleTermStorage")
 
