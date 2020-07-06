@@ -75,10 +75,13 @@ class TermStorage(UserList):
     def new_storage(cls, name, data=None):
         return cls(name, data)
 
-    def get_subset(self, fragment, mapping):
+    def get_subset(self, fragment, mapping, remove_non_bonded=[]):
+
         newstorage = self.new_storage(self.name)
         for term in self:
-            if set(term.atomids).issubset(fragment):
+            if set(term.atomids).issubset(fragment) and (term.name != 'NonBondedTerm' or
+                                                         all([idx not in remove_non_bonded for
+                                                              idx in term.atomids])):
                 newterm = deepcopy(term)
                 newterm.atomids = np.array([mapping[i] for i in term.atomids])
                 newstorage.append(newterm)

@@ -3,37 +3,43 @@ import os
 #
 from .elements import ATOM_SYM, ATOMMASS
 
+"""
+To do: write FF to other formats using ParmEd
+"""
+
 
 class ForceField():
-    def __init__(self, inp, mol, coords, directory, residue='MOL'):
-        self.directory = self.make_directory(directory)
+    def __init__(self, inp, mol, neighbors, residue='MOL', exclude_all=[]):
+        self.polar = inp.polar
+        self.polar_title = ''
         self.mol_name = inp.job_name
         self.n_atoms = mol.n_atoms
-        self.elems = mol.elems
-        self.coords = coords
+        self.elements = mol.elements
+        self.q = self.set_charge(mol.non_bonded)
         self.residue = residue
         self.comb_rule = inp.comb_rule
         self.urey = inp.urey
         self.n_excl = inp.n_excl
-        self.polar = []
-        self.thole = []
         self.atom_names = self.get_atom_names()
-        self.masses = [round(ATOMMASS[i], 5) for i in mol.elems]
+        self.masses = [round(ATOMMASS[i], 5) for i in self.elements]
+        self.exclusions = self.make_exclusions(mol.non_bonded.exclusions, neighbors, exclude_all)
+        if self.polar:
+            self.polar_title = '_polar'
 
-    def write_gromacs(self, inp, mol):
-        self.write_itp(inp, mol)
-        self.write_top()
-        self.write_gro()
+    def write_gromacs(self, inp, mol, directory, coords):
+        self.write_itp(inp, mol, directory)
+        self.write_top(directory)
+        self.write_gro(directory, coords)
 
-    def write_top(self):
-        with open(f"{self.directory}/gas.top", "w") as top:
+    def write_top(self, directory):
+        with open(f"{directory}/gas{self.polar_title}.top", "w") as top:
             # defaults
             top.write("\n[ defaults ]\n")
             top.write(";nbfunc   comb-rule   gen-pairs   fudgeLJ   fudgeQQ\n")
             top.write(f"      1           {self.comb_rule}          no       1.0       1.0\n\n\n")
 
             top.write("; Include the molecule ITP\n")
-            top.write(f'#include "./{self.mol_name}_qforce.itp"\n\n\n')
+            top.write(f'#include "./{self.mol_name}_qforce{self.polar_title}.itp"\n\n\n')
 
             size = len(self.mol_name)
             top.write("[ system ]\n")
@@ -44,29 +50,37 @@ class ForceField():
             top.write(f"; {' '*(size-10)}compound    n_mol\n")
             top.write(f"{' '*(10-size)}{self.mol_name}        1\n")
 
-    def write_gro(self, n_mol=1, box=[10., 10., 10.]):
-        coords = self.coords/10
-        with open(f"{self.directory}/gas.gro", "w") as gro:
+    def write_gro(self, directory, coords, box=[20., 20., 20.]):
+        n_atoms = self.n_atoms
+        if self.polar:
+            n_atoms *= 2
+        coords *= 0.1
+        with open(f"{directory}/gas{self.polar_title}.gro", "w") as gro:
             gro.write(f"{self.mol_name}\n")
-            gro.write(f"{self.n_atoms*n_mol:>6}\n")
-            for m in range(n_mol):
-                for i, (a_name, coord) in enumerate(zip(self.atom_names, coords), start=1):
-                    gro.write(f"{m+1:>5}{self.residue:<5}")
-                    gro.write(f"{a_name:>5}{m*self.n_atoms+i:>5}")
+            gro.write(f"{n_atoms:>6}\n")
+            for i, (a_name, coord) in enumerate(zip(self.atom_names, coords), start=1):
+                gro.write(f"{1:>5}{self.residue:<5}")
+                gro.write(f"{a_name:>5}{i:>5}")
+                gro.write(f"{coord[0]:>8.3f}{coord[1]:>8.3f}{coord[2]:>8.3f}\n")
+            if self.polar:
+                for i, coord in enumerate(coords, start=1):
+                    gro.write(f"{2:>5}{self.residue:<5}")
+                    gro.write(f"{'D':>5}{i+self.n_atoms:>5}")
                     gro.write(f"{coord[0]:>8.3f}{coord[1]:>8.3f}{coord[2]:>8.3f}\n")
+
             gro.write(f'{box[0]:>12.5f}{box[1]:>12.5f}{box[2]:>12.5f}\n')
 
-    def write_itp(self, inp, mol):
-        print(f"{self.directory}/{self.mol_name}_qforce.itp")
-        with open(f"{self.directory}/{self.mol_name}_qforce.itp", "w") as itp:
+    def write_itp(self, inp, mol, directory):
+        with open(f"{directory}/{self.mol_name}_qforce{self.polar_title}.itp", "w") as itp:
             self.write_itp_title(itp)
             self.write_itp_parameters(itp, inp)
             self.write_itp_atoms_and_molecule(itp, mol.non_bonded)
-            self.write_itp_polarization(itp)
+            if self.polar:
+                self.write_itp_polarization(itp)
             self.write_itp_bonds(itp, mol.terms)
             self.write_itp_angles(itp, mol.terms)
             self.write_itp_dihedrals(itp, mol.terms)
-            self.write_itp_exclusions(itp, mol.non_bonded)
+            self.write_itp_exclusions(itp)
             itp.write('\n')
 
     def write_itp_title(self, itp):
@@ -112,6 +126,9 @@ class ForceField():
             itp.write(f'{lj_type:>8} {0:>8.4f} {0:>8.4f} {"A":>2} ')
             itp.write(f'{lj_params[0]:>12.5e} {lj_params[1]:>12.5e}\n')
 
+        if self.polar:
+            itp.write(f'{"DP":>8} {0:>8.4f} {0:>8.4f} {"D":>2} {0:>12.5e} {0:>12.5e}\n')
+
         # molecule type
         space = " "*(len(self.mol_name)-5)
         itp.write("\n[ moleculetype ]\n")
@@ -122,25 +139,40 @@ class ForceField():
         itp.write("\n[ atoms ]\n")
         itp.write(";  nr     type resnr resnm   atom cgrp     charge      mass\n")
         for i, (lj_type, a_name, q, mass) in enumerate(zip(non_bonded.lj_types, self.atom_names,
-                                                           non_bonded.q, self.masses), start=1):
+                                                           self.q, self.masses), start=1):
             itp.write(f'{i:>5}{lj_type:>9}{1:>6}{self.residue:>6}{a_name:>7}{i:>5}{q:>11.5f}')
             itp.write(f'{mass:>10.5f}\n')
 
-    def write_itp_polarization(self, itp):
-        # polarization
-        if self.polar != []:
-            itp.write("\n[ polarization ]\n")
-            itp.write(";    i     j     f         alpha\n")
-        for pol in self.polar:
-            itp.write("{:>6}{:>6}{:>6}{:>14.8f}\n".format(*pol))
+        if self.polar:
+            for i in range(self.n_atoms+1, 2*self.n_atoms+1):
+                itp.write(f'{i:>5}{"DP":>9}{2:>6}{self.residue:>6}{"D":>7}{i-self.n_atoms:>5}')
+                itp.write(f'{-8.:>11.5f}{0.:>10.5f}\n')
 
-        # thole polarization
-        if self.thole != []:
-            itp.write("\n[ thole_polarization ]\n")
-            itp.write(";   ai    di    aj    dj   f      a      alpha(i)      "
-                      "alpha(j)\n")
-        for tho in self.thole:
-            itp.write("{:>6}{:>6}{:>6}{:>6}{:>4}{:>7.2f}{:>14.8f}{:>14.8f}\n".format(*tho))
+    def write_itp_polarization(self, itp):
+        polar_dict = {1: 0.00045330, 6: 0.00130300, 7: 0.00098850, 8: 0.00083690, 16: 2.47400}
+        # polar_dict = { 1: 0.000413835,  6: 0.00145,  7: 0.000971573,
+        #               8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
+        #               17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
+        # polar_dict = { 1: 0.000413835,  6: 0.001288599,  7: 0.000971573,
+        #               8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
+        #               17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
+        # polar_dict = { 1: 0.000205221,  6: 0.000974759,  7: 0.000442405,
+        #               8: 0.000343551,  9: 0.000220884, 16: 0.001610042,
+        #               17: 0.000994749, 35: 0.001828362, 53: 0.002964895}
+
+        # polarization
+        itp.write("\n[ polarization ]\n")
+        itp.write(";    i     j     f         alpha\n")
+        for i, elem in enumerate(self.elements):
+            itp.write(f"{i+1:>6}{i+self.n_atoms+1:>6}{1:>6}{polar_dict[elem]:>14.8f}\n")
+
+        # # thole polarization
+        # if self.thole != []:
+        #     itp.write("\n[ thole_polarization ]\n")
+        #     itp.write(";   ai    di    aj    dj   f      a      alpha(i)      "
+        #               "alpha(j)\n")
+        # for tho in self.thole:
+        #     itp.write("{:>6}{:>6}{:>6}{:>6}{:>4}{:>7.2f}{:>14.8f}{:>14.8f}\n".format(*tho))
 
     def write_itp_bonds(self, itp, terms):
         itp.write("\n[ bonds ]\n")
@@ -219,27 +251,53 @@ class ForceField():
             itp.write(";   ai    aj    ak    al     f        th0          kth\n")
 
         for dihed in terms['dihedral/constr']:
-            ids = dihed.atoms + 1
+            ids = dihed.atomids + 1
             itp.write(f';{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{ids[3]:>6} - Not implemented yet\n')
 
-    def write_itp_exclusions(self, itp, non_bonded):
-        exclusions = [[] for _ in range(self.n_atoms)]
-        for exclusion in non_bonded.exclusions:
-            exclusions[exclusion[0]].append(exclusion[1]+1)
-
-        if any(len(exclusion) > 0 for exclusion in exclusions):
+    def write_itp_exclusions(self, itp):
+        if any(len(exclusion) > 0 for exclusion in self.exclusions):
             itp.write("\n[ exclusions ]\n")
-        for i, exclusion in enumerate(exclusions):
+        for i, exclusion in enumerate(self.exclusions):
             if len(exclusion) > 0:
-                self.itp_file.write("{} ".format(i+1))
-                self.itp_file.write(("{} "*len(exclusion)).format(*exclusion))
-                self.itp_file.write("\n")
+                exclusion = sorted(set(exclusion))
+                itp.write("{} ".format(i+1))
+                itp.write(("{} "*len(exclusion)).format(*exclusion))
+                itp.write("\n")
+
+    def make_exclusions(self, input_exclusions, neighbors, exclude_all):
+        exclusions = [[] for _ in range(self.n_atoms)]
+        polar_exclusions = [[] for _ in range(self.n_atoms)]
+
+        for exclusion in input_exclusions:
+            exclusions[exclusion[0]].append(exclusion[1]+1)
+            if self.polar:
+                polar_exclusions[exclusion[0]].append(exclusion[1]+1)
+                polar_exclusions[exclusion[1]].append(exclusion[0]+1)
+                polar_exclusions[exclusion[0]].append(self.n_atoms+exclusion[1]+1)
+
+        for i in exclude_all:
+            exclusions[i].extend(np.arange(1, self.n_atoms+1))
+            if self.polar:
+                exclusions[i].extend(np.arange(self.n_atoms+1, 2*self.n_atoms+1))
+                polar_exclusions[i].extend(np.arange(1, 2*self.n_atoms+1))
+
+        if self.polar:
+            for i in range(self.n_atoms):
+                for neigh in neighbors[self.n_excl-2][i]+neighbors[self.n_excl-1][i]:
+                    polar_exclusions[i].append(self.n_atoms+neigh+1)
+                for neigh in neighbors[self.n_excl-1][i]:
+                    polar_exclusions[i].append(neigh+1)
+
+        if self.polar:
+            exclusions = exclusions + polar_exclusions
+
+        return exclusions
 
     def get_atom_names(self):
         atom_names = []
         atom_dict = {}
 
-        for i, elem in enumerate(self.elems):
+        for i, elem in enumerate(self.elements):
             sym = ATOM_SYM[elem]
             if sym not in atom_dict.keys():
                 atom_dict[sym] = 1
@@ -248,9 +306,20 @@ class ForceField():
             atom_names.append(f'{sym}{atom_dict[sym]}')
         return atom_names
 
-    def make_directory(self, directory):
-        os.makedirs(directory, exist_ok=True)
-        return directory
+    def add_restraints(self, restraints, directory, fc=1000):
+        with open(f"{directory}/{self.mol_name}_qforce{self.polar_title}.itp", "a") as itp:
+            itp.write("[ dihedral_restraints ]\n")
+            itp.write(";  ai   aj   ak   al type       phi   dp   kfac\n")
+            for restraint in restraints:
+                a1, a2, a3, a4 = restraint[0]+1
+                phi = np.degrees(restraint[1])
+                itp.write(f'{a1:>5}{a2:>5}{a3:>5}{a4:>5}{1:>5} {phi:>10.4f}  0.0  {fc}\n')
+
+    def set_charge(self, non_bonded):
+        q = non_bonded.q
+        if self.polar:
+            q = non_bonded.q+8
+        return q
 
     # bohr2nm = 0.052917721067
     # if polar:
@@ -286,3 +355,54 @@ class ForceField():
     #                     if i < j and alphas[j] > 0:
     #                         ff.thole.append([i+1, drude[i], j+1, drude[j], "2", 2.6, alpha,
     #                                          alphas[j]])
+
+    # def read_itp(self, itp_file):
+    #     with open(itp_file, "r") as itp:
+    #         in_section = []
+    #         bond_atoms, bond_r0, bond_k = [], [], []
+
+    #         for line in itp:
+    #             low_line = line.lower().strip().replace(" ", "")
+    #             unsplit = line
+    #             line = line.split()
+    #             if low_line == "" or low_line[0] == ";":
+    #                 continue
+    #             elif "[" in low_line and "]" in low_line:
+    #                 open_bra = low_line.index("[") + 1
+    #                 close_bra = low_line.index("]")
+    #                 in_section = low_line[open_bra:close_bra]
+    #             elif in_section == "atomtypes":
+    #                 self.atom_types.append([line[0], float(line[1]),
+    #                                         float(line[2]), line[3],
+    #                                         float(line[4]), float(line[5])])
+    #                 self.atype.append(line[0])
+    #                 self.c6.append(line[4])
+    #                 self.c12.append(line[5])
+    #             elif in_section == "moleculetype":
+    #                 self.mol_type = line[0]
+    #             elif in_section == "atoms":
+    #                 self.atoms.append([int(line[0]), line[1], int(line[2]),
+    #                                    line[3], line[4], line[5], float(line[6]),
+    #                                    float(line[7])])
+    #                 self.natom += 1
+    #             elif in_section == "bonds":
+    #                 bond_atoms = (line[0:2])
+    #                 bond_r0 = (float(line[3]) * 10)
+    #                 bond_k = (float(line[4]) / 100)
+    #                 self.bond.append([bond_atoms, bond_r0, bond_k])
+    #                 self.bonds.append(unsplit)
+    #             elif in_section == "angles":
+    #                 angle_atoms = (line[0:3])
+    #                 angle_theta0 = float(line[4])
+    #                 angle_k = float(line[5])
+    #                 self.angle.append([angle_atoms, angle_theta0, angle_k])
+    #                 self.angles.append(unsplit)
+    #             elif in_section == "dihedrals":
+    #                 self.dihedrals.append(unsplit)
+    #                 if line[4] == "3":
+    #                     self.rbdihed.append([line[0:4], line[4:]])
+    #                 elif line[4] == "2":
+    #                     self.idihed.append([line[0:4], line[4:]])
+
+    #             elif in_section == "pairs":
+    #                 self.pairs.append(sorted([int(line[0]), int(line[1])]))

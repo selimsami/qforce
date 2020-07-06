@@ -21,8 +21,8 @@ class Molecule(object):
     """
 
     def __init__(self, inp, qm):
-        self.elems = qm.atomids
-        self.n_atoms = len(self.elems)
+        self.elements = qm.elements
+        self.n_atoms = len(self.elements)
         self.topo = Topology(inp, qm)
         self.non_bonded = NonBonded.from_topology(inp, qm, self.topo)
         self.terms = Terms.from_topology(self.topo, self.non_bonded, ignore=inp.ignored_terms)

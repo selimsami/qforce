@@ -8,13 +8,17 @@ from .. import qforce_data
 
 
 class NonBonded():
-    def __init__(self, inp, q, lj_type_dict, lj_types, lj_pairs):
+    def __init__(self, inp, q, lj_type_dict, lj_types, lj_pairs, exclusions, n_excl,):
         self.q = q
         self.lj_type_dict = lj_type_dict  # in GROMACS UNITS
         self.lj_types = lj_types
         self.lj_pairs = lj_pairs
-        self.exclusions = inp.exclusions
-        self.n_excl = inp.n_excl
+        self.exclusions = exclusions
+        self.n_excl = n_excl
+        # polar additions
+        # self.polar_q = polar_q
+        # self.polar_pairs = polar_pairs
+        # self.polar_fcs = polar_fcs
 
     @classmethod
     def from_topology(cls, inp, qm, topo):
@@ -38,18 +42,47 @@ class NonBonded():
             print('WARNING: You are using Q-Force Lennard-Jones parameters. This is not finished.',
                   '\nYou are advised to provide external LJ parameters for production runs.\n')
 
-        return cls(inp, q, lj_type_dict, lj_types, lj_pairs)
+        # polar_q, polar_pairs, polar_fcs = set_polar(q, topo, inp)
+
+        return cls(inp, q, lj_type_dict, lj_types, lj_pairs, inp.exclusions, inp.n_excl)
 
     @classmethod
-    def subset(cls, inp, atomids, non_bonded, mapping):
-        q = np.array([non_bonded.q[mapping[idx]] for idx in atomids])
-        lj_types = np.array([non_bonded.lj_types[mapping[idx]] for idx in atomids])
+    def subset(cls, inp, non_bonded, mapping):
+        n_atoms = len(mapping)
+        rev_map = {v: k for k, v in mapping.items()}
+
+        q = np.array([non_bonded.q[rev_map[i]] for i in range(n_atoms)])
+        lj_types = [non_bonded.lj_types[rev_map[i]] for i in range(n_atoms)]
         lj_type_dict = {key: val for key, val in non_bonded.lj_type_dict.items()
                         if key in lj_types}
         lj_pairs = {key: val for key, val in list(non_bonded.lj_pairs.items())
                     if key[0] in lj_types and key[1] in lj_types}
+        exclusions = [(mapping[excl[0]], mapping[excl[1]]) for excl in inp.exclusions if
+                      excl[0] in mapping.keys() and excl[1] in mapping.keys()]
 
-        return cls(inp, q, lj_type_dict, lj_types, lj_pairs)
+        return cls(inp, q, lj_type_dict, lj_types, lj_pairs, exclusions, inp.n_excl)
+
+
+def set_polar(q, topo, inp):
+    EPS0 = 1389.35458  # kJ*ang/mol/e2
+    polar_dict = {1: 0.45330, 6: 1.30300, 7: 0.98840, 8: 0.83690, 16: 2.47400}
+    polar_fcs = []
+    polar_pairs = []
+
+    polar_q = q + 8
+
+    for q, elem in zip(q, topo.elements):
+        polar_fcs.append(64.0 * EPS0 / polar_dict[elem])
+
+    for i in range(topo.n_atoms):
+        for j in range(i+1, topo.n_atoms):
+            close_neighbor = any([j in topo.neighbors[c][i] for c in range(inp.n_excl)])
+            if not close_neighbor and (i, j) not in inp.exclusions:
+                polar_pairs.append([i, j])
+
+    print(polar_q, polar_pairs, polar_fcs)
+
+    return polar_q, polar_pairs, polar_fcs
 
 
 def set_qforce_lennard_jones(topo, inp, lj_a, lj_b):
@@ -240,9 +273,9 @@ def calc_c6_c12(inp, qm, topo, c6s, c8s, r_rels, param):
     bohr2nm = 0.052917721067
     new_ljs = []
 
-    order2elem = [6, 1, 8, 7]
-    r_ref = {1: 1.986, 6: 2.083, 7: 1.641, 8: 1.452, 16: 1.5}
-    s8_scale = {1: 0.133, 6: 0.133, 7: 0.683, 8: 0.683, 16: 0.5}
+    order2elem = [6, 1, 8, 7, 9]
+    r_ref = {1: 1.986, 6: 2.083, 7: 1.641, 8: 1.452, 9: 1.58, 16: 1.5}
+    s8_scale = {1: 0.133, 6: 0.133, 7: 0.683, 8: 0.683, 9: 0.683, 16: 0.5}
 
     for i, s8 in enumerate(param[::2]):
         s8_scale[order2elem[i]] = s8
@@ -250,7 +283,7 @@ def calc_c6_c12(inp, qm, topo, c6s, c8s, r_rels, param):
         r_ref[order2elem[i]] = r
 
     for i, (c6, c8, r_rel) in enumerate(zip(c6s, c8s, r_rels)):
-        elem = qm.atomids[topo.unique_atomids[i]]
+        elem = qm.elements[topo.unique_atomids[i]]
         c8 *= s8_scale[elem]
         c10 = 40/49*(c8**2)/c6
 

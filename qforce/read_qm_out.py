@@ -27,7 +27,7 @@ class QM():
         if fchk_file:
             self.q = []
             self.coords = []
-            self.atomids = []
+            self.elements = []
             self.hessian = []
             self.dipole = []
             self.rot_tr = []
@@ -38,7 +38,7 @@ class QM():
 
     def write_optimized_xyz(self, inp):
         inp.xyz_file = f'{inp.job_dir}/opt.xyz'
-        mol = Atoms(numbers=self.atomids, positions=self.coords)
+        mol = Atoms(numbers=self.elements, positions=self.coords)
         write(inp.xyz_file, mol, plain=True, comment=f'{inp.job_name} - optimized geometry')
 
     def read_gaussian_fchk(self, fchk_file):
@@ -52,7 +52,7 @@ class QM():
                     for i in range(n_line):
                         line = fchk.readline()
                         ids = [int(i) for i in line.split()]
-                        self.atomids.extend(ids)
+                        self.elements.extend(ids)
                 if "Current cartesian coordinates   " in line:
                     n_line = math.ceil(3*n_atoms/5)
                     for i in range(n_line):
@@ -80,7 +80,7 @@ class QM():
         self.dipole = np.asfarray(self.dipole, float)
         self.rot_tr = np.asfarray(self.rot_tr, float)
         self.coords = np.reshape(self.coords, (-1, 3))
-        self.atomids = np.array(self.atomids)
+        self.elements = np.array(self.elements)
 
         # convert to input coords
         if self.rot_tr != []:
@@ -165,7 +165,7 @@ class QM():
                     self.lone_e = np.zeros(self.n_atoms, dtype='int8')
                     self.n_bonds = []
                     self.b_orders = [[] for _ in range(self.n_atoms)]
-                    while "           Charge unit" not in line:
+                    while "Calling FoFJK" not in line and "Charge unit " not in line:
                         line = gaussout.readline()
                         if ("bond index matrix" in line and not found_wiberg):
                             for _ in range(int(np.ceil(self.n_atoms/9))):

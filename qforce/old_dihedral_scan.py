@@ -17,7 +17,6 @@ def scan_each_dihedral(inp):
     shutil.copy2(inp.itp_file, itp.opt)
 
     for scan in inp.qm_scan_out:
-
         #create a directory for each scan
         scan_name = scan[0].split(".")[0]
         make_scan_dir(scan_name)
@@ -49,6 +48,10 @@ def scan_each_dihedral(inp):
         # and the dihedral potential to be fitted
         qm.energies = set_minimum_to_zero(qm.energies) * 2625.499638
         md_energies = set_minimum_to_zero(md_energies)
+
+        np.save('gromos_scan', md_energies)
+        np.save('gromos_angles', qm.angles)
+
         dihedral_fitting = set_minimum_to_zero(qm.energies - md_energies)
 
         #fit the data
@@ -119,10 +122,10 @@ def find_scanned_dihedral(qm, itp):
                     temp_itp.write(line)
                 elif in_section == "dihedrals":
                     a2, a3 = line.split()[1:3]
-                    if [a2, a3] == [atom2, atom3] or [a2, a3] == [atom3,atom2]:
-                        continue
-                    else:
-                        temp_itp.write(line)
+                    # if [a2, a3] == [atom2, atom3] or [a2, a3] == [atom3,atom2]:
+                    #     continue
+                    # else:
+                    temp_itp.write(line)
                 else:
                     temp_itp.write(line)
     in_dihedrals = in_section in "dihedrals"
@@ -181,9 +184,9 @@ def prepare_scan_directories(qm, inp, itp, scan_name):
         for extra_file in inp.extra_files:
             shutil.copy2(extra_file,(step_dir + "/" + extra_file))
 
-def run_gromacs (directory,em_type, inp):
+def run_gromacs (directory, em_type, inp):
     grompp = subprocess.Popen([inp.gmx, 'grompp', '-f', inp.mdp_file, '-p',
-            'system.top', '-c', 'start.gro', '-o', ('em_' + em_type + '.tpr'),
+            inp.top_file, '-c', 'start.gro', '-o', ('em_' + em_type + '.tpr'),
             '-po', ('em_' + em_type + '.mdp'), '-maxwarn', '10'],
             cwd = directory, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     grompp.wait()
@@ -191,6 +194,11 @@ def run_gromacs (directory,em_type, inp):
     mdrun = subprocess.Popen([inp.gmx, 'mdrun', '-deffnm', ('em_' + em_type)],
             cwd = directory, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     mdrun.wait()
+    if mdrun.returncode != 0:
+        print('Failed! Attempting to rerun.')
+        mdrun = subprocess.Popen([inp.gmx, 'mdrun', '-deffnm', ('em_' + em_type)],
+                cwd = directory, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        mdrun.wait()
     check_gromacs_termination(mdrun)
 
 def check_gromacs_termination(process):
