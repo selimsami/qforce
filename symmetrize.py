@@ -11,6 +11,7 @@ class Region:
         self.start = re_range.start
         self.end = re_range.end
         self.range = buffer_region
+        self.direct = re_range.direct 
 
     def __call__(self, value):
         if value < self.start:
@@ -19,7 +20,7 @@ class Region:
             return False
         return True
 
-    def to_region(self, value, other, *, direct=False):
+    def to_region(self, value, other):
         if not isinstance(other, Region):
             raise ValueError("other needs to be a region")
         # if value already in region, return it
@@ -28,6 +29,7 @@ class Region:
         # if value not in other raise Exception
         if other(value) is False:
             raise ValueError("value needs to be in the 'other' region")
+        direct = self.direct == other.direct
         # transform
         if direct is True:
             value = self.start + value - other.start
@@ -52,9 +54,10 @@ class Region:
 
 class RegionRange:
 
-    def __init__(self, start, end):
+    def __init__(self, start, end, direct=True):
         self.start = float(start)
         self.end = float(end)
+        self.direct = direct
 
     def __str__(self): 
         return f"Region({self.start},{self.end})"
@@ -70,13 +73,13 @@ class Symmetrizer:
 
     def __init__(self, regions, pairs):
         self.regions = regions
-        self.pairs = pairs
+        self.joined_regions = pairs
 
     def symmetrize(self, points):
         points = self._get_regions(points)
 
-        for (region1, region2, direct) in self.pairs:
-            self._symmetrize_pair(points, region1, region2, direct=direct)
+        for regions in self.joined_regions:
+            self._symmetrize(points, regions)
 
         return self._cleanup_points(points)
 
@@ -104,34 +107,33 @@ class Symmetrizer:
                 print(f"Could not find:\nangle = {angle}, value = {value}")
         return output
 
-    def _symmetrize_pair(self, points, region1, region2, *, direct=False):
-        if direct is True:
-            zipped = zip(points[region1], points[region2])
-        else:
-            zipped = zip(points[region1], points[region2][::-1])
+    def _get_smallest(self, pairs, validators):
+        smallest = pairs[0]
+        validator = validators[0]
+        for i, (angle, value) in enumerate(pairs):
+            if (value < smallest[1]):
+                smallest = (angle, value)
+                validator = validators[i]
+        return smallest, validator
+
+    def _symmetrize(self, points, regions):
+        out = tuple(points[region] if region.direct is True else points[region][::-1]
+                    for region in regions)
+        zipped = zip(*out)
         #
-        validator_1 = self.regions[region1]
-        validator_2 = self.regions[region2]
-        #
+        validators = [self.regions[region] for region in regions]
         results = []
         #
-        for (angle1, value1), (angle2, value2) in zipped:
-            if value1 <= value2:
-                results.append([angle1, value1])
-            else:
-                results.append([angle2, value2])
-            #
-            if validator_1.is_within_range(angle1) is True:
-                results.append([angle1, value1])
-            #
-            if validator_2.is_within_range(angle2) is True:
-                results.append([angle2, value2])
-        
+        for pairs in zipped:
+            results.append(self._get_smallest(pairs, validators))
+            for i, (angle, value) in enumerate(pairs):
+                validator = validators[i]
+                if validator.is_within_range(angle) is True:
+                    results.append(([angle, value], validator))
         # set results
-        points[region1] = [[validator_1.to_region(angle, validator_2, direct=direct), value] 
-                           for angle, value in results]
-        points[region2] = [[validator_2.to_region(angle, validator_1, direct=direct), value] 
-                           for angle, value in results]
+        for region in regions:
+            r1 = self.regions[region]
+            points[region] = [[r1.to_region(angle, r2), value] for (angle, value), r2 in results]
 
 
 
@@ -175,17 +177,12 @@ points = [[0.275, 8.40173012],
 [350.275, 5.16333384]]
 
 
-r1 = RegionRange(0, 90)
-r2 = RegionRange(90, 180)
-r3 = RegionRange(180, 270)
-r4 = RegionRange(270, 360)
+r1 = RegionRange(0, 90, direct=False)
+r2 = RegionRange(90, 180, direct=True)
+r3 = RegionRange(180, 270, direct=False)
+r4 = RegionRange(270, 360, direct=True)
 
-pairs = [Pair(r1, r2, False), 
-         Pair(r1, r3, True),
-         Pair(r1, r4, False),
-         Pair(r2, r3, False),
-         Pair(r2, r4, True),
-         Pair(r3, r4, False)]
+pairs = [[r1, r2, r3, r4]]
 
 sym = Symmetrizer({region: Region(region) for region in (r1, r2, r3, r4)}, pairs)
 
@@ -195,7 +192,7 @@ values = []
 for angle, value in points:
     angles.append(angle)
     values.append(value)
-    print(angle, value)
+#    print(angle, value)
 
 plt.plot(angles, values)
 plt.show()
