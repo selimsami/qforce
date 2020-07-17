@@ -32,7 +32,7 @@ def fit_forcefield(inp, qm=None, mol=None):
     mol = Molecule(inp, qm)
 
     fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
-    average_unique_minima(mol.terms)
+    average_unique_minima(mol.terms, inp)
 
     if inp.fragment:
         fragments = fragment(inp, mol)
@@ -75,7 +75,6 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
     for term in mol.terms:
         if term.idx < len(fit):
             term.fconst = fit[term.idx]
-
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
     return fit, full_md_hessian_1d
@@ -110,7 +109,7 @@ def calc_forces(coords, mol, inp, ignore_flex):
 
     """
     if ignore_flex:
-        ignores = ['dihedral/flexible', 'dihedral/constr']
+        ignores = ['dihedral/flexible']
     else:
         ignores = []
 
@@ -123,29 +122,30 @@ def calc_forces(coords, mol, inp, ignore_flex):
     return force
 
 
-def average_unique_minima(terms):
+def average_unique_minima(terms, inp):
     unique_terms = {}
-    averaged_terms = ['bond', 'angle']
-    for name in [term_name for term_name in averaged_terms if term_name in terms.term_names]:
+    averaged_terms = ['bond', 'angle', 'dihedral/inversion']
+    for name in [term_name for term_name in averaged_terms]:
         for term in terms[name]:
             if str(term) in unique_terms.keys():
                 term.equ = unique_terms[str(term)]
             else:
                 eq = np.where(np.array(list(oterm.idx for oterm in terms[name])) == term.idx)
-                minimum = np.array(list(oterm.equ for oterm in terms[name]))[eq].mean()
+                minimum = np.abs(np.array(list(oterm.equ for oterm in terms[name]))[eq]).mean()
                 term.equ = minimum
                 unique_terms[str(term)] = minimum
 
     # For Urey, recalculate length based on the averaged bonds/angles
-    for term in terms['urey']:
-        if str(term) in unique_terms.keys():
-            term.equ = unique_terms[str(term)]
-        else:
-            bond1_atoms = sorted(term.atomids[:2])
-            bond2_atoms = sorted(term.atomids[1:])
-            bond1 = [bond.equ for bond in terms['bond'] if all(bond1_atoms == bond.atomids)][0]
-            bond2 = [bond.equ for bond in terms['bond'] if all(bond2_atoms == bond.atomids)][0]
-            angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
-            urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
-            term.equ = urey
-            unique_terms[str(term)] = urey
+    if inp.urey:
+        for term in terms['urey']:
+            if str(term) in unique_terms.keys():
+                term.equ = unique_terms[str(term)]
+            else:
+                bond1_atoms = sorted(term.atomids[:2])
+                bond2_atoms = sorted(term.atomids[1:])
+                bond1 = [bond.equ for bond in terms['bond'] if all(bond1_atoms == bond.atomids)][0]
+                bond2 = [bond.equ for bond in terms['bond'] if all(bond2_atoms == bond.atomids)][0]
+                angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
+                urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
+                term.equ = urey
+                unique_terms[str(term)] = urey

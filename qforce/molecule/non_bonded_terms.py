@@ -22,10 +22,19 @@ class NonBondedTerms(TermBase):
         for i in range(topo.n_atoms):
             for j in range(i+1, topo.n_atoms):
                 close_neighbor = any([j in topo.neighbors[c][i] for c in range(non_bonded.n_excl)])
+
                 if not close_neighbor and (i, j) not in non_bonded.exclusions:
                     pair_name = tuple(sorted([non_bonded.lj_types[i], non_bonded.lj_types[j]]))
-                    params = non_bonded.lj_pairs[pair_name][:]
                     term_type = '-'.join(pair_name)
-                    params.append(non_bonded.q[i] * non_bonded.q[j] * eps0)
-                    non_bonded_terms.append(cls([i, j], np.array(params), term_type))
+
+                    if non_bonded.n_excl == 2 and j in topo.neighbors[2][i]:  # 1-4 interactions
+                        if pair_name in non_bonded.lj_1_4.keys():
+                            param = non_bonded.lj_1_4[pair_name][:]
+                        else:
+                            param = [p*non_bonded.fudge_lj for p in non_bonded.lj_pairs[pair_name]]
+                        param.append(non_bonded.q[i]*non_bonded.q[j]*eps0*non_bonded.fudge_q)
+                    else:
+                        param = non_bonded.lj_pairs[pair_name][:]
+                        param.append(non_bonded.q[i]*non_bonded.q[j]*eps0)
+                    non_bonded_terms.append(cls([i, j], np.array(param), term_type))
         return non_bonded_terms

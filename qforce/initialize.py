@@ -26,10 +26,6 @@ class Initialize(Colt):
     # Lennard jones method for the forcefield
     lennard_jones = d4 :: str :: [d4, gromos, opls, gaff]
 
-    # Combination rule for the Lennard-Jones interactions - see GROMACS manual
-    # Default is force field dependent (d4: 2, opls: 3, gromos: 1, gaff: 2)
-    comb_rule = 0 :: int :: [1, 2, 3]
-
     # Scaling of the vibrational frequencies (not implemented)
     vibr_coef = 1.0 :: float
 
@@ -57,6 +53,15 @@ class Initialize(Colt):
 
     # Polarize a coordinate file and quit (requires itp_file)
     polarize = no :: bool
+
+    # Scale the C6 dispersion interactions in the polarizable version of the FF
+    polar_c6_scale = 0.8 :: float
+
+    # Specifically not scale some of the atoms
+    polar_not_scale_c6 = :: literal
+
+    # Manual polarizabilities in the file ext_alpha
+    ext_alpha = no :: bool
 
     # Name of itp file (only needed for polarize option)
     itp_file = itp_file_missing :: str
@@ -115,6 +120,8 @@ class Initialize(Colt):
                 answers[key] = value.upper()
             elif key == 'job_script' and value:
                 answers[key] = value.replace('\n\n', '\n').split('\n')
+            elif key == 'polar_not_scale_c6':
+                answers[key] = Initialize.set_polar_not_scale_c6(value)
             elif key == 'exclusions':
                 answers[key] = Initialize.set_exclusions(value)
             elif key in ['non_bonded', 'urey', 'cross_bond_angle'] and not value:
@@ -123,8 +130,11 @@ class Initialize(Colt):
                 answers[key], ignored_terms = Initialize.set_fragments(value, ignored_terms)
 
         answers['ignored_terms'] = ignored_terms
-        answers['comb_rule'] = Initialize.set_comb_rule(answers['comb_rule'],
-                                                        answers['lennard_jones'])
+        comb, fudge_lj, fudge_q = Initialize.set_non_bonded_props(answers['lennard_jones'])
+        answers['comb_rule'] = comb
+        answers['fudge_lj'] = fudge_lj
+        answers['fudge_q'] = fudge_q
+
         return cls(answers)
 
     def setup(self, file, param):
@@ -151,7 +161,7 @@ class Initialize(Colt):
             self.job_name = file.split('_qforce')[0]
 
         if self.polarize:
-            polarize(self)
+            polarize(self, path)
             sys.exit()
 
         self.job_dir = f'{path}{self.job_name}_qforce'
@@ -212,24 +222,35 @@ class Initialize(Colt):
         return disp
 
     @staticmethod
-    def set_comb_rule(comb_rule, lj_type):
-        if comb_rule == 0:
-            if lj_type == 'd4':
-                comb_rule = 2
-            elif lj_type == 'gromos':
-                comb_rule = 1
-            elif lj_type == 'opls':
-                comb_rule = 3
-            elif lj_type == 'gaff':
-                comb_rule = 2
-        return comb_rule
+    def set_non_bonded_props(lj_type):
+        if lj_type == 'd4':
+            comb_rule = 2
+            fudge_lj, fudge_q = 1.0, 1.0
+        elif lj_type == 'gromos':
+            comb_rule = 1
+            fudge_lj, fudge_q = 1.0, 1.0
+        elif lj_type == 'opls':
+            comb_rule = 3
+            fudge_lj, fudge_q = 0.5, 0.5
+        elif lj_type == 'gaff':
+            comb_rule = 2
+            fudge_lj, fudge_q = 0.5, 0.8333
+        return comb_rule, fudge_lj, fudge_q
 
     @staticmethod
     def set_fragments(value, ignored_terms):
         if value.lower() == 'no':
             value = False
-            ignored_terms.extend(['dihedral/flexible', 'dihedral/constr'])
+            ignored_terms.extend(['dihedral/flexible'])
         return value, ignored_terms
+
+    @staticmethod
+    def set_polar_not_scale_c6(value):
+        if value:
+            not_scale = value.split()
+        else:
+            not_scale = []
+        return not_scale
 
     @staticmethod
     def set_exclusions(value):

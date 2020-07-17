@@ -16,6 +16,7 @@ from .forces import get_dihed
 """
 
 Fit all dihedrals togethers after  the scans?
+If dihedrals are not relaxed it is possible with 1 iteration - can do more also
 
 """
 
@@ -35,12 +36,12 @@ def scan_dihedrals(fragments, inp, mol):
             make_scan_dir(scan_dir)
 
             if inp.scan_method == 'qforce':
-                md_energies = scan_dihed_qforce(frag, scan_dir, inp, mol, n_run)
+                md_energies, angles = scan_dihed_qforce(frag, scan_dir, inp, mol, n_run)
 
             elif inp.scan_method == 'gromacs':
-                md_energies = scan_dihed_gromacs(frag, scan_dir, inp, mol, n_run)
+                md_energies, angles = scan_dihed_gromacs(frag, scan_dir, inp, mol, n_run)
 
-            params = fit_dihedrals(frag, md_energies, inp)
+            params = fit_dihedrals(frag, angles, md_energies, inp)
 
             for frag2 in fragments:
                 for term in frag2.terms.get_terms_from_name(frag.name):
@@ -53,11 +54,12 @@ def scan_dihedrals(fragments, inp, mol):
 
 
 def scan_dihed_qforce(frag, scan_dir, inp, mol, n_run, nsteps=1000):
-    md_energies, ignores = [], []
+    md_energies, angles, ignores = [], [], []
 
-    angles_rad = np.radians(frag.angles)
+    for i, (qm_energy, coord) in enumerate(zip(frag.qm_energies, frag.coords)):
+        angle = get_dihed(coord[frag.scanned_atomids])[0]
+        angles.append(angle)
 
-    for i, (angle, qm_energy, coord) in enumerate(zip(angles_rad, frag.qm_energies, frag.coords)):
         restraints = find_restraints(frag, coord, n_run)
 
         atom = Atoms(frag.elements, positions=coord,
@@ -71,17 +73,17 @@ def scan_dihed_qforce(frag, scan_dir, inp, mol, n_run, nsteps=1000):
 
         md_energies.append(atom.get_potential_energy())
 
-    return np.array(md_energies)
+    return np.array(md_energies), np.array(angles)
 
 
 def scan_dihed_gromacs(frag, scan_dir, inp, mol, n_run):
-    md_energies = []
+    md_energies, angles = [], []
 
     ff = ForceField(inp, frag, frag.neighbors, exclude_all=frag.remove_non_bonded)
 
-    angles_rad = np.radians(frag.angles)
+    for i, (qm_energy, coord) in enumerate(zip(frag.qm_energies, frag.coords)):
 
-    for i, (angle, qm_energy, coord) in enumerate(zip(angles_rad, frag.qm_energies, frag.coords)):
+        angles.append(get_dihed(coord[frag.scanned_atomids])[0])
 
         step_dir = f"{scan_dir}/step{i}"
         make_scan_dir(step_dir)
@@ -96,7 +98,7 @@ def scan_dihed_gromacs(frag, scan_dir, inp, mol, n_run):
         md_energy = read_gromacs_energies(step_dir)
         md_energies.append(md_energy)
 
-    return np.array(md_energies)
+    return np.array(md_energies), np.array(angles)
 
 
 def find_restraints(frag, coord, n_run):
@@ -110,24 +112,28 @@ def find_restraints(frag, coord, n_run):
     return restraints
 
 
-def fit_dihedrals(frag, md_energies, inp):
+def fit_dihedrals(frag, angles, md_energies, inp):
+    angles[angles < 0] += 2*np.pi
 
-    energy_diff = frag.qm_energies - md_energies
+    order = np.argsort(angles)
+    angles = angles[order]
+    md_energies = md_energies[order]
+    qm_energies = frag.qm_energies[order]
+
+    energy_diff = qm_energies - md_energies
     energy_diff -= energy_diff.min()
 
-    angles_rad = np.radians(frag.angles)
-    weights = 1/np.exp(-0.2 * np.sqrt(frag.qm_energies))
-    params = curve_fit(calc_rb, angles_rad, energy_diff, absolute_sigma=False, sigma=weights)[0]
-    r_squared = calc_r_squared(calc_rb, angles_rad, energy_diff, params)
+    weights = 1/np.exp(-0.2 * np.sqrt(qm_energies))
+    params = curve_fit(calc_rb, angles, energy_diff, absolute_sigma=False, sigma=weights)[0]
+    r_squared = calc_r_squared(calc_rb, angles, energy_diff, params)
 
-    md_energies += calc_rb(angles_rad, *params)
+    md_energies += calc_rb(angles, *params)
     md_energies -= md_energies.min()
 
-    plot_fit(inp, frag, energy_diff, calc_rb(angles_rad, *params))
-    plot_results(inp, frag, md_energies, r_squared)
+    plot_fit(inp, frag, angles, energy_diff, calc_rb(angles, *params))
+    plot_results(inp, frag, angles, qm_energies, md_energies, r_squared)
 
-    np.save(f'{inp.frag_dir}/scan_data_{frag.id}', np.vstack((frag.angles, frag.qm_energies,
-                                                              md_energies)))
+    np.save(f'{inp.frag_dir}/scan_data_{frag.id}', np.vstack((angles, qm_energies, md_energies)))
     return params
 
 
@@ -146,7 +152,7 @@ def run_gromacs(directory, inp, polar_title):
                               stderr=subprocess.STDOUT)
     grompp.wait()
 
-    while returncode != 0 and attempt < 3:
+    while returncode != 0 and attempt < 5:
         check_gromacs_termination(grompp)
         mdrun = subprocess.Popen(['gmx_d', 'mdrun', '-deffnm', 'em'],
                                  cwd=directory, stdout=subprocess.PIPE,
@@ -173,15 +179,16 @@ def read_gromacs_energies(directory):
     return md_energy
 
 
-def plot_results(inp, frag, md_energies, r_squared):
+def plot_results(inp, frag, angles, qm_energies, md_energies, r_squared):
+    angles_deg = np.degrees(angles)
     width, height = plt.figaspect(0.6)
     f = plt.figure(figsize=(width, height), dpi=300)
     sns.set(font_scale=1.3)
     plt.title(f'R-squared = {round(r_squared, 3)}', loc='left')
     plt.xlabel('Angle')
     plt.ylabel('Energy (kJ/mol)')
-    plt.plot(frag.angles, frag.qm_energies, linewidth=4, label='QM')
-    plt.plot(frag.angles, md_energies, linewidth=4, label='Q-Force')
+    plt.plot(angles_deg, qm_energies, linewidth=4, label='QM')
+    plt.plot(angles_deg, md_energies, linewidth=4, label='Q-Force')
     plt.xticks(np.arange(0, 361, 60))
     plt.tight_layout()
     plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
@@ -189,14 +196,15 @@ def plot_results(inp, frag, md_energies, r_squared):
     plt.close()
 
 
-def plot_fit(inp, frag, diff, fit):
+def plot_fit(inp, frag, angles, diff, fit):
+    angles_deg = np.degrees(angles)
     width, height = plt.figaspect(0.6)
     f = plt.figure(figsize=(width, height), dpi=300)
     sns.set(font_scale=1.3)
     plt.xlabel('Angle')
     plt.ylabel('Energy (kJ/mol)')
-    plt.plot(frag.angles, diff, linewidth=4, label='Diff')
-    plt.plot(frag.angles, fit, linewidth=4, label='Fit')
+    plt.plot(angles_deg, diff, linewidth=4, label='Diff')
+    plt.plot(angles_deg, fit, linewidth=4, label='Fit')
     plt.xticks(np.arange(0, 361, 60))
     plt.tight_layout()
     plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)

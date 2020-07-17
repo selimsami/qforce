@@ -5,13 +5,14 @@ import numpy as np
 from .baseterms import TermABC, TermFactory
 #
 from ..forces import get_dihed, get_angle
-from ..forces import calc_imp_diheds, calc_rb_diheds
+from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion, calc_periodic_dihed
 
 
 class DihedralBaseTerm(TermABC):
 
     @staticmethod
     def get_type(topo, a1, a2, a3, a4):
+        # Use this only for rigid dihedral - to be moved
         b12 = topo.edge(a1, a2)["vers"]
         b23 = topo.edge(a2, a3)["vers"]
         b43 = topo.edge(a4, a3)["vers"]
@@ -23,7 +24,21 @@ class DihedralBaseTerm(TermABC):
         if t12 > t43:
             d_type.reverse()
             t23.reverse()
-        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
+
+        phi = get_dihed(topo.coords[[a1, a2, a3, a4]])[0]
+        phi = np.degrees(abs(phi))
+
+        # To prevent very different angles being considered the same term
+        if phi < 30:
+            ang = 0
+        elif 30 <= phi < 90:
+            ang = 60
+        elif 90 <= phi < 150:
+            ang = 120
+        elif 150 <= phi:
+            ang = 180
+
+        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}~{ang}"
 
     @staticmethod
     def remove_linear_angles(coords, a1s, a2, a3, a4s):
@@ -85,21 +100,42 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
             if len(choices) > 1:
                 heaviest_elem = np.amax(topo.elements[choices])
                 choices = choices[topo.elements[choices] == heaviest_elem]
-            return choices[0]
+            return choices
 
-        a1 = pick_end_atom(a1s)
-        a4 = pick_end_atom(a4s)
+        a1s = pick_end_atom(a1s)
+        a4s = pick_end_atom(a4s)
+
+        priority = [[] for _ in range(6)]
+
+        for a1, a4 in product(a1s, a4s):
+            phi = np.degrees(abs(get_dihed(topo.coords[[a1, a2, a3, a4]])[0]))
+            if phi > 168:
+                priority[0].append([a1, a4])
+            elif phi < 12:
+                priority[1].append([a1, a4])
+            elif topo.edge(a1, a2)['in_ring'] and topo.edge(a3, a4)['in_ring']:
+                priority[5].append([a1, a4])
+            elif topo.edge(a1, a2)['in_ring'] or topo.edge(a3, a4)['in_ring']:
+                priority[4].append([a1, a4])
+            elif 55 < phi < 65 or 85 < phi < 95:
+                priority[2].append([a1, a4])
+            else:
+                priority[3].append([a1, a4])
+
+        ordered = [p for prio in priority for p in prio]
+        a1, a4 = ordered[0]
+
         atoms = np.array((a1, a2, a3, a4))
 
         return cls(atoms, np.zeros(6), topo.edge(a2, a3)['vers'])
 
 
-class ConstrDihedralTerm(DihedralBaseTerm):
+class InversionDihedralTerm(DihedralBaseTerm):
 
-    name = 'ConstrDihedralTerm'
+    name = 'InversionDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_rb_diheds(crd, self.atomids, self.equ, fconst, force)
+        return calc_inversion(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
@@ -114,7 +150,7 @@ class DihedralTerms(TermFactory):
         'rigid': RigidDihedralTerm,
         'improper': ImproperDihedralTerm,
         'flexible': FlexibleDihedralTerm,
-        'constr': ConstrDihedralTerm,
+        'inversion': InversionDihedralTerm,
     }
 
     @classmethod
@@ -145,7 +181,9 @@ class DihedralTerms(TermFactory):
 
             if (central['order'] > 1.5 or central["in_ring3"]
                     or (central['in_ring'] and central['order'] > 1)
-                    or all([topo.node(a)['n_ring'] > 2 for a in [a2, a3]])
+                    or (all([topo.node(a)['n_ring'] > 1 for a in [a2, a3]]) and
+                        any([topo.node(a)['n_ring'] > 1 for a in a1s]) and
+                        any([topo.node(a)['n_ring'] > 1 for a in a4s]))
                     or topo.all_rigid):
                 # rigid
                 for atoms in atoms_comb:
@@ -153,17 +191,20 @@ class DihedralTerms(TermFactory):
                     add_term('rigid', topo, atoms, d_type)
 
             elif central['in_ring']:
-                atoms_r = [a for a in atoms_comb if any(set(a).issubset(set(r))
-                           for r in topo.rings)][0]
-                phi = get_dihed(topo.coords[atoms_r])[0]
-                if abs(phi) < 0.1745:  # check planarity <10 degrees
-                    # rigid
-                    for atoms in atoms_comb:
-                        d_type = get_dtype(topo, *atoms)
-                        add_term('rigid', topo, atoms, d_type)
-                else:
-                    d_type = get_dtype(topo, *atoms_r)
-                    add_term('constr', topo, atoms_r, phi, d_type)
+                continue
+                # atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
+                #                  for r in topo.rings)]
+
+                # for atoms in atoms_in_ring:
+                #     phi = get_dihed(topo.coords[atoms])[0]
+                #     d_type = get_dtype(topo, *atoms)
+
+                #     if abs(phi) < 0.1745:  # check planarity <10 degrees
+                #         # add_term('rigid', topo, atoms, d_type)
+                #         continue
+                #     else:
+                #         add_term('inversion', topo, atoms, phi, d_type)
+
             else:
                 add_term('flexible', topo, a1s, a2, a3, a4s)
 
@@ -195,5 +236,5 @@ class DihedralTerms(TermFactory):
             if abs(phi) < 0.1745:  # check planarity <10 degrees
                 add_term('improper', topo, atoms, phi, imp_type)
             else:
-                add_term('constr', topo, atoms, phi, imp_type)
+                add_term('inversion', topo, atoms, phi, imp_type)
         return terms

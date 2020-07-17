@@ -8,17 +8,18 @@ from .. import qforce_data
 
 
 class NonBonded():
-    def __init__(self, inp, q, lj_type_dict, lj_types, lj_pairs, exclusions, n_excl,):
+    def __init__(self, inp, n_atoms, q, lj_types, lj_pairs, lj_1_4, exclusions, n_excl, alpha):
+        self.n_atoms = n_atoms
         self.q = q
-        self.lj_type_dict = lj_type_dict  # in GROMACS UNITS
         self.lj_types = lj_types
         self.lj_pairs = lj_pairs
+        self.lj_1_4 = lj_1_4
+        self.fudge_lj = inp.fudge_lj
+        self.fudge_q = inp.fudge_q
         self.exclusions = exclusions
         self.n_excl = n_excl
-        # polar additions
-        # self.polar_q = polar_q
-        # self.polar_pairs = polar_pairs
-        # self.polar_fcs = polar_fcs
+        self.alpha = {key: alpha[key] for key in sorted(alpha.keys())}  # sort the dictionary
+        self.alpha_map = {key: i+self.n_atoms for i, key in enumerate(self.alpha.keys())}
 
     @classmethod
     def from_topology(cls, inp, qm, topo):
@@ -36,15 +37,17 @@ class NonBonded():
 
         # LENNARD-JONES
         if inp.lennard_jones != 'd4':
-            lj_types, lj_type_dict, lj_pairs = set_external_lennard_jones(inp)
+            lj_types, lj_pairs, lj_1_4 = set_external_lennard_jones(inp)
         else:
-            lj_types, lj_type_dict, lj_pairs = set_qforce_lennard_jones(topo, inp, lj_a, lj_b)
+            lj_types, lj_pairs = set_qforce_lennard_jones(topo, inp, lj_a, lj_b)
+            lj_1_4 = lj_pairs
             print('WARNING: You are using Q-Force Lennard-Jones parameters. This is not finished.',
                   '\nYou are advised to provide external LJ parameters for production runs.\n')
 
-        # polar_q, polar_pairs, polar_fcs = set_polar(q, topo, inp)
+        alpha = set_polar(q, topo, inp)
 
-        return cls(inp, q, lj_type_dict, lj_types, lj_pairs, inp.exclusions, inp.n_excl)
+        return cls(inp, topo.n_atoms, q, lj_types, lj_pairs, lj_1_4, inp.exclusions, inp.n_excl,
+                   alpha)
 
     @classmethod
     def subset(cls, inp, non_bonded, mapping):
@@ -53,36 +56,55 @@ class NonBonded():
 
         q = np.array([non_bonded.q[rev_map[i]] for i in range(n_atoms)])
         lj_types = [non_bonded.lj_types[rev_map[i]] for i in range(n_atoms)]
-        lj_type_dict = {key: val for key, val in non_bonded.lj_type_dict.items()
-                        if key in lj_types}
         lj_pairs = {key: val for key, val in list(non_bonded.lj_pairs.items())
                     if key[0] in lj_types and key[1] in lj_types}
+        lj_1_4 = {key: val for key, val in list(non_bonded.lj_1_4.items())
+                  if key[0] in lj_types and key[1] in lj_types}
         exclusions = [(mapping[excl[0]], mapping[excl[1]]) for excl in inp.exclusions if
                       excl[0] in mapping.keys() and excl[1] in mapping.keys()]
 
-        return cls(inp, q, lj_type_dict, lj_types, lj_pairs, exclusions, inp.n_excl)
+        alpha = {mapping[key]: val for key, val in list(non_bonded.alpha.items())
+                 if key in mapping.keys()}
+
+        return cls(inp, n_atoms, q, lj_types, lj_pairs, lj_1_4, exclusions, inp.n_excl, alpha)
 
 
 def set_polar(q, topo, inp):
-    EPS0 = 1389.35458  # kJ*ang/mol/e2
     polar_dict = {1: 0.45330, 6: 1.30300, 7: 0.98840, 8: 0.83690, 16: 2.47400}
-    polar_fcs = []
-    polar_pairs = []
+    # polar_dict = { 1: 0.000413835,  6: 0.00145,  7: 0.000971573,
+    #               8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
+    #               17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
+    # polar_dict = { 1: 0.000413835,  6: 0.001288599,  7: 0.000971573,
+    #               8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
+    #               17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
+    # polar_dict = { 1: 0.000205221,  6: 0.000974759,  7: 0.000442405,
+    #               8: 0.000343551,  9: 0.000220884, 16: 0.001610042,
+    #               17: 0.000994749, 35: 0.001828362, 53: 0.002964895}
+    alpha_dict, alpha = {}, []
 
-    polar_q = q + 8
+    if inp.ext_alpha:
+        atoms, alpha = np.loadtxt(f'{inp.job_dir}/ext_alpha', unpack=True, comments=['#', ';'])
+        atoms = atoms.astype(dtype='int') - 1
+        alpha *= 1000  # convert from nm3 to ang3
+    else:
+        atoms = np.arange(topo.n_atoms)
+        for elem in topo.elements:
+            alpha.append(polar_dict[elem])
 
-    for q, elem in zip(q, topo.elements):
-        polar_fcs.append(64.0 * EPS0 / polar_dict[elem])
+    for i, a in zip(atoms, alpha):
+        alpha_dict[i] = a
 
-    for i in range(topo.n_atoms):
-        for j in range(i+1, topo.n_atoms):
-            close_neighbor = any([j in topo.neighbors[c][i] for c in range(inp.n_excl)])
-            if not close_neighbor and (i, j) not in inp.exclusions:
-                polar_pairs.append([i, j])
+    # EPS0 = 1389.35458  # kJ*ang/mol/e2
+    # for q, elem in zip(q, topo.elements):
+    #     polar_fcs.append(64.0 * EPS0 / polar_dict[elem])
 
-    print(polar_q, polar_pairs, polar_fcs)
+    # for i in range(topo.n_atoms):
+    #     for j in range(i+1, topo.n_atoms):
+    #         close_neighbor = any([j in topo.neighbors[c][i] for c in range(inp.n_excl)])
+    #         if not close_neighbor and (i, j) not in inp.exclusions:
+    #             polar_pairs.append([i, j])
 
-    return polar_q, polar_pairs, polar_fcs
+    return alpha_dict
 
 
 def set_qforce_lennard_jones(topo, inp, lj_a, lj_b):
@@ -96,18 +118,14 @@ def set_qforce_lennard_jones(topo, inp, lj_a, lj_b):
         comb = tuple(sorted(comb))
         params = use_combination_rule(lj_type_dict[comb[0]], lj_type_dict[comb[1]], inp)
         lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(inp, params)
-    return lj_types, lj_type_dict, lj_pairs
+    return lj_types, lj_pairs
 
 
 def set_external_lennard_jones(inp):
-    lj_type_dict = {}
-    lj_pairs = {}
+    lj_pairs, lj_1_4 = {}, {}
 
     lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', dtype='str', comments=['#', ';'])
-    atom_types, nonbond_params = read_ext_nonbonded_file(inp)
-
-    for ext_type in set(lj_types):
-        lj_type_dict[ext_type] = atom_types[ext_type]
+    atom_types, nonbond_params, nonbond_1_4 = read_ext_nonbonded_file(inp)
 
     for comb in combinations_with_replacement(set(lj_types), 2):
         comb = tuple(sorted(comb))
@@ -119,9 +137,18 @@ def set_external_lennard_jones(inp):
         else:
             params = use_combination_rule(atom_types[comb[0]], atom_types[comb[1]], inp)
 
+        if comb in nonbond_1_4.keys():
+            params_1_4 = nonbond_1_4[comb]
+            lj_1_4[comb] = get_c6_c12_for_diff_comb_rules(inp, params_1_4)
+
         lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(inp, params)
 
-    return lj_types, lj_type_dict, lj_pairs
+    if inp.polar:
+        for key, val in lj_pairs.items():
+            if key[0] not in inp.polar_not_scale_c6 and key[1] not in inp.polar_not_scale_c6:
+                val[0] *= inp.polar_c6_scale
+
+    return lj_types, lj_pairs, lj_1_4
 
 
 def get_c6_c12_for_diff_comb_rules(inp, params):
@@ -153,16 +180,9 @@ def calc_sigma_epsilon(c6, c12):
 
 
 def read_ext_nonbonded_file(inp):
-    atom_types, nonbond_params = {}, {}
+    atom_types, nonbond_params, nonbond_1_4 = {}, {}, {}
 
-    if inp.lennard_jones == 'gromos':
-        file_name = 'gromos_atb3_ffnonbonded.itp'
-    elif inp.lennard_jones == 'opls':
-        file_name = 'opls_ffnonbonded.itp'
-    elif inp.lennard_jones == 'gaff':
-        file_name = 'gaff_ffnonbonded.itp'
-
-    with open(f'{qforce_data}/{file_name}', 'r') as file:
+    with open(f'{qforce_data}/{inp.lennard_jones}.itp', 'r') as file:
         for line in file:
             line = line.partition('#')[0].partition(';')[0].strip()
             if line == '':
@@ -178,8 +198,11 @@ def read_ext_nonbonded_file(inp):
                 elif in_section == 'nonbond_params':
                     atype1, atype2, a, b = line[0], line[1], float(line[-2]), float(line[-1])
                     nonbond_params[tuple(sorted([atype1, atype2]))] = [a, b]
+                elif in_section == 'pairtypes':
+                    atype1, atype2, a, b = line[0], line[1], float(line[-2]), float(line[-1])
+                    nonbond_1_4[tuple(sorted([atype1, atype2]))] = [a, b]
 
-        return atom_types, nonbond_params
+        return atom_types, nonbond_params, nonbond_1_4
 
 
 def average_equivalent_terms(topo, terms):
@@ -194,8 +217,10 @@ def average_equivalent_terms(topo, terms):
 
 def sum_charges_to_qtotal(topo, q):
     total = q.sum()
-    q_integer = round(total)
-    extra = int(100000 * round(total - q_integer, 5))
+    q_integer = int(round(total))
+
+    extra = int(round(100000 * round(total - q_integer, 5)))
+
     if extra != 0:
         if extra > 0:
             sign = 1

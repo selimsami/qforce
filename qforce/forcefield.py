@@ -1,8 +1,8 @@
 import numpy as np
-import os
 #
 from .elements import ATOM_SYM, ATOMMASS
-
+from .molecule.non_bonded import calc_sigma_epsilon
+from .forces import convert_to_inversion_rb
 """
 To do: write FF to other formats using ParmEd
 """
@@ -22,21 +22,24 @@ class ForceField():
         self.n_excl = inp.n_excl
         self.atom_names = self.get_atom_names()
         self.masses = [round(ATOMMASS[i], 5) for i in self.elements]
-        self.exclusions = self.make_exclusions(mol.non_bonded.exclusions, neighbors, exclude_all)
+        self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
+        self.pairs = self.make_pairs(neighbors, mol.non_bonded.alpha_map)
+
         if self.polar:
             self.polar_title = '_polar'
 
     def write_gromacs(self, inp, mol, directory, coords):
         self.write_itp(inp, mol, directory)
-        self.write_top(directory)
-        self.write_gro(directory, coords)
+        self.write_top(inp, directory)
+        self.write_gro(directory, coords, mol.non_bonded.alpha_map)
 
-    def write_top(self, directory):
+    def write_top(self, inp, directory):
         with open(f"{directory}/gas{self.polar_title}.top", "w") as top:
             # defaults
             top.write("\n[ defaults ]\n")
             top.write(";nbfunc   comb-rule   gen-pairs   fudgeLJ   fudgeQQ\n")
-            top.write(f"      1           {self.comb_rule}          no       1.0       1.0\n\n\n")
+            top.write(f"{1:>7}{self.comb_rule:>12}{'yes':>12}{inp.fudge_lj:>10}{inp.fudge_q:>10}"
+                      "\n\n\n")
 
             top.write("; Include the molecule ITP\n")
             top.write(f'#include "./{self.mol_name}_qforce{self.polar_title}.itp"\n\n\n')
@@ -50,36 +53,36 @@ class ForceField():
             top.write(f"; {' '*(size-10)}compound    n_mol\n")
             top.write(f"{' '*(10-size)}{self.mol_name}        1\n")
 
-    def write_gro(self, directory, coords, box=[20., 20., 20.]):
+    def write_gro(self, directory, coords, alpha_map, box=[20., 20., 20.]):
         n_atoms = self.n_atoms
         if self.polar:
-            n_atoms *= 2
-        coords *= 0.1
+            n_atoms += len(alpha_map.keys())
+        coords_nm = coords*0.1
         with open(f"{directory}/gas{self.polar_title}.gro", "w") as gro:
             gro.write(f"{self.mol_name}\n")
             gro.write(f"{n_atoms:>6}\n")
-            for i, (a_name, coord) in enumerate(zip(self.atom_names, coords), start=1):
+            for i, (a_name, coord) in enumerate(zip(self.atom_names, coords_nm), start=1):
                 gro.write(f"{1:>5}{self.residue:<5}")
                 gro.write(f"{a_name:>5}{i:>5}")
                 gro.write(f"{coord[0]:>8.3f}{coord[1]:>8.3f}{coord[2]:>8.3f}\n")
             if self.polar:
-                for i, coord in enumerate(coords, start=1):
-                    gro.write(f"{2:>5}{self.residue:<5}")
-                    gro.write(f"{'D':>5}{i+self.n_atoms:>5}")
-                    gro.write(f"{coord[0]:>8.3f}{coord[1]:>8.3f}{coord[2]:>8.3f}\n")
-
+                for i, (atom, drude) in enumerate(alpha_map.items(), start=1):
+                    gro.write(f"{2:>5}{self.residue:<5}{f'D{i}':>5}{drude+1:>5}")
+                    gro.write(f"{coords_nm[atom][0]:>8.3f}{coords_nm[atom][1]:>8.3f}")
+                    gro.write(f"{coords_nm[atom][2]:>8.3f}\n")
             gro.write(f'{box[0]:>12.5f}{box[1]:>12.5f}{box[2]:>12.5f}\n')
 
     def write_itp(self, inp, mol, directory):
         with open(f"{directory}/{self.mol_name}_qforce{self.polar_title}.itp", "w") as itp:
             self.write_itp_title(itp)
             self.write_itp_parameters(itp, inp)
-            self.write_itp_atoms_and_molecule(itp, mol.non_bonded)
+            self.write_itp_atoms_and_molecule(itp, inp, mol.non_bonded)
             if self.polar:
-                self.write_itp_polarization(itp)
-            self.write_itp_bonds(itp, mol.terms)
+                self.write_itp_polarization(itp, mol.non_bonded)
+            self.write_itp_bonds(itp, mol.terms, mol.non_bonded.alpha_map)
             self.write_itp_angles(itp, mol.terms)
             self.write_itp_dihedrals(itp, mol.terms)
+            self.write_itp_pairs(itp)
             self.write_itp_exclusions(itp)
             itp.write('\n')
 
@@ -114,7 +117,37 @@ class ForceField():
             itp.write('\n;\n')
         itp.write('\n')
 
-    def write_itp_atoms_and_molecule(self, itp, non_bonded):
+    def convert_to_gromacs_nonbonded(self, non_bonded, inp):
+        a_types, nb_pairs, nb_1_4 = {}, {}, {}
+
+        for pair, val in non_bonded.lj_pairs.items():
+            if inp.comb_rule != 1:
+                a, b = calc_sigma_epsilon(val[0], val[1])
+                a *= 0.1
+            else:
+                a = val[0] * 1e-6
+                b = val[1] * 1e-12
+
+            if pair[0] == pair[1]:
+                a_types[pair[0]] = [a, b]
+
+            nb_pairs[pair] = [a, b]
+
+        for pair, val in non_bonded.lj_1_4.items():
+            if inp.comb_rule != 1:
+                a, b = calc_sigma_epsilon(val[0], val[1])
+                a *= 0.1
+            else:
+                a = val[0] * 1e-6
+                b = val[1] * 1e-12
+
+            nb_1_4[pair] = [a, b]
+
+        return a_types, nb_pairs, nb_1_4
+
+    def write_itp_atoms_and_molecule(self, itp, inp, non_bonded):
+        gro_atomtypes, gro_nonbonded, gro_1_4 = self.convert_to_gromacs_nonbonded(non_bonded, inp)
+
         # atom types
         itp.write("[ atomtypes ]\n")
         if self.comb_rule == 1:
@@ -122,18 +155,40 @@ class ForceField():
         else:
             itp.write(";   name     mass   charge  t        sigma      epsilon\n")
 
-        for lj_type, lj_params in non_bonded.lj_type_dict.items():
+        for lj_type, lj_params in gro_atomtypes.items():
             itp.write(f'{lj_type:>8} {0:>8.4f} {0:>8.4f} {"A":>2} ')
             itp.write(f'{lj_params[0]:>12.5e} {lj_params[1]:>12.5e}\n')
 
         if self.polar:
-            itp.write(f'{"DP":>8} {0:>8.4f} {0:>8.4f} {"D":>2} {0:>12.5e} {0:>12.5e}\n')
+            itp.write(f'{"DP":>8} {0:>8.4f} {0:>8.4f} {"S":>2} {0:>12.5e} {0:>12.5e}\n')
+
+        # non-bonded pair types
+        itp.write("\n[ nonbond_params ]\n")
+        if self.comb_rule == 1:
+            itp.write(";  name1    name2   type             c6            c12\n")
+        else:
+            itp.write(";  name1    name2   type          sigma        epsilon\n")
+
+        for lj_types, lj_params in gro_nonbonded.items():
+            itp.write(f'{lj_types[0]:>8} {lj_types[1]:>8}      1')
+            itp.write(f'{lj_params[0]:>15.5e} {lj_params[1]:>15.5e}\n')
+
+        # Write 1-4 pair types
+        if self.n_excl == 2 and gro_1_4 != {}:
+            itp.write("\n[ pairtypes ]\n")
+            if self.comb_rule == 1:
+                itp.write(";  name1    name2   type             c6            c12\n")
+            else:
+                itp.write(";  name1    name2   type          sigma        epsilon\n")
+            for lj_types, lj_params in gro_1_4.items():
+                itp.write(f'{lj_types[0]:>8} {lj_types[1]:>8}      1')
+                itp.write(f'{lj_params[0]:>15.5e} {lj_params[1]:>15.5e}\n')
 
         # molecule type
         space = " "*(len(self.mol_name)-5)
         itp.write("\n[ moleculetype ]\n")
         itp.write(f";{space}name nrexcl\n")
-        itp.write(f"{self.mol_name}{self.n_excl:>7}\n")
+        itp.write(f"{self.mol_name}{3:>7}\n")
 
         # atoms
         itp.write("\n[ atoms ]\n")
@@ -144,27 +199,17 @@ class ForceField():
             itp.write(f'{mass:>10.5f}\n')
 
         if self.polar:
-            for i in range(self.n_atoms+1, 2*self.n_atoms+1):
-                itp.write(f'{i:>5}{"DP":>9}{2:>6}{self.residue:>6}{"D":>7}{i-self.n_atoms:>5}')
+            for i, (atom, drude) in enumerate(non_bonded.alpha_map.items(), start=1):
+                itp.write(f'{drude+1:>5}{"DP":>9}{2:>6}{"DRU":>6}{f"D{i}":>7}{atom+1:>5}')
                 itp.write(f'{-8.:>11.5f}{0.:>10.5f}\n')
 
-    def write_itp_polarization(self, itp):
-        polar_dict = {1: 0.00045330, 6: 0.00130300, 7: 0.00098850, 8: 0.00083690, 16: 2.47400}
-        # polar_dict = { 1: 0.000413835,  6: 0.00145,  7: 0.000971573,
-        #               8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
-        #               17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
-        # polar_dict = { 1: 0.000413835,  6: 0.001288599,  7: 0.000971573,
-        #               8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
-        #               17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
-        # polar_dict = { 1: 0.000205221,  6: 0.000974759,  7: 0.000442405,
-        #               8: 0.000343551,  9: 0.000220884, 16: 0.001610042,
-        #               17: 0.000994749, 35: 0.001828362, 53: 0.002964895}
-
+    def write_itp_polarization(self, itp, non_bonded):
         # polarization
         itp.write("\n[ polarization ]\n")
         itp.write(";    i     j     f         alpha\n")
-        for i, elem in enumerate(self.elements):
-            itp.write(f"{i+1:>6}{i+self.n_atoms+1:>6}{1:>6}{polar_dict[elem]:>14.8f}\n")
+        for atom, drude in non_bonded.alpha_map.items():
+            alpha = non_bonded.alpha[atom]*1e-3
+            itp.write(f"{atom+1:>6}{drude+1:>6}{1:>6}{alpha:>14.8f}\n")
 
         # # thole polarization
         # if self.thole != []:
@@ -174,7 +219,14 @@ class ForceField():
         # for tho in self.thole:
         #     itp.write("{:>6}{:>6}{:>6}{:>6}{:>4}{:>7.2f}{:>14.8f}{:>14.8f}\n".format(*tho))
 
-    def write_itp_bonds(self, itp, terms):
+    def write_itp_pairs(self, itp):
+        if self.pairs != []:
+            itp.write("\n[ pairs ]\n")
+            itp.write(";   ai    aj  func \n")
+        for pair in self.pairs:
+            itp.write(f"{pair[0]+1:>6}{pair[1]+1:>6}{1:>6}\n")
+
+    def write_itp_bonds(self, itp, terms, alpha_map):
         itp.write("\n[ bonds ]\n")
         itp.write(";   ai    aj     f        r0        kb\n")
         for bond in terms['bond']:
@@ -182,6 +234,16 @@ class ForceField():
             equ = bond.equ * 0.1
             fconst = bond.fconst * 100
             itp.write(f'{ids[0]:>6}{ids[1]:>6}{1:>6}{equ:>10.5f}{fconst:>10.0f}\n')
+
+        if self.polar:
+            itp.write(';   ai    aj     f - polar connections\n')
+            for bond in terms['bond']:
+                a1, a2 = bond.atomids
+
+                if a2 in alpha_map.keys():
+                    itp.write(f'{a1+1:>6}{alpha_map[a2]+1:>6}{5:>6}\n')
+                if a1 in alpha_map.keys():
+                    itp.write(f'{a2+1:>6}{alpha_map[a1]+1:>6}{5:>6}\n')
 
     def write_itp_angles(self, itp, terms):
         itp.write("\n[ angles ]\n")
@@ -245,14 +307,18 @@ class ForceField():
             itp.write(f'{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{ids[3]:>6}{3:>6}{c[0]:>11.3f}')
             itp.write(f'{c[1]:>11.3f}{c[2]:>11.3f}{c[3]:>11.3f}{c[4]:>11.3f}{c[5]:>11.3f}\n')
 
-        # constrained dihedrals
-        if len(terms['dihedral/constr']) > 0:
-            itp.write("; constrained dihedrals \n")
-            itp.write(";   ai    aj    ak    al     f        th0          kth\n")
+        # inversion dihedrals
+        if len(terms['dihedral/inversion']) > 0:
+            itp.write("; inversion dihedrals \n")
+            itp.write(';   ai    aj    ak    al     f         c0         c1         c2\n')
 
-        for dihed in terms['dihedral/constr']:
+        for dihed in terms['dihedral/inversion']:
             ids = dihed.atomids + 1
-            itp.write(f';{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{ids[3]:>6} - Not implemented yet\n')
+            # itp.write(f'{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{ids[3]:>6}{1:>6}'
+            #           f'{0.0:>11.3f}{dihed.fconst:>11.3f}{3:>11}\n')
+            c0, c1, c2 = convert_to_inversion_rb(dihed.fconst, dihed.equ)
+            itp.write(f'{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{ids[3]:>6}{3:>6}'
+                      f'{c0:>11.3f}{c1:>11.3f}{c2:>11.3f}{0:>11.1f}{0:>11.1f}{0:>11.1f}\n')
 
     def write_itp_exclusions(self, itp):
         if any(len(exclusion) > 0 for exclusion in self.exclusions):
@@ -264,32 +330,61 @@ class ForceField():
                 itp.write(("{} "*len(exclusion)).format(*exclusion))
                 itp.write("\n")
 
-    def make_exclusions(self, input_exclusions, neighbors, exclude_all):
-        exclusions = [[] for _ in range(self.n_atoms)]
-        polar_exclusions = [[] for _ in range(self.n_atoms)]
+    def make_pairs(self, neighbors, alpha_map):
+        pairs, polar_pairs = [], []
 
-        for exclusion in input_exclusions:
-            exclusions[exclusion[0]].append(exclusion[1]+1)
+        if self.n_excl == 2:
+            for i in range(self.n_atoms):
+                for neigh in neighbors[2][i]:
+                    if i < neigh:
+                        pairs.append([i, neigh])
+
             if self.polar:
-                polar_exclusions[exclusion[0]].append(exclusion[1]+1)
-                polar_exclusions[exclusion[1]].append(exclusion[0]+1)
-                polar_exclusions[exclusion[0]].append(self.n_atoms+exclusion[1]+1)
+                for a1, a2 in pairs:
+                    if a2 in alpha_map.keys():
+                        polar_pairs.append([a1, alpha_map[a2]])
+                    if a1 in alpha_map.keys():
+                        polar_pairs.append([a2, alpha_map[a1]])
+                    if a1 in alpha_map.keys() and a2 in alpha_map.keys():
+                        polar_pairs.append([alpha_map[a1], alpha_map[a2]])
 
+        return pairs+polar_pairs
+
+    def make_exclusions(self, non_bonded, neighbors, exclude_all):
+        exclusions = [[] for _ in range(self.n_atoms)]
+
+        # input exclusions
+        for exclusion in non_bonded.exclusions:
+            exclusions[exclusion[0]].append(exclusion[1]+1)
+
+        # fragment capping atom exclusions
         for i in exclude_all:
             exclusions[i].extend(np.arange(1, self.n_atoms+1))
-            if self.polar:
-                exclusions[i].extend(np.arange(self.n_atoms+1, 2*self.n_atoms+1))
-                polar_exclusions[i].extend(np.arange(1, 2*self.n_atoms+1))
 
         if self.polar:
-            for i in range(self.n_atoms):
-                for neigh in neighbors[self.n_excl-2][i]+neighbors[self.n_excl-1][i]:
-                    polar_exclusions[i].append(self.n_atoms+neigh+1)
-                for neigh in neighbors[self.n_excl-1][i]:
-                    polar_exclusions[i].append(neigh+1)
+            exclusions = self.polarize_exclusions(non_bonded.alpha_map, non_bonded.exclusions,
+                                                  neighbors, exclude_all, exclusions)
 
-        if self.polar:
-            exclusions = exclusions + polar_exclusions
+        return exclusions
+
+    def polarize_exclusions(self, alpha_map, input_exclusions, neighbors, exclude_all, exclusions):
+        n_polar_atoms = len(alpha_map.keys())
+        exclusions.extend([[] for _ in range(n_polar_atoms)])
+
+        # input exclusions
+        for exclu in input_exclusions:
+            if exclu[0] in alpha_map.keys():
+                exclusions[alpha_map[exclu[0]]].append(exclu[1]+1)
+            if exclu[1] in alpha_map.keys():
+                exclusions[alpha_map[exclu[1]]].append(exclu[0]+1)
+            if exclu[0] in alpha_map.keys() and exclu[1] in alpha_map.keys():
+                exclusions[alpha_map[exclu[0]]].append(alpha_map[exclu[1]]+1)
+
+        # fragment capping atom exclusions
+        for i in exclude_all:
+            exclusions[i].extend(np.arange(self.n_atoms+1, self.n_atoms+n_polar_atoms+1))
+            if i in alpha_map.keys():
+                exclusions[alpha_map[i]].extend(np.arange(1, self.n_atoms+n_polar_atoms+1))
 
         return exclusions
 
@@ -316,9 +411,9 @@ class ForceField():
                 itp.write(f'{a1:>5}{a2:>5}{a3:>5}{a4:>5}{1:>5} {phi:>10.4f}  0.0  {fc}\n')
 
     def set_charge(self, non_bonded):
-        q = non_bonded.q
+        q = np.copy(non_bonded.q)
         if self.polar:
-            q = non_bonded.q+8
+            q[list(non_bonded.alpha_map.keys())] += 8
         return q
 
     # bohr2nm = 0.052917721067

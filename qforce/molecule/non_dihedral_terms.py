@@ -21,10 +21,6 @@ class BondTerm(TermBase):
             dist = bond['length']
             type1, type2 = sorted([topo.types[a1], topo.types[a2]])
             bond['vers'] = f"{type1}({bond['order']}){type2}"
-            if bond['order'] > 1.5 or bond["in_ring"]:
-                bond['breakable'] = False
-            else:
-                bond['breakable'] = True
             bond_terms.append(cls([a1, a2], dist, bond['vers']))
 
         return bond_terms

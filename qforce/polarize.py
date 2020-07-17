@@ -1,34 +1,47 @@
+import numpy as np
 
-def polarize(inp):
+
+def polarize(inp, path):
     """
     Generate the polarizable versions of the input forcefield
     for both GRO and ITP files
     """
     polar_coords = []
+    polar_vel = []
 
-    atoms, mol_natoms, max_resnr = read_itp(inp.itp_file)
-    coords, gro_natoms, box_dim = read_gro(inp.coord_file)
+    atoms, mol_natoms, max_resnr, polar_atoms = read_itp(inp.itp_file)
+    coords, velocities, gro_natoms, box_dim = read_gro(f'{path}{inp.coord_file}')
 
     # add coords
     n_mols = int(gro_natoms/mol_natoms)
+    n_polar_atoms = len(polar_atoms)
 
     for i in range(n_mols):
-        polar_coords.extend(coords[i*mol_natoms:(i+1)*mol_natoms]*2)
+        polar_coords.extend(coords[i*mol_natoms:(i+1)*mol_natoms])
+        polar_coords.extend(coords[i*mol_natoms:(i+1)*mol_natoms][sorted(polar_atoms.values())])
 
-    for i in range(mol_natoms):
+        if velocities != []:
+            polar_vel.extend(velocities[i*mol_natoms:(i+1)*mol_natoms])
+            polar_vel.extend([[0., 0., 0.]]*n_polar_atoms)
+
+    for i in range(n_polar_atoms):
         # add atoms
-        atoms.append({'nr': i+mol_natoms+1, 'resnr': max_resnr+atoms[i]['resnr'],
-                      'resname': atoms[i]['resname'], 'atom_name': 'D'})
+        ia = i+mol_natoms
+        atoms.append({'nr': ia+1, 'resnr': max_resnr+atoms[polar_atoms[ia]]['resnr'],
+                      'resname': 'DRU', 'atom_name': f'D{i+1}'})
+
+    new_mol_natoms = mol_natoms + n_polar_atoms
 
     polar_gro_file = f"{inp.job_name}_polar.gro"
-    write_gro(inp, atoms, mol_natoms, gro_natoms, n_mols, polar_coords, box_dim, polar_gro_file)
+    write_gro(inp, atoms, new_mol_natoms, n_mols, polar_coords, polar_vel, box_dim,
+              polar_gro_file)
 
     print("Done!")
     print(f"Polarizable coordinate file in: {polar_gro_file}\n\n")
 
 
 def read_gro(gro_file):
-    coords = []
+    coords, velocities = [], []
     with open(gro_file, "r") as gro:
         gro.readline()
         gro_natoms = int(gro.readline())
@@ -38,12 +51,18 @@ def read_gro(gro_file):
             y = float(line[29:37].strip())
             z = float(line[37:45].strip())
             coords.append([x, y, z])
+            if len(line) > 68:
+                vx = float(line[45:53].strip())
+                vy = float(line[53:61].strip())
+                vz = float(line[61:69].strip())
+                velocities.append([vx, vy, vz])
         box_dim = gro.readline()
-    return coords, gro_natoms, box_dim
+    return np.array(coords), np.array(velocities), gro_natoms, box_dim
 
 
 def read_itp(itp_file):
     atoms = []
+    polar_atoms = {}
     max_resnr = 0
 
     with open(itp_file, "r") as itp:
@@ -59,23 +78,32 @@ def read_itp(itp_file):
                 in_section = low_line[open_bra:close_bra]
 
             elif in_section == "atoms":
-                if line[4] == 'D' or line[2] == 'DP':
+                if line[4].startswith('D') or line[1] == 'DP' or line[3] == 'DRU':
                     continue
                 atoms.append({'nr': int(line[0]), 'resnr': int(line[2]), 'resname': line[3],
                               'atom_name': line[4]})
                 if atoms[-1]['resnr'] > max_resnr:
                     max_resnr = atoms[-1]['resnr']
-    return atoms, len(atoms), max_resnr
+
+            elif in_section == "polarization":
+                p_atoms = [int(l)-1 for l in line[0:2]]
+                polar_atoms[max(p_atoms)] = min(p_atoms)
+
+    return atoms, len(atoms), max_resnr, polar_atoms
 
 
-def write_gro(inp, atoms, mol_natoms, gro_natoms, n_mols, coords, box_dim, gro_file):
+def write_gro(inp, atoms, mol_natoms, n_mols, coords, velocities, box_dim, gro_file):
     with open(gro_file, "w") as gro:
         gro.write(f"{inp.job_name} - polarized\n")
-        gro.write("{}\n".format(gro_natoms*2))
+        gro.write(f"{int(mol_natoms*n_mols)}\n")
         for m in range(n_mols):
             for i, atom in enumerate(atoms):
-                gro.write(f"{(str(atom['resnr'])+atom['resname']):>9}")
-                gro.write(f"{atom['atom_name']:>6}{m*mol_natoms*2+atom['nr']:>5}")
-                coord = coords[m*mol_natoms*2+i]
-                gro.write(f"{coord[0]:>8.3f}{coord[1]:>8.3f}{coord[2]:>8.3f}\n")
+                gro.write(f"{(str(atom['resnr'])+atom['resname']):>8}")
+                gro.write(f"{atom['atom_name']:>7}{m*mol_natoms+atom['nr']:>5}")
+                coord = coords[m*mol_natoms+i]
+                gro.write(f"{coord[0]:>8.3f}{coord[1]:>8.3f}{coord[2]:>8.3f}")
+                if velocities != []:
+                    vel = velocities[m*mol_natoms+i]
+                    gro.write(f"{vel[0]:>8.3f}{vel[1]:>8.3f}{vel[2]:>8.3f}")
+                gro.write('\n')
         gro.write(f"{box_dim}")

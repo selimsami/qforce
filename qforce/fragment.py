@@ -13,6 +13,9 @@ from .make_qm_input import make_qm_input
 """
 
 Removing non-bonded: Only hydrogens excluded for the equi - make it more general
+Problem with using capping atom info in the graph comparaison - avoid it
+
+Prompt a warning when if any point has an error larger than 2kJ/mol.
 
 """
 
@@ -22,8 +25,6 @@ def fragment(inp, mol):
     unique_dihedrals = {}
 
     reset_data_files(inp)
-
-    inp.scan_method = 'gromacs'
 
     for term in mol.terms['dihedral/flexible']:
         if str(term) not in unique_dihedrals:
@@ -94,7 +95,6 @@ class Fragment():
         self.terms = None
         self.non_bonded = None
         self.remove_non_bonded = []
-        self.angles = []
         self.qm_energies = []
         self.coords = []
 
@@ -107,9 +107,10 @@ class Fragment():
         self.check_for_fragment(inp)
         self.make_fragment_terms(inp, mol)
         self.write_have_or_missing(inp)
-        self.get_qm_data(inp)
 
-        if not self.has_data:
+        if self.has_data:
+            self.get_qm_data(inp)
+        else:
             make_qm_input(inp, self.graph, self.id)
 
     def identify_fragment(self, mol):
@@ -120,10 +121,14 @@ class Fragment():
         while next_neigh != []:
             new = []
             for a, n in next_neigh:
+                bond = mol.topo.edge(a, n)
                 if n in self.atomids:
                     pass
                 elif (n_neigh < 3  # don't break first 3 neighbors
-                      or not mol.topo.edge(a, n)['breakable']  # don't break conjug./double bonds
+                      or bond['order'] > 1.5  # don't break double/triple bonds
+                      or (bond['in_ring'] and (mol.topo.node(a)['n_ring'] > 1 or  # no multi ring
+                          any([mol.topo.edge(a, neigh)['order'] > 1 for neigh
+                               in mol.topo.neighbors[0][a]])))  # don't break conjugated rings
                       or ELE_ENEG[mol.elements[a]] > 3  # don't break if very electronegative
                       or mol.topo.n_neighbors[n] == 1):  # don't break terminal atoms
                     new.append(n)
@@ -163,7 +168,7 @@ class Fragment():
         self.graph.graph['scan'] = [scanned+1 for scanned in self.scanned_atomids]
 
         for _, _, d in self.graph.edges(data=True):
-            for att in ['vector', 'length', 'order', 'breakable', 'vers', 'in_ring3', 'in_ring']:
+            for att in ['vector', 'length', 'order', 'vers', 'in_ring3', 'in_ring']:
                 d.pop(att, None)
         for _, d in self.graph.nodes(data=True):
             for att in ['q', 'n_ring']:
@@ -319,6 +324,5 @@ class Fragment():
             data_file.write(f'{self.id}\n')
 
     def get_qm_data(self, inp):
-        self.angles, self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}',
-                                                   unpack=True)
+        self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}', unpack=True)[1]
         self.coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')

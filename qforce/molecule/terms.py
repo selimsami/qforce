@@ -29,7 +29,7 @@ class Terms(MappingIterator):
 
     @classmethod
     def from_topology(cls, topo, non_bonded, ignore=[]):
-        not_fit_terms = [term for term in ['dihedral/flexible', 'dihedral/constr', 'non_bonded']
+        not_fit_terms = [term for term in ['dihedral/flexible', 'non_bonded']
                          if term not in ignore]
         terms = {name: factory.get_terms(topo, non_bonded)
                  for name, factory in cls._term_factories.items() if name not in ignore}

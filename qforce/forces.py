@@ -99,6 +99,53 @@ def calc_rb_diheds(coords, atoms, params, fconst, force):
     return energy
 
 
+@jit(nopython=True)
+def calc_inversion(coords, atoms, phi0, fconst, force):
+    phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
+    phi += np.pi
+
+    cos_phi = np.cos(phi)
+    sin_phi = np.sin(phi)
+
+    c0, c1, c2 = convert_to_inversion_rb(fconst, phi0)
+
+    energy = c0
+
+    ddphi = c1
+    energy += cos_phi * c1
+
+    ddphi += 2 * c2 * cos_phi
+    energy += cos_phi**2 * c2
+
+    ddphi *= - sin_phi
+    force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
+    return energy
+
+
+@jit(nopython=True)
+def calc_periodic_dihed(coords, atoms, phi0, fconst, force):
+    phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
+    mult = 3
+    phi0 = 0
+
+    mdphi = mult * phi - phi0
+    ddphi = fconst * mult * np.sin(mdphi)
+
+    energy = fconst * (1 + np.cos(mdphi))
+
+    force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
+    return energy
+
+
+@jit(nopython=True)
+def convert_to_inversion_rb(fconst, phi0):
+    cos_phi0 = np.cos(phi0)
+    c0 = fconst * cos_phi0**2
+    c1 = 2 * fconst * cos_phi0
+    c2 = fconst
+    return c0, c1, c2
+
+
 @jit("f8(f8[:], f8[:])", nopython=True)
 def dot_prod(a, b):
     x = a[0]*b[0]
@@ -265,12 +312,4 @@ def norm(vec):
 #    return force
 
 
-# @jit(nopython=True)
-# def calc_per_dih(force, a, phi, phi0, vec_ij, vec_kj, vec_kl, cross1, cross2, n):
-#    mult = 3.
-#    mdphi = mult * phi - phi0
-#    ddphi =  mult * np.sin(mdphi)
-#    energy[n] = 1 + np.cos(mdphi)
-#    force = calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2,
-#                           ddphi, n)
-#    return force
+

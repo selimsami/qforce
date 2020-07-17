@@ -1,9 +1,10 @@
 import subprocess, os, shutil
 import numpy as np
 import matplotlib.pyplot as plt
-from symfit import Fit, cos, pi, parameters, variables
+from scipy.optimize import curve_fit
 import seaborn as sns
 from .old_read_qm_out import QM
+
 
 def scan_each_dihedral(inp):
     """
@@ -76,7 +77,9 @@ def scan_each_dihedral(inp):
         opt_md_energies = set_minimum_to_zero(opt_md_energies)
 
         #Plot optimized dihedral profile vs QM profile
-        plot_dihedral_profile(qm, opt_md_energies, scan_name)
+        plot_dihedral_profile(qm.angles, qm.energies, opt_md_energies, scan_name, 'QM', 'Q-Force')
+        plot_dihedral_profile(qm.angles, dihedral_fitting, fitted_dihedral, f'fit_{scan_name}',
+                              'Diff', 'Fit')
 
         os.remove(itp.opt)
         shutil.move(itp.temp, itp.opt)
@@ -90,10 +93,12 @@ class Itp_file():
         self.opt = f"opt_{itp_file}"
         self.temp = f"temp_{itp_file}"
 
+
 def make_scan_dir(scan_name):
     if  os.path.exists(scan_name):
         shutil.rmtree(scan_name)
     os.makedirs(scan_name)
+
 
 def find_scanned_dihedral(qm, itp):
     """
@@ -131,9 +136,11 @@ def find_scanned_dihedral(qm, itp):
     in_dihedrals = in_section in "dihedrals"
     return in_dihedrals, itp
 
+
 def set_minimum_to_zero(energies):
     energies = energies - np.amin(energies)
     return energies
+
 
 def prepare_scan_directories(qm, inp, itp, scan_name):
     """
@@ -184,6 +191,7 @@ def prepare_scan_directories(qm, inp, itp, scan_name):
         for extra_file in inp.extra_files:
             shutil.copy2(extra_file,(step_dir + "/" + extra_file))
 
+
 def run_gromacs (directory, em_type, inp):
     grompp = subprocess.Popen([inp.gmx, 'grompp', '-f', inp.mdp_file, '-p',
             inp.top_file, '-c', 'start.gro', '-o', ('em_' + em_type + '.tpr'),
@@ -201,10 +209,12 @@ def run_gromacs (directory, em_type, inp):
         mdrun.wait()
     check_gromacs_termination(mdrun)
 
+
 def check_gromacs_termination(process):
     if process.returncode != 0:
         print(process.communicate()[0].decode("utf-8") )
         raise RuntimeError({"GROMACS run has terminated unsuccessfully"})
+
 
 def read_gromacs_energies(directory, em_type):
     log_dir = "{}/em_{}.log".format(directory, em_type)
@@ -214,43 +224,60 @@ def read_gromacs_energies(directory, em_type):
                 md_energy = float(line.split()[3])
     return md_energy
 
+
 def do_fitting(qm, inp, dihedral_fitting):
-    angle_rad, y = variables('angle_rad, y')
-    if inp.fitting_function == "bellemans":
-        c0, c1, c2, c3, c4, c5 = parameters('c0, c1, c2, c3, c4, c5')
-        model = {y: c0 + c1 * cos(angle_rad - pi) + c2 * cos(angle_rad - pi)**2
-                    + c3 * cos(angle_rad - pi)**3 + c4 * cos(angle_rad - pi)**4
-                    + c5 * cos(angle_rad - pi)**5}
-
-    elif inp.fitting_function == "periodic":
-
-        k3, = parameters (
-                    'k3')
-
-        k3.min = 0
-
-        model = {y:
-                    k3 * (1 + cos(3 * angle_rad ))
-                    }
-
-    elif inp.fitting_function == "improper":
-        k, f = parameters ('k, f')
-        model = {y: 0.5 * k * (f - angle_rad)**2}
-
     angles_rad = np.deg2rad(qm.angles)
-    weights = np.exp(-0.2 * np.sqrt(qm.energies))
+    weights = 1/np.exp(-0.2 * np.sqrt(qm.energies))
 
-    fit = Fit (model, angle_rad = angles_rad, y = dihedral_fitting,
-               sigma_y = 1/weights, absolute_sigma = False)
+    if inp.fitting_function == 'bellemans':
+        funct = calc_rb
+    elif inp.fitting_function == 'periodic':
+        funct = calc_perio
+    elif inp.fitting_function == 'inversion':
+        funct = calc_inversion
 
-    fit_result = fit.execute()
-
-    params = np.round(list(fit_result.params.values()), 4)
-    r_squared = np.round(fit_result.r_squared, 4)
-
-    fitted_dihedral = fit.model(angles_rad, **fit_result.params)[0]
-
+    params = curve_fit(funct, angles_rad, dihedral_fitting, absolute_sigma=False,
+                       sigma=weights)[0]
+    print(params)
+    fitted_dihedral = funct(angles_rad, *params)
+    r_squared = calc_r_squared(funct, angles_rad, dihedral_fitting, params).round(4)
     return params, r_squared, fitted_dihedral
+
+
+def calc_rb(angles, c0, c1, c2, c3, c4, c5):
+    params = [c0, c1, c2, 0, 0, 0]
+
+    rb = np.full(len(angles), c0)
+    for i in range(1, 6):
+        rb += params[i] * np.cos(angles-np.pi)**i
+    return rb
+
+
+def calc_perio(angle, k, shift):
+    ref = 0
+    multi = 3
+    perio = shift + k*(1 + np.cos(multi*angle-ref))
+    return perio
+
+
+def calc_inversion(angle, k, phi0):
+    return k * (np.cos(angle) - np.cos(phi0))**2
+
+
+def convert_to_inversion_rb(fconst, phi0):
+    cos_phi0 = np.cos(phi0)
+    c0 = fconst * cos_phi0**2
+    c1 = 2 * fconst * cos_phi0
+    c2 = fconst
+    return c0, c1, c2, 0, 0, 0
+
+
+def calc_r_squared(funct, x, y, params):
+    residuals = y - funct(x, *params)
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((y-np.mean(y))**2)
+    return 1 - (ss_res / ss_tot)
+
 
 def write_opt_dihedral(dir_name, in_dihedrals, inp, qm, c, r_squared):
     """
@@ -259,8 +286,8 @@ def write_opt_dihedral(dir_name, in_dihedrals, inp, qm, c, r_squared):
     bellemans, periodic, improper
     """
     opt_d = f" ; optimized dihedral with r-squared: {r_squared:6.4f}\n"
-    belle = ("{:>5}{:>5}{:>5}{:>5}    3 {:>11.4f}{:>11.4f}{:>11.4f}{:>11.4f}"
-             "{:>11.4f}{:>11.4f}" + opt_d)
+    belle = ("{:>5}{:>5}{:>5}{:>5}    3 {:>15.4f}{:>15.4f}{:>15.4f}{:>15.4f}"
+             "{:>15.4f}{:>15.4f}" + opt_d)
     perio = ("{:>5}{:>5}{:>5}{:>5}    1 {:>11.4f}{:>11.4f}{:>5}" + opt_d)
     impro = ("{:>5}{:>5}{:>5}{:>5}    2 {:>11.4f}{:>11.4f}" + opt_d)
 
@@ -271,31 +298,23 @@ def write_opt_dihedral(dir_name, in_dihedrals, inp, qm, c, r_squared):
         if inp.fitting_function == "bellemans":
             opt_itp.write(belle.format(*qm.scanned_atoms, *c))
         elif inp.fitting_function == "periodic":
-                n_funct = int(len(c)/2)
-                count = 0
-                for multi in [3]:
-                    if c[n_funct + count] > 1.0:
-                        angle = 0
-                        force_k = c[n_funct + count]
-                        opt_itp.write(perio.format(*qm.scanned_atoms,
-                                                   angle, force_k, multi))
-                    count+=1
-        elif inp.fitting_function == "improper":
-            opt_itp.write(impro.format(*qm.scanned_atoms, *c))
+            opt_itp.write(perio.format(*qm.scanned_atoms, 0., c[0], 3))
+        elif inp.fitting_function == "inversion":
+            opt_itp.write(belle.format(*qm.scanned_atoms, *convert_to_inversion_rb(c[0], c[1])))
+            opt_itp.write(f'; {c[0]} - {np.degrees(c[1])}')
 
-def plot_dihedral_profile(qm, md_energies, scan_name):
-#    title = "QM vs Q-Force Energies" #for dihedral: {} {} {} {}
+
+def plot_dihedral_profile(angles, data1, data2, scan_name, name1, name2):
     width, height = plt.figaspect(0.6)
-    f = plt.figure(figsize=(width,height), dpi=300)
+    f = plt.figure(figsize=(width, height), dpi=300)
     sns.set(font_scale=1.3)
-    sns.set_style("ticks", {'legend.frameon':True})
+    sns.set_style("ticks", {'legend.frameon': True})
 #    plt.title(title.format(*qm.scanned_atoms))
     plt.xlabel('Angle')
     plt.ylabel('Energy (kJ/mol)')
-    plt.plot(qm.angles, qm.energies, linewidth = 4, label = 'QM')
-    plt.plot(qm.angles, md_energies, linewidth = 4, label='Q-Force')
-    plt.xticks(np.arange(0,361,60))
+    plt.plot(angles, data1, '.', linewidth=4, label=name1)
+    plt.plot(angles, data2, '.', linewidth=4, label=name2)
+    plt.xticks(np.arange(0, 361, 60))
     plt.legend(ncol=2, loc=9)
     plt.tight_layout()
     f.savefig(f"{scan_name}.pdf", bbox_inches='tight')
-
