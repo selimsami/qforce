@@ -140,7 +140,8 @@ class Fragment():
                     new_bl = ELE_COV[mol.topo.elements[a]] + ELE_COV[1]
                     vec = mol.topo.node(a)['coords'] - mol.topo.node(n)['coords']
                     coord = mol.topo.coords[a] - vec/bl*new_bl
-                    self.caps.append({'connected': a, 'idx': n, 'n_cap': n_cap, 'coord': coord})
+                    self.caps.append({'connected': a, 'idx': n, 'n_cap': n_cap, 'coord': coord,
+                                      'b_length': bl})
                     n_cap += 1
             next_neigh = [[a, n] for a in new for n in mol.topo.neighbors[0][a] if n not in
                           self.atomids]
@@ -182,6 +183,9 @@ class Fragment():
                                 lone_e=0, coords=cap['coord'], capping=True)
             self.graph.add_edge(self.n_atoms_without_cap + cap['n_cap'],
                                 self.mapping_mol_to_frag[cap["connected"]], type=h_type)
+
+            cap['idx'] = self.mapping_mol_to_frag[cap['idx']]
+            cap['connected'] = self.mapping_mol_to_frag[cap['connected']]
 
     def make_fragment_identifier(self, inp, mol):
         atom_ids = [[], []]
@@ -285,8 +289,9 @@ class Fragment():
     def make_fragment_terms(self, inp, mol):
         mapping_mol_to_db = {}
 
-        for i in range(self.n_atoms_without_cap, self.n_atoms):
-            self.mapping_frag_to_db[i] = i
+        # for i in range(self.n_atoms_without_cap, self.n_atoms):
+        #     print(i, self.mapping_frag_to_db[i])
+        #     self.mapping_frag_to_db[i] = i
 
         mapping_db_to_frag = {v: k for k, v in self.mapping_frag_to_db.items()}
 

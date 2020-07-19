@@ -3,6 +3,7 @@ import numpy as np
 from .elements import ATOM_SYM, ATOMMASS
 from .molecule.non_bonded import calc_sigma_epsilon
 from .forces import convert_to_inversion_rb
+
 """
 To do: write FF to other formats using ParmEd
 """
@@ -11,7 +12,6 @@ To do: write FF to other formats using ParmEd
 class ForceField():
     def __init__(self, inp, mol, neighbors, residue='MOL', exclude_all=[]):
         self.polar = inp.polar
-        self.polar_title = ''
         self.mol_name = inp.job_name
         self.n_atoms = mol.n_atoms
         self.elements = mol.elements
@@ -27,6 +27,8 @@ class ForceField():
 
         if self.polar:
             self.polar_title = '_polar'
+        else:
+            self.polar_title = ''
 
     def write_gromacs(self, inp, mol, directory, coords):
         self.write_itp(inp, mol, directory)

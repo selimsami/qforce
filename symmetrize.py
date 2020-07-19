@@ -1,6 +1,6 @@
 from collections import namedtuple
 from matplotlib import pyplot as plt
-
+import numpy as np
 
 Pair = namedtuple("Pair", "region1 region2 direct")
 
@@ -11,7 +11,7 @@ class Region:
         self.start = re_range.start
         self.end = re_range.end
         self.range = buffer_region
-        self.direct = re_range.direct 
+        self.direct = re_range.direct
 
     def __call__(self, value):
         if value < self.start:
@@ -59,10 +59,10 @@ class RegionRange:
         self.end = float(end)
         self.direct = direct
 
-    def __str__(self): 
+    def __str__(self):
         return f"Region({self.start},{self.end})"
 
-    def __repr__(self): 
+    def __repr__(self):
         return f"Region({self.start},{self.end})"
 
     def __hash__(self):
@@ -95,7 +95,7 @@ class Symmetrizer:
 
     def _get_regions(self, points):
         output = {region: [] for region in self.regions}
-        
+
         for angle, value in points:
             found = False
             for region, validator in self.regions.items():
@@ -136,63 +136,103 @@ class Symmetrizer:
             points[region] = [[r1.to_region(angle, r2), value] for (angle, value), r2 in results]
 
 
+#points = [[0.275, 8.40173012],
+#         [10.275, 4.93173852],
+#         [20.275, 1.36820037],
+#         [30.275, 0.00047259],
+#         [40.275, 1.47345665],
+#         [50.275, 5.89865753],
+#         [60.275, 13.02560255],
+#         [70.275, 22.33722582],
+#         [80.275, 33.1593778],
+#         [90.275, 44.74365981],
+#         [100.275, 56.36842703],
+#         [110.275, 67.2381268],
+#         [120.275, 12.89020553],
+#         [130.275, 5.75711684],
+#         [140.275, 1.37274249],
+#         [150.275, 0.00456837],
+#         [160.275, 1.61830547],
+#         [170.275, 5.43979895],
+#         [180.275, 8.40480195],
+#         [190.275, 5.20444917],
+#         [200.275, 1.45975154],
+#         [210.275, 0.0],
+#         [220.275, 1.53688872],
+#         [230.275, 6.08099848],
+#         [240.275, 13.35434136],
+#         [250.275, 22.9201655],
+#         [260.275, 34.18678832],
+#         [270.275, 46.4614192],
+#         [280.275, 58.93406527],
+#         [290.275, 21.77972723],
+#         [300.275, 12.57031466],
+#         [310.275, 5.58202227],
+#         [320.275, 1.31500775],
+#         [330.275, 0.00446335],
+#         [340.275, 1.51643608],
+#         [350.275, 5.16333384]]
+#r1 = RegionRange(0, 90, direct=False)
+#r2 = RegionRange(90, 180, direct=True)
+#r3 = RegionRange(180, 270, direct=False)
+#r4 = RegionRange(270, 360, direct=True)
+#
+#pairs = [[r1, r2, r3, r4]]
+#
+#sym = Symmetrizer({region: Region(region) for region in (r1, r2, r3, r4)}, pairs)
 
 
+points = [[0.9830355092456994, 30.98564788],
+[15.983150591485296, 27.45957561],
+[30.98305688649785 , 20.95080448],
+[45.98315896717858 , 13.28534323],
+[60.98317149772947 , 6.60643972 ],
+[75.98308683151343 , 3.32669183 ],
+[90.98307709969026 , 3.98797642 ],
+[105.98295596719059, 7.12605235 ],
+[120.98304786731102, 10.65850459],
+[135.98308123211126, 8.04413707 ],
+[150.9831852005984 , 4.30358773 ],
+[165.9830916838715 , 1.14595183 ],
+[180.98309145476819, 0.0        ],
+[195.9829809303255 , 1.47130374 ],
+[210.98301545830705, 4.79558011 ],
+[225.983046885034  ,8.49241487  ],
+[240.98312684074077, 11.05148937],
+[255.9831638617842 , 6.64406313 ],
+[270.98310765855786, 3.72051677 ],
+[285.9830326286267 , 3.51341736 ],
+[300.9830289749102 , 7.3349371  ],
+[315.9830414533151 , 14.27951492],
+[330.9830182204899 , 21.91562309],
+[345.9829233872526 , 28.11875981]]
 
-points = [[0.275, 8.40173012],
-[10.275, 4.93173852],
-[20.275, 1.36820037],
-[30.275, 0.00047259],
-[40.275, 1.47345665],
-[50.275, 5.89865753],
-[60.275, 13.02560255],
-[70.275, 22.33722582],
-[80.275, 33.1593778],
-[90.275, 44.74365981],
-[100.275, 56.36842703],
-[110.275, 67.2381268],
-[120.275, 12.89020553],
-[130.275, 5.75711684],
-[140.275, 1.37274249],
-[150.275, 0.00456837],
-[160.275, 1.61830547],
-[170.275, 5.43979895],
-[180.275, 8.40480195],
-[190.275, 5.20444917],
-[200.275, 1.45975154],
-[210.275, 0.0],
-[220.275, 1.53688872],
-[230.275, 6.08099848],
-[240.275, 13.35434136],
-[250.275, 22.9201655],
-[260.275, 34.18678832],
-[270.275, 46.4614192],
-[280.275, 58.93406527],
-[290.275, 21.77972723],
-[300.275, 12.57031466],
-[310.275, 5.58202227],
-[320.275, 1.31500775],
-[330.275, 0.00446335],
-[340.275, 1.51643608],
-[350.275, 5.16333384]]
+orig_points = np.array(points)
+print('original points:')
+for angle, value in points:
+    print(angle, value) 
+print('---------')
 
+r1 = RegionRange(0, 180, direct=False)
+r2 = RegionRange(180, 360, direct=True)
 
-r1 = RegionRange(0, 90, direct=False)
-r2 = RegionRange(90, 180, direct=True)
-r3 = RegionRange(180, 270, direct=False)
-r4 = RegionRange(270, 360, direct=True)
+pairs = [[r1, r2]]
 
-pairs = [[r1, r2, r3, r4]]
-
-sym = Symmetrizer({region: Region(region) for region in (r1, r2, r3, r4)}, pairs)
+sym = Symmetrizer({region: Region(region) for region in (r1, r2)}, pairs)
 
 points = sym.symmetrize(points)
 angles = []
 values = []
+
+print('results:')
 for angle, value in points:
     angles.append(angle)
     values.append(value)
-#    print(angle, value)
+    print(angle, value)
 
-plt.plot(angles, values)
+points = np.array(points)
+
+plt.plot(angles, values, '.', label='sym')
+plt.plot(orig_points[:, 0], orig_points[:, 1], '.', label='orig.')
+plt.legend()
 plt.show()

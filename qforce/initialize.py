@@ -48,6 +48,12 @@ class Initialize(Colt):
     # Number of iterations of dihedral fitting
     n_dihed_scans = 3 :: int
 
+    # Symmetrize either md or qm profile of a specific dihedral by inputting the range
+    # For symmetrizing the MD dihedral profile between atoms 77 and 80 where 0-180 is inversely
+    # equivalent to 180-360 (reverse the order of the second):
+    # md 77 80 = 0 180 - 360 180
+    symmetrize_scan = :: literal
+
     # Make a polarizable FF
     polar = no :: bool
 
@@ -251,6 +257,10 @@ class Initialize(Colt):
         else:
             not_scale = []
         return not_scale
+
+    @staticmethod
+    def set_symmetrize_scan():
+        ...
 
     @staticmethod
     def set_exclusions(value):
