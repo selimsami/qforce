@@ -82,17 +82,18 @@ def set_polar(q, topo, inp):
     #               17: 0.000994749, 35: 0.001828362, 53: 0.002964895}
     alpha_dict, alpha = {}, []
 
-    if inp.ext_alpha:
-        atoms, alpha = np.loadtxt(f'{inp.job_dir}/ext_alpha', unpack=True, comments=['#', ';'])
-        atoms = atoms.astype(dtype='int') - 1
-        alpha *= 1000  # convert from nm3 to ang3
-    else:
-        atoms = np.arange(topo.n_atoms)
-        for elem in topo.elements:
-            alpha.append(polar_dict[elem])
+    if inp.polar:
+        if inp.ext_alpha:
+            atoms, alpha = np.loadtxt(f'{inp.job_dir}/ext_alpha', unpack=True, comments=['#', ';'])
+            atoms = atoms.astype(dtype='int') - 1
+            alpha *= 1000  # convert from nm3 to ang3
+        else:
+            atoms = np.arange(topo.n_atoms)
+            for elem in topo.elements:
+                alpha.append(polar_dict[elem])
 
-    for i, a in zip(atoms, alpha):
-        alpha_dict[i] = a
+        for i, a in zip(atoms, alpha):
+            alpha_dict[i] = a
 
     # EPS0 = 1389.35458  # kJ*ang/mol/e2
     # for q, elem in zip(q, topo.elements):

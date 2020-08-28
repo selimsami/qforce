@@ -117,8 +117,8 @@ def find_restraints(frag, coord, n_run):
     restraints = []
     for term in frag.terms['dihedral/flexible']:
         phi0 = get_dihed(coord[term.atomids])[0]
-        if (n_run == 0
-                or all([term.atomids[i] == frag.scanned_atomids[i] for i in range(3)])):
+        if (  # n_run == 0 or
+            all([term.atomids[i] == frag.scanned_atomids[i] for i in range(3)])):
                 # or not all([idx in term.atomids for idx in frag.scanned_atomids[1:3]])):
             restraints.append([term.atomids, phi0])
     return restraints
@@ -348,7 +348,8 @@ class Symmetrizer:
         points = {angle: value for values in points.values()
                   for angle, value in values}
         #
-        points = [[angle, value] for angle, value in points.items()]
+        points = [[angle, value] for angle, value in points.items() if angle > 1
+                  and not 180 < angle < 181]
         # sort output
         points.sort(key=lambda x: x[0])
         return points
@@ -377,6 +378,8 @@ class Symmetrizer:
         return smallest, validator
 
     def _symmetrize(self, points, regions):
+        first = points[regions[1]][0]
+        points[regions[1]] = points[regions[1]][1:] + [first]
         out = tuple(points[region] if region.direct is True else points[region][::-1]
                     for region in regions)
         zipped = zip(*out)
@@ -385,6 +388,7 @@ class Symmetrizer:
         results = []
         #
         for pairs in zipped:
+            print(pairs)
             results.append(self._get_smallest(pairs, validators))
             for i, (angle, value) in enumerate(pairs):
                 validator = validators[i]

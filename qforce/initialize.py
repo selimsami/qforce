@@ -39,6 +39,9 @@ class Initialize(Colt):
     # Use 'available' option to skip dihedrals with missing scan data
     fragment = yes :: str :: [yes, no, available]
 
+    # Number of neighbors after bonds can be fragmented (0 or smaller means no fragmentation)
+    frag_n_neighbor = 3 :: int
+
     # Set all dihedrals as rigid
     all_rigid = no :: bool
 

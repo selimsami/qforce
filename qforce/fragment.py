@@ -101,7 +101,7 @@ class Fragment():
         self.check_fragment(inp, mol)
 
     def check_fragment(self, inp, mol):
-        self.identify_fragment(mol)
+        self.identify_fragment(mol, inp)
         self.make_fragment_graph(mol)
         self.make_fragment_identifier(inp, mol)
         self.check_for_fragment(inp)
@@ -113,7 +113,7 @@ class Fragment():
         else:
             make_qm_input(inp, self.graph, self.id)
 
-    def identify_fragment(self, mol):
+    def identify_fragment(self, mol, inp):
         n_neigh, n_cap = 0, 0
         possible_h_caps = {i: [] for i in range(mol.n_atoms)}
         next_neigh = [[a, n] for a in self.atomids for n
@@ -124,7 +124,8 @@ class Fragment():
                 bond = mol.topo.edge(a, n)
                 if n in self.atomids:
                     pass
-                elif (n_neigh < 3  # don't break first 3 neighbors
+                elif (inp.frag_n_neighbor < 1 or  # fragmentation turned off
+                      n_neigh < inp.frag_n_neighbor  # don't break first N neighbors
                       or bond['order'] > 1.5  # don't break double/triple bonds
                       or (bond['in_ring'] and (mol.topo.node(a)['n_ring'] > 1 or  # no multi ring
                           any([mol.topo.edge(a, neigh)['order'] > 1 for neigh
@@ -172,7 +173,7 @@ class Fragment():
             for att in ['vector', 'length', 'order', 'vers', 'in_ring3', 'in_ring']:
                 d.pop(att, None)
         for _, d in self.graph.nodes(data=True):
-            for att in ['q', 'n_ring']:
+            for att in ['n_ring']:  # 'q',
                 d.pop(att, None)
 
         for cap in self.caps:
@@ -208,9 +209,13 @@ class Fragment():
         charge = int(round(sum(nx.get_node_attributes(self.graph, 'q').values())))
         s1, s2 = sorted([ATOM_SYM[elem] for elem in self.elements[:2]])
         self.graph.graph['charge'] = charge
-        if (sum(mol.topo.elements) + charge) % 2 == 1:
+
+        n_electrons = sum(self.elements[:self.n_atoms_without_cap])+len(self.caps)
+
+        if (n_electrons + charge) % 2 == 1:
             mult = 2
         self.graph.graph['mult'] = mult
+
         for elem in nx.get_node_attributes(self.graph, 'elem').values():
             comp_dict[elem] += 1
         for elem in sorted(comp_dict):
@@ -309,6 +314,10 @@ class Fragment():
         self.non_bonded = mol.non_bonded.subset(inp, mol.non_bonded, mapping_mol_to_db)
 
         self.remove_non_bonded = [mapping_mol_to_db[i] for i in self.remove_non_bonded]
+
+        for cap in self.caps:
+            cap['idx'] = self.mapping_frag_to_db[cap['idx']]
+            cap['connected'] = self.mapping_frag_to_db[cap['connected']]
 
         # Reorder neighbors
         self.neighbors = [[] for _ in range(3)]

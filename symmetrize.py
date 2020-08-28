@@ -88,7 +88,8 @@ class Symmetrizer:
         points = {angle: value for values in points.values()
                   for angle, value in values}
         #
-        points = [[angle, value] for angle, value in points.items()]
+        points = [[angle, value] for angle, value in points.items() if angle > 1
+                  and not 180 < angle < 181]
         # sort output
         points.sort(key=lambda x: x[0])
         return points
@@ -117,6 +118,9 @@ class Symmetrizer:
         return smallest, validator
 
     def _symmetrize(self, points, regions):
+        first = points[regions[1]][0]
+        points[regions[1]] = points[regions[1]][1:] + [first]
+
         out = tuple(points[region] if region.direct is True else points[region][::-1]
                     for region in regions)
         zipped = zip(*out)
@@ -125,10 +129,12 @@ class Symmetrizer:
         results = []
         #
         for pairs in zipped:
+            print(pairs)
             results.append(self._get_smallest(pairs, validators))
             for i, (angle, value) in enumerate(pairs):
                 validator = validators[i]
                 if validator.is_within_range(angle) is True:
+                    print(angle, value)
                     results.append(([angle, value], validator))
         # set results
         for region in regions:
@@ -210,7 +216,7 @@ points = [[0.9830355092456994, 30.98564788],
 orig_points = np.array(points)
 print('original points:')
 for angle, value in points:
-    print(angle, value) 
+    print(angle, value)
 print('---------')
 
 r1 = RegionRange(0, 180, direct=False)
@@ -232,7 +238,7 @@ for angle, value in points:
 
 points = np.array(points)
 
-plt.plot(angles, values, '.', label='sym')
-plt.plot(orig_points[:, 0], orig_points[:, 1], '.', label='orig.')
-plt.legend()
-plt.show()
+# plt.plot(angles, values, '.', label='sym')
+# plt.plot(orig_points[:, 0], orig_points[:, 1], '.', label='orig.')
+# plt.legend()
+# plt.show()
