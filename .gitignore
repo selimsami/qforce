@@ -1,8 +1,9 @@
 # Q-Force related
 qforce/old*
-qforce/modified_seminario
-
-
+qforce/modified_seminario/
+qforce/options.py
+qforce/symmetrize.py
+dftd4/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
