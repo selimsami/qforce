@@ -1,9 +1,12 @@
 # Q-Force related
+tests/
+dftd4/
 qforce/old*
 qforce/modified_seminario/
 qforce/options.py
 qforce/symmetrize.py
-dftd4/
+qforce/relax_drude.py
+qforce/decorators.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
