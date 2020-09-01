@@ -31,7 +31,6 @@ def fit_forcefield(inp, qm=None, mol=None):
     mol = Molecule(inp, qm)
 
     fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
-    average_unique_minima(mol.terms, inp)
 
     if inp.fragment:
         fragments = fragment(inp, mol)
@@ -46,4 +45,3 @@ def fit_forcefield(inp, qm=None, mol=None):
     print('- QM vs MD vibrational frequencies (frequencies.txt, frequencies.pdf).')
     print('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
     print('- QM vs MD dihedral profiles (if any) in "fragments" folder as ".pdf" files.')
-

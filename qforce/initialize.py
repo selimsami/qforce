@@ -3,7 +3,7 @@ import os
 import sys
 from ase.io import read, write
 from qforce.make_qm_input import make_hessian_input
-from qforce.hessian import fit_forcefield
+from qforce.fit import fit_forcefield
 from colt.colt import Colt
 from .polarize import polarize
 

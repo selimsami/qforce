@@ -1,0 +1,84 @@
+      -----------------------------------------------------------      
+     |                   =====================                   |     
+     |                        D F T - D 4                        |     
+     |                   =====================                   |     
+     |            E. Caldeweyher, S. Ehlert & S. Grimme          |     
+     |          Mulliken Center for Theoretical Chemistry        |     
+     |                    University of Bonn                     |     
+      -----------------------------------------------------------      
+
+   * dftd4 version 2.3.2 compiled by sami@ on Thu Nov 21 15:14:20 CET 2019
+
+   Please cite:
+   E. Caldeweyher, C. Bannwarth and S. Grimme, J. Chem. Phys., 2017,
+   147, 034112.
+   and
+   E. Caldeweyher, S. Ehlert, A. Hansen, H. Neugebauer, S. Spicher,
+   C. Bannwarth and S. Grimme, J. Chem. Phys., 2019, 150, 154122.
+   DOI: 10.1063/1.5090222 (ChemRxiv: 10.26434/chemrxiv.7430216.v2)
+   
+   For GFN2-xTB:
+   C. Bannwarth, S. Ehlert and S. Grimme., ChemRxiv, 2018, preprint.
+   http://doi.org/10.26434/chemrxiv.7246238.v2
+   
+   For a general overview on dispersion corrected mean-field methods
+   we recommend:
+   S. Grimme, A. Hansen, J. G. Brandenburg, C. Bannwarth, Chem. Rev. 2016,
+   116, 5105−5154.
+   
+   with help from (in alphabetical order)
+   C. Bannwarth, P. Shushkov, and S. Spicher.
+   
+ * started run on 2020/09/01 at 14:15:49.121     
+
+           -------------------------------------------------
+          |                Calculation Setup                |
+           -------------------------------------------------
+   number of atoms      :     12
+   charge               :      0
+   non-additivity corr. : ATM
+   charge model         : EEQ
+   memory needed (est.) :    0.0 Mb
+
+
+ C      q(ref)   cov. CN(ref)     α(AIM,ref)
+     0.0000000      0.0000000     12.3555340
+    -0.1712371      0.9189476     12.8040102
+    -0.1421000      1.9078606      9.6347081
+    -0.2225085      2.8312239      9.6866280
+    -0.2565392      3.7487003      7.6947606
+    -0.1044135      2.9183270      9.3751063
+     0.2103031      0.8556099      7.7402500
+ H      q(ref)   cov. CN(ref)     α(AIM,ref)
+     0.0000000      0.0000000      5.0540160
+     0.0000000      0.8942244      2.7207580
+
+           -------------------------------------------------
+          |              Molecular Properties               |
+           -------------------------------------------------
+
+          #   Z        covCN                  q              C6AA              C8AA              α(0)            relVol
+          1   6 C       2.905       -0.10395562       32.27111966      933.33686017        9.28533481        0.75151222
+          2   6 C       2.905       -0.10395502       32.27110275      933.33637125        9.28533244        0.75151203
+          3   6 C       2.905       -0.10395596       32.27112909      933.33713302        9.28533613        0.75151233
+          4   6 C       2.905       -0.10395562       32.27111964      933.33685970        9.28533480        0.75151222
+          5   6 C       2.905       -0.10395500       32.27110222      933.33635593        9.28533237        0.75151202
+          6   6 C       2.905       -0.10395594       32.27112864      933.33711981        9.28533606        0.75151232
+          7   1 H       0.924        0.10395556        1.74942952       21.14771629        2.06842791        0.40926422
+          8   1 H       0.924        0.10395548        1.74943022       21.14772482        2.06842833        0.40926430
+          9   1 H       0.924        0.10395554        1.74942969       21.14771842        2.06842801        0.40926424
+         10   1 H       0.924        0.10395556        1.74942953       21.14771642        2.06842792        0.40926422
+         11   1 H       0.924        0.10395549        1.74943018       21.14772436        2.06842831        0.40926430
+         12   1 H       0.924        0.10395554        1.74942965       21.14771793        2.06842799        0.40926423
+
+            Mol. C6AA /au·bohr⁶  :       1765.108406
+            Mol. C8AA /au·bohr⁸  :      44465.269239
+            Mol. α(0) /au        :         68.122575
+
+
+ * finished run on 2020/09/01 at 14:15:49.152     
+ total:
+ * wall-time:     0 d,  0 h,  0 min,  0.030 sec
+ *  cpu-time:     0 d,  0 h,  0 min,  0.029 sec
+ * ratio c/w:     0.958 speedup
+

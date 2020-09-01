@@ -34,6 +34,8 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
             term.fconst = fit[term.idx]
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
+    average_unique_minima(mol.terms, inp)
+
     return fit, full_md_hessian_1d
 
 
@@ -77,3 +79,32 @@ def calc_forces(coords, mol, inp, ignore_flex):
             term.do_fitting(coords, force)
 
     return force
+
+
+def average_unique_minima(terms, inp):
+    unique_terms = {}
+    averaged_terms = ['bond', 'angle', 'dihedral/inversion']
+    for name in [term_name for term_name in averaged_terms]:
+        for term in terms[name]:
+            if str(term) in unique_terms.keys():
+                term.equ = unique_terms[str(term)]
+            else:
+                eq = np.where(np.array(list(oterm.idx for oterm in terms[name])) == term.idx)
+                minimum = np.abs(np.array(list(oterm.equ for oterm in terms[name]))[eq]).mean()
+                term.equ = minimum
+                unique_terms[str(term)] = minimum
+
+    # For Urey, recalculate length based on the averaged bonds/angles
+    if inp.urey:
+        for term in terms['urey']:
+            if str(term) in unique_terms.keys():
+                term.equ = unique_terms[str(term)]
+            else:
+                bond1_atoms = sorted(term.atomids[:2])
+                bond2_atoms = sorted(term.atomids[1:])
+                bond1 = [bond.equ for bond in terms['bond'] if all(bond1_atoms == bond.atomids)][0]
+                bond2 = [bond.equ for bond in terms['bond'] if all(bond2_atoms == bond.atomids)][0]
+                angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
+                urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
+                term.equ = urey
+                unique_terms[str(term)] = urey

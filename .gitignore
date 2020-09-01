@@ -1,14 +1,5 @@
 # Q-Force related
-Makefile
-tests/
 dftd4/
-qforce/options.py
-qforce/qforce.ini
-qforce/symmetrize.py
-qforce/relax_drude.py
-qforce/decorators.py
-requirements_dev.txt
-tox.ini
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

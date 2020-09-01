@@ -59,17 +59,17 @@ def check_and_notify(inp, n_unique, n_have):
         print('There are no flexible dihedrals.')
     else:
         print(f"There are {n_unique} unique flexible dihedrals.")
-    if n_missing == 0:
-        print(f"All scan data is available. Fitting the dihedrals...\n")
-    else:
-        print(f"{n_missing} of them are missing the scan data.")
-        print(f"QM input files for them are created in: {inp.frag_dir}")
-
-        if inp.fragment == 'available':
-            print('Continuing without the missing dihedrals...\n')
+        if n_missing == 0:
+            print(f"All scan data is available. Fitting the dihedrals...\n")
         else:
-            print('Exiting...\n')
-            sys.exit()
+            print(f"{n_missing} of them are missing the scan data.")
+            print(f"QM input files for them are created in: {inp.frag_dir}")
+
+            if inp.fragment == 'available':
+                print('Continuing without the missing dihedrals...\n')
+            else:
+                print('Exiting...\n')
+                sys.exit()
 
 
 class Fragment():
