@@ -29,7 +29,8 @@ def scan_dihedrals(fragments, inp, mol):
     for n_run in range(inp.n_dihed_scans):
         for n_fit, frag in enumerate(fragments, start=1):
 
-            print(f'\nFitting dihedral {n_fit}/{len(fragments)}: {frag.id} \n')
+            print(f'Run {n_run+1}/{inp.n_dihed_scans}, fitting dihedral {n_fit}/{len(fragments)}: '
+                  f'{frag.id}')
 
             scanned = list(frag.terms.get_terms_from_name(name=frag.name,
                                                           atomids=frag.scanned_atomids))[0]
@@ -52,8 +53,7 @@ def scan_dihedrals(fragments, inp, mol):
 
             for term in mol.terms.get_terms_from_name(frag.name):
                 term.equ = params
-
-            print(params)
+    print('Done!')
 
 
 def move_capping_atoms(fragments):

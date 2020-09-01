@@ -1,10 +1,10 @@
-.. QForce documentation master file, created by
-   sphinx-quickstart on Wed Nov 27 14:53:54 2019.
+.. Q-Force documentation master file, created by
+   sphinx-quickstart on Tue Sep  1 11:05:04 2020.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to QForce's documentation!
-==================================
+Welcome to Q-Force's documentation!
+===================================
 
 .. toctree::
    :maxdepth: 2

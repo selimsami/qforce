@@ -274,7 +274,7 @@ def handle_d4(inp, qm, topo):
     if inp.lennard_jones == 'd4':
         q, c6, c8, alpha, r_rel = average_equivalent_terms(topo, [q, c6, c8, alpha, r_rel])
         c6, c8, alpha, r_rel = [term[topo.unique_atomids] for term in [c6, c8, alpha, r_rel]]
-        lj_a, lj_b = calc_c6_c12(inp, qm, topo, c6, c8, r_rel, inp.param)
+        lj_a, lj_b = calc_c6_c12(inp, qm, topo, c6, c8, r_rel)
     return q, lj_a, lj_b
 
 
@@ -293,20 +293,14 @@ def check_termination(process):
         raise RuntimeError({"DFTD4 run has terminated unsuccessfully"})
 
 
-def calc_c6_c12(inp, qm, topo, c6s, c8s, r_rels, param):
+def calc_c6_c12(inp, qm, topo, c6s, c8s, r_rels):
     hartree2kjmol = 2625.499638
     bohr2ang = 0.52917721067
     bohr2nm = 0.052917721067
     new_ljs = []
 
-    order2elem = [6, 1, 8, 7, 9]
     r_ref = {1: 1.986, 6: 2.083, 7: 1.641, 8: 1.452, 9: 1.58, 16: 1.5}
     s8_scale = {1: 0.133, 6: 0.133, 7: 0.683, 8: 0.683, 9: 0.683, 16: 0.5}
-
-    for i, s8 in enumerate(param[::2]):
-        s8_scale[order2elem[i]] = s8
-    for i, r in enumerate(param[1::2]):
-        r_ref[order2elem[i]] = r
 
     for i, (c6, c8, r_rel) in enumerate(zip(c6s, c8s, r_rels)):
         elem = qm.elements[topo.unique_atomids[i]]

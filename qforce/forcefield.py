@@ -107,18 +107,6 @@ class ForceField():
         itp.write(f'; NB fitting: {inp.non_bonded}, fragment_fitting: {inp.fragment}\n')
         itp.write(f'; urey: {inp.urey}, cross_bond_angle: {inp.cross_bond_angle}\n;\n')
 
-        # fitting parameters - temporary
-        if inp.param != []:
-            itp.write('; fitting parameters are (C, H, O, N):\n')
-            itp.write(f'; S8: ')
-            for s8 in inp.param[::2]:
-                itp.write(f'{s8} ')
-            itp.write(f'\n; R_ref: ')
-            for r in inp.param[1::2]:
-                itp.write(f'{r} ')
-            itp.write('\n;\n')
-        itp.write('\n')
-
     def convert_to_gromacs_nonbonded(self, non_bonded, inp):
         a_types, nb_pairs, nb_1_4 = {}, {}, {}
 

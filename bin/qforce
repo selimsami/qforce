@@ -2,7 +2,6 @@
 
 from qforce.initialize import Initialize
 from qforce.parser import parse
-from qforce.old_read_input import Input as old_Input
 
 print("""\n
    ____         ______
@@ -17,12 +16,8 @@ University of Groningen - 2020
 ==============================
 """)
 
-args, depriciated = parse()
-
-if depriciated:
-    inp = old_Input(args)
-else:
-    inp = Initialize.from_questions("qforce", check_only=True, config=args.o)
-    inp.setup(args.f, args.p)
+args = parse()
+inp = Initialize.from_questions("qforce", check_only=True, config=args.o)
+inp.setup(args.f)
 
 print("\n")

@@ -73,8 +73,8 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
     JOBNAME_qforce.nmd : MD eigenvectors that can be played in VMD with:
                                 vmd -e filename
     """
-    freq_file = f"{inp.job_dir}/{inp.job_name}_qforce.freq"
-    nmd_file = f"{inp.job_dir}/{inp.job_name}_qforce.nmd"
+    freq_file = f"{inp.job_dir}/frequencies.txt"
+    nmd_file = f"{inp.job_dir}/frequencies.nmd"
     errors = []
 
     with open(freq_file, "w") as f:
@@ -113,6 +113,4 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
             nmd.write(f"\nmode {i+7}")
             for c in m:
                 nmd.write(f" {c[0]:.3f} {c[1]:.3f} {c[2]:.3f}")
-    print(f"QM vs MD vibrational frequencies can be found in: {freq_file}")
-    print(f"Vibrational modes (can be run in VMD) is located in: {nmd_file}\n")
     return mean_percent_error

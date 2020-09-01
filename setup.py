@@ -1,8 +1,8 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
-      packages = ['qforce', 'qforce/molecule', 'qforce/modified_seminario', 'colt'],
-      package_data = {'qforce': ['data/*']},
-      scripts = ['bin/qforce'], 
+      packages = find_packages(),
+      package_data={'qforce': ['data/*']},
+      scripts=['bin/qforce'], 
      )
 

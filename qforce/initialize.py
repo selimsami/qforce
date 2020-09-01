@@ -24,7 +24,7 @@ class Initialize(Colt):
     point_charges = d4 :: str :: [d4, cm5, esp, ext]
 
     # Lennard jones method for the forcefield
-    lennard_jones = d4 :: str :: [d4, gromos, opls, gaff]
+    lennard_jones = gromos :: str :: [d4, gromos, opls, gaff]
 
     # Scaling of the vibrational frequencies (not implemented)
     vibr_coef = 1.0 :: float
@@ -146,13 +146,7 @@ class Initialize(Colt):
 
         return cls(answers)
 
-    def setup(self, file, param):
-
-        if param:  # temporary for fitting
-            self.param = param
-        else:
-            self.param = []
-
+    def setup(self, file):
         coord = False
 
         if file.endswith('/'):
@@ -293,6 +287,10 @@ class Initialize(Colt):
                          "provide the necessary output files.\n\n")
         if self.job_type == "fit" and 'd4' in [self.point_charges, self.lennard_jones]:
             self.check_exe("dftd4")
+        lj_dir = f'{self.job_dir}/ext_lj'
+        if self.job_type == "fit" and self.lennard_jones != 'd4' and not os.path.isfile(lj_dir):
+            sys.exit(f'ERROR: Please provide the atom types for Lennard-Jones interactions '
+                     'in the file "ext_lj".\n\n')
 
     def check_exe(self, exe):
         if exe == "dftd4":
