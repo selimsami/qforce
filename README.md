@@ -2,7 +2,7 @@
 
 
 
-![Q-Force Logo](https://imgur.com/jZG5MNO "Q-Force Logo")
+![Q-Force Logo](https://i.imgur.com/jZG5MNO.jpg "Q-Force Logo")
 
 Please see the [Documentation](https://qforce.readthedocs.io/) for more information.
 
