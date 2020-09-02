@@ -76,8 +76,8 @@ class NonBonded():
 
 
 def determine_atom_types(topo):
-    print('NOTE: Automatic atom-type determination is new. '
-          'Double check your atom types or enter them manually.\n')
+    print('NOTE: Automatic atom-type determination (used only for LJ interactions) is new. \n'
+          '      Double check your atom types or enter them manually.\n')
     a_types = []
     for i, elem in enumerate(topo.elements):
         elem_neigh = [topo.elements[atom] for atom in topo.neighbors[0][i]]
