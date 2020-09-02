@@ -26,8 +26,6 @@ release = '1.0'
 
 import colt
 
-
-
 # -- General configuration ---------------------------------------------------
 
 # master doc

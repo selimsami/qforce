@@ -1,0 +1,18 @@
+
+[ defaults ]
+;nbfunc   comb-rule   gen-pairs   fudgeLJ   fudgeQQ
+      1           1         yes       1.0       1.0
+
+
+; Include the molecule ITP
+#include "./benzene_qforce.itp"
+
+
+[ system ]
+;  name
+benzene
+
+
+[ molecules ]
+; compound    n_mol
+   benzene        1

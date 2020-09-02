@@ -1,10 +1,12 @@
 import subprocess
 import numpy as np
 import pulp
+import sys
 from scipy.optimize import curve_fit
 from itertools import combinations_with_replacement
 #
 from .. import qforce_data
+from ..elements import ATOM_SYM
 
 
 class NonBonded():
@@ -32,16 +34,15 @@ class NonBonded():
             q = np.loadtxt(f'{inp.job_dir}/ext_q', comments=['#', ';'])
         elif inp.point_charges == 'cm5':
             q = qm.cm5
-        elif inp.point_charges == 'esp':
-            q = qm.esp
         q = average_equivalent_terms(topo, [q])[0]
         q = sum_charges_to_qtotal(topo, q)
 
         # LENNARD-JONES
         if inp.lennard_jones != 'd4':
-         #   if inp.lennard_jones == 'gromos_auto':
-
-            lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', dtype='str', comments=['#', ';'])
+            if inp.lennard_jones == 'gromos_auto':
+                lj_types = determine_atom_types(topo)
+            else:
+                lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', dtype='str', comments=['#', ';'])
             lj_pairs, lj_1_4 = set_external_lennard_jones(inp, lj_types)
         else:
             lj_types, lj_pairs = set_qforce_lennard_jones(topo, inp, lj_a, lj_b)
@@ -72,6 +73,56 @@ class NonBonded():
                  if key in mapping.keys()}
 
         return cls(inp, n_atoms, q, lj_types, lj_pairs, lj_1_4, exclusions, inp.n_excl, alpha)
+
+
+def determine_atom_types(topo):
+    print('NOTE: Automatic atom-type determination is new. '
+          'Double check your atom types or enter them manually.\n')
+    a_types = []
+    for i, elem in enumerate(topo.elements):
+        elem_neigh = [topo.elements[atom] for atom in topo.neighbors[0][i]]
+        in_ring_and_conj = [all([topo.edge(*edge)['order'] > 1, topo.edge(*edge)['in_ring']])
+                            for edge in topo.graph.edges(i)]
+
+        if elem == 1:
+            if topo.elements[topo.neighbors[0][i]] == 6:
+                a_type = 'HC'  # bound to C
+            else:
+                a_type = 'HS14'
+
+        elif elem == 6:
+            if any(in_ring_and_conj):
+                a_type = 'CAro'
+            elif elem_neigh.count(6) == 4:  # CH4
+                a_type = 'CH0'
+            else:
+                a_type = 'C'
+
+        elif elem == 7:
+
+            if len(elem_neigh) == 4 or elem_neigh.count(1) == 3:  # 4 bonds or NH3
+                a_type = 'NL'
+            elif elem_neigh.count(6) == 3:
+                a_type = 'NTer'  # Bound to three C
+            elif elem_neigh.count(1) == 2:
+                a_type = 'NPri'  # Bound to two H
+            else:
+                a_type = 'NOpt'
+
+        elif elem == 8:
+            if 1 in topo.elements[topo.neighbors[0][i]]:
+                a_type = 'OAlc'  # has a bond to H
+            elif len(topo.neighbors[0][i]) == 1 and topo.elements[topo.neighbors[0][0]] == 6:
+                a_type = 'OEOpt'  # has 1 bond and it is to C
+            else:
+                a_type = 'OE'
+
+        else:
+            a_type = ATOM_SYM[elem].upper()
+
+        a_types.append(a_type)
+
+    return a_types
 
 
 def set_polar(q, topo, inp):
@@ -187,7 +238,12 @@ def calc_sigma_epsilon(c6, c12):
 def read_ext_nonbonded_file(inp):
     atom_types, nonbond_params, nonbond_1_4 = {}, {}, {}
 
-    with open(f'{qforce_data}/{inp.lennard_jones}.itp', 'r') as file:
+    if inp.lennard_jones == 'gromos_auto':
+        lj_lib = 'gromos'
+    else:
+        lj_lib = inp.lennard_jones
+
+    with open(f'{qforce_data}/{lj_lib}.itp', 'r') as file:
         for line in file:
             line = line.partition('#')[0].partition(';')[0].strip()
             if line == '':

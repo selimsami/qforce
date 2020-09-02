@@ -55,7 +55,7 @@ class Initialize(Colt):
     # For symmetrizing the MD dihedral profile between atoms 77 and 80 where 0-180 is inversely
     # equivalent to 180-360 (reverse the order of the second):
     # md 77 80 = 0 180 - 360 180
-    # symmetrize_scan = :: literal
+    symmetrize_scan = :: literal
 
     # Make a polarizable FF
     polar = no :: bool
@@ -67,7 +67,7 @@ class Initialize(Colt):
     polar_c6_scale = 0.8 :: float
 
     # Specifically not scale some of the atoms
-    # polar_not_scale_c6 = :: literal
+    polar_not_scale_c6 = :: literal
 
     # Manual polarizabilities in the file ext_alpha
     ext_alpha = no :: bool
@@ -78,8 +78,8 @@ class Initialize(Colt):
     # Use Bond-Angle cross term
     cross_bond_angle = no :: bool
 
-    # job_script = :: literal
-    # exclusions = :: literal
+    job_script = :: literal
+    exclusions = :: literal
 
     # Number of dihedral scan steps to perform
     scan_no = 23 :: int
