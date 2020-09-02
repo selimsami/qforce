@@ -32,12 +32,17 @@ class NonBonded():
             q = np.loadtxt(f'{inp.job_dir}/ext_q', comments=['#', ';'])
         elif inp.point_charges == 'cm5':
             q = qm.cm5
+        elif inp.point_charges == 'esp':
+            q = qm.esp
         q = average_equivalent_terms(topo, [q])[0]
         q = sum_charges_to_qtotal(topo, q)
 
         # LENNARD-JONES
         if inp.lennard_jones != 'd4':
-            lj_types, lj_pairs, lj_1_4 = set_external_lennard_jones(inp)
+         #   if inp.lennard_jones == 'gromos_auto':
+
+            lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', dtype='str', comments=['#', ';'])
+            lj_pairs, lj_1_4 = set_external_lennard_jones(inp, lj_types)
         else:
             lj_types, lj_pairs = set_qforce_lennard_jones(topo, inp, lj_a, lj_b)
             lj_1_4 = lj_pairs
@@ -122,10 +127,9 @@ def set_qforce_lennard_jones(topo, inp, lj_a, lj_b):
     return lj_types, lj_pairs
 
 
-def set_external_lennard_jones(inp):
+def set_external_lennard_jones(inp, lj_types):
     lj_pairs, lj_1_4 = {}, {}
 
-    lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', dtype='str', comments=['#', ';'])
     atom_types, nonbond_params, nonbond_1_4 = read_ext_nonbonded_file(inp)
 
     for comb in combinations_with_replacement(set(lj_types), 2):
@@ -149,7 +153,7 @@ def set_external_lennard_jones(inp):
             if key[0] not in inp.polar_not_scale_c6 and key[1] not in inp.polar_not_scale_c6:
                 val[0] *= inp.polar_c6_scale
 
-    return lj_types, lj_pairs, lj_1_4
+    return lj_pairs, lj_1_4
 
 
 def get_c6_c12_for_diff_comb_rules(inp, params):

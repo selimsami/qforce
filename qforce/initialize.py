@@ -11,7 +11,7 @@ from .polarize import polarize
 class Initialize(Colt):
     _questions = """
     # Directory where the fragments are saved
-    frag_lib = ~/qforce_fragments :: str
+    frag_lib = ~/qforce_fragments :: folder
 
     # Number of n equivalent neighbors needed to consider two atoms equivalent
     # Negative values turns off equivalence, 0 makes same elements equivalent
@@ -21,10 +21,10 @@ class Initialize(Colt):
     n_excl = 3 :: int :: [2, 3]
 
     # Point charges used in the forcefield
-    point_charges = d4 :: str :: [d4, cm5, esp, ext]
+    point_charges = cm5 :: str :: [cm5, ext, d4]
 
     # Lennard jones method for the forcefield
-    lennard_jones = gromos :: str :: [d4, gromos, opls, gaff]
+    lennard_jones = gromos_auto :: str :: [gromos_auto, gromos, opls, gaff, d4]
 
     # Scaling of the vibrational frequencies (not implemented)
     vibr_coef = 1.0 :: float
@@ -55,7 +55,7 @@ class Initialize(Colt):
     # For symmetrizing the MD dihedral profile between atoms 77 and 80 where 0-180 is inversely
     # equivalent to 180-360 (reverse the order of the second):
     # md 77 80 = 0 180 - 360 180
-    symmetrize_scan = :: literal
+    # symmetrize_scan = :: literal
 
     # Make a polarizable FF
     polar = no :: bool
@@ -67,7 +67,7 @@ class Initialize(Colt):
     polar_c6_scale = 0.8 :: float
 
     # Specifically not scale some of the atoms
-    polar_not_scale_c6 = :: literal
+    # polar_not_scale_c6 = :: literal
 
     # Manual polarizabilities in the file ext_alpha
     ext_alpha = no :: bool
@@ -78,8 +78,8 @@ class Initialize(Colt):
     # Use Bond-Angle cross term
     cross_bond_angle = no :: bool
 
-    job_script = :: literal
-    exclusions = :: literal
+    # job_script = :: literal
+    # exclusions = :: literal
 
     # Number of dihedral scan steps to perform
     scan_no = 23 :: int
@@ -115,13 +115,14 @@ class Initialize(Colt):
             setattr(self, key, value)
 
     @classmethod
-    def from_config(cls, answers):
+    def from_config(cls, config):
         ignored_terms = []
+        answers = {}
 
-        for key, value in answers.items():
-            if key == 'frag_lib':
-                answers[key] = os.path.expanduser(value)
-            elif key == 'basis':
+        for key, value in config.items():
+            # if key == 'frag_lib':
+            #     answers[key] = os.path.expanduser(value)
+            if key == 'basis':
                 answers[key] = Initialize.set_basis(value)
             elif key == 'dispersion':
                 answers[key] = Initialize.set_dispersion(value)
@@ -139,12 +140,12 @@ class Initialize(Colt):
                 answers[key], ignored_terms = Initialize.set_fragments(value, ignored_terms)
 
         answers['ignored_terms'] = ignored_terms
-        comb, fudge_lj, fudge_q = Initialize.set_non_bonded_props(answers['lennard_jones'])
+        comb, fudge_lj, fudge_q = Initialize.set_non_bonded_props(config['lennard_jones'])
         answers['comb_rule'] = comb
         answers['fudge_lj'] = fudge_lj
         answers['fudge_q'] = fudge_q
-
-        return cls(answers)
+        config.update(answers)
+        return cls(config)
 
     def setup(self, file):
         coord = False
@@ -229,7 +230,7 @@ class Initialize(Colt):
         if lj_type == 'd4':
             comb_rule = 2
             fudge_lj, fudge_q = 1.0, 1.0
-        elif lj_type == 'gromos':
+        elif lj_type in ['gromos', 'gromos_auto']:
             comb_rule = 1
             fudge_lj, fudge_q = 1.0, 1.0
         elif lj_type == 'opls':
@@ -288,9 +289,12 @@ class Initialize(Colt):
         if self.job_type == "fit" and 'd4' in [self.point_charges, self.lennard_jones]:
             self.check_exe("dftd4")
         lj_dir = f'{self.job_dir}/ext_lj'
-        if self.job_type == "fit" and self.lennard_jones != 'd4' and not os.path.isfile(lj_dir):
-            sys.exit(f'ERROR: Please provide the atom types for Lennard-Jones interactions '
-                     'in the file "ext_lj".\n\n')
+        if (self.job_type == "fit" and self.lennard_jones not in ['d4', 'gromos_auto']
+                and not os.path.isfile(lj_dir)):
+            sys.exit('ERROR: You switched away from the automatic atom type determination with'
+                     f'GROMOS but not provided external atom types for "{self.lennard_jones}"\n.'
+                     'Please provide atom types for Lennard-Jones interactions in the file '
+                     '"ext_lj".\n\n')
 
     def check_exe(self, exe):
         if exe == "dftd4":

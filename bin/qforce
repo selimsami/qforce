@@ -17,7 +17,7 @@ University of Groningen - 2020
 """)
 
 args = parse()
-inp = Initialize.from_questions("qforce", check_only=True, config=args.o)
+inp = Initialize.from_questions(check_only=True, config=args.o)
 inp.setup(args.f)
 
 print("\n")
