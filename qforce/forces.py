@@ -5,10 +5,6 @@ from numba import jit
     Calculation of forces on x, y, z directions and also seperately on
     term_ids. So forces are grouped seperately for each unique FF
     parameter.
-
-    To be fixed: Have to deal with linear angles (f.e. hydrogen cyanide)
-    GROMACS has a linear_angles routine
-
 """
 
 
@@ -310,6 +306,3 @@ def norm(vec):
 #        force[a[1], :, t] += f2;
 #        force[a[2], :, t] += f3;
 #    return force
-
-
-
