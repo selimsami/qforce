@@ -18,7 +18,7 @@ class Initialize(Colt):
     n_equiv = 4 :: int
 
     # Number of first n neighbors to exclude in the forcefield
-    n_excl = 2 :: int :: [2, 3]
+    n_excl = 3 :: int :: [2, 3]
 
     # Point charges used in the forcefield
     point_charges = cm5 :: str :: [cm5, esp, ext, d4]

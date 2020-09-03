@@ -28,7 +28,7 @@ n_equiv = 4 :: int
 
 # Number of first n neighbors to exclude in the forcefield
 
-n_excl = 2 :: int :: [2, 3]
+n_excl = 3 :: int :: [2, 3]
 
 ----------------
 
