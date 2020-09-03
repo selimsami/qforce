@@ -196,6 +196,13 @@ class QM():
                         line = gaussout.readline().split()
                         self.cm5.append(float(line[7]))
                     self.cm5 = np.array(self.cm5)
+                elif " ESP charges:" in line:
+                    self.esp = []
+                    line = gaussout.readline()
+                    for i in range(self.n_atoms):
+                        line = gaussout.readline().split()
+                        self.esp.append(float(line[2]))
+                    self.esp = np.array(self.esp)
 
         if job_type == 'freq':
             self.b_orders = np.round(np.array(self.b_orders)*2)/2

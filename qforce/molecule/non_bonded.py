@@ -34,13 +34,15 @@ class NonBonded():
             q = np.loadtxt(f'{inp.job_dir}/ext_q', comments=['#', ';'])
         elif inp.point_charges == 'cm5':
             q = qm.cm5
+        elif inp.point_charges == 'esp':
+            q = qm.esp
         q = average_equivalent_terms(topo, [q])[0]
         q = sum_charges_to_qtotal(topo, q)
 
         # LENNARD-JONES
         if inp.lennard_jones != 'd4':
             if inp.lennard_jones == 'gromos_auto':
-                lj_types = determine_atom_types(topo)
+                lj_types = determine_atom_types(topo, q)
             else:
                 lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', dtype='str', comments=['#', ';'])
             lj_pairs, lj_1_4 = set_external_lennard_jones(inp, lj_types)
@@ -75,14 +77,12 @@ class NonBonded():
         return cls(inp, n_atoms, q, lj_types, lj_pairs, lj_1_4, exclusions, inp.n_excl, alpha)
 
 
-def determine_atom_types(topo):
+def determine_atom_types(topo, q):
     print('NOTE: Automatic atom-type determination (used only for LJ interactions) is new. \n'
           '      Double check your atom types or enter them manually.\n')
     a_types = []
     for i, elem in enumerate(topo.elements):
         elem_neigh = [topo.elements[atom] for atom in topo.neighbors[0][i]]
-        in_ring_and_conj = [all([topo.edge(*edge)['order'] > 1, topo.edge(*edge)['in_ring']])
-                            for edge in topo.graph.edges(i)]
 
         if elem == 1:
             if topo.elements[topo.neighbors[0][i]] == 6:
@@ -91,10 +91,17 @@ def determine_atom_types(topo):
                 a_type = 'HS14'
 
         elif elem == 6:
+            in_ring_and_conj = [all([topo.edge(*edge)['order'] > 1, topo.edge(*edge)['in_ring']])
+                                for edge in topo.graph.edges(i)]
+            united_charge = q[i] + sum([q[j] for j in topo.neighbors[0][i] if
+                                        topo.elements[j] == 1])
+
             if any(in_ring_and_conj):
                 a_type = 'CAro'
             elif elem_neigh.count(6) == 4:  # CH4
                 a_type = 'CH0'
+            elif united_charge > 0.15:
+                a_type = 'CPos'
             else:
                 a_type = 'C'
 
@@ -110,12 +117,13 @@ def determine_atom_types(topo):
                 a_type = 'NOpt'
 
         elif elem == 8:
-            if 1 in topo.elements[topo.neighbors[0][i]]:
-                a_type = 'OAlc'  # has a bond to H
-            elif len(topo.neighbors[0][i]) == 1 and topo.elements[topo.neighbors[0][0]] == 6:
-                a_type = 'OEOpt'  # has 1 bond and it is to C
-            else:
+            if elem_neigh.count(6) == 2:
                 a_type = 'OE'
+            elif len(elem_neigh) == 1:
+                a_type = 'OEOpt'  # has 1 bond and it is to C
+            # if 1 in topo.elements[topo.neighbors[0][i]]:
+            else:
+                a_type = 'OAlc'
 
         else:
             a_type = ATOM_SYM[elem].upper()

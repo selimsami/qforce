@@ -18,10 +18,10 @@ class Initialize(Colt):
     n_equiv = 4 :: int
 
     # Number of first n neighbors to exclude in the forcefield
-    n_excl = 3 :: int :: [2, 3]
+    n_excl = 2 :: int :: [2, 3]
 
     # Point charges used in the forcefield
-    point_charges = cm5 :: str :: [cm5, ext, d4]
+    point_charges = cm5 :: str :: [cm5, esp, ext, d4]
 
     # Lennard jones method for the forcefield
     lennard_jones = gromos_auto :: str :: [gromos_auto, gromos, opls, gaff, d4]
@@ -78,7 +78,10 @@ class Initialize(Colt):
     # Use Bond-Angle cross term
     cross_bond_angle = no :: bool
 
+    # To turn the QM input files into job scripts
     job_script = :: literal
+
+    # Additional exclusions (GROMACS format)
     exclusions = :: literal
 
     # Number of dihedral scan steps to perform
@@ -291,8 +294,8 @@ class Initialize(Colt):
         lj_dir = f'{self.job_dir}/ext_lj'
         if (self.job_type == "fit" and self.lennard_jones not in ['d4', 'gromos_auto']
                 and not os.path.isfile(lj_dir)):
-            sys.exit('ERROR: You switched away from the automatic atom type determination with'
-                     f'GROMOS but not provided external atom types for "{self.lennard_jones}"\n.'
+            sys.exit('ERROR: You switched away from the automatic atom type determination with '
+                     f'GROMOS but not provided external atom types for "{self.lennard_jones}".\n'
                      'Please provide atom types for Lennard-Jones interactions in the file '
                      '"ext_lj".\n\n')
 

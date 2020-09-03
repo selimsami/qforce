@@ -1,0 +1,18 @@
+
+[ defaults ]
+;nbfunc   comb-rule   gen-pairs   fudgeLJ   fudgeQQ
+      1           1         yes       1.0       1.0
+
+
+; Include the molecule ITP
+#include "./propane_qforce.itp"
+
+
+[ system ]
+;  name
+propane
+
+
+[ molecules ]
+; compound    n_mol
+   propane        1
