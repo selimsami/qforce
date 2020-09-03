@@ -1,5 +1,6 @@
 # Q-Force related
 dftd4/
+#examples/*/*_qforce
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
