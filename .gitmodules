@@ -1,3 +1,3 @@
 [submodule "colt"]
-	path = colt 
-	url = git:https://github.com/MFSJMenger/colt.git
+	path = colt
+	url = https://github.com/MFSJMenger/colt
