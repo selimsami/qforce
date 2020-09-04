@@ -5,6 +5,10 @@ Here are two examples of how Q-Force can be used: In default settings and with s
 For the purposes of these examples, whenever you need an additional file, QM outputs or otherwise,
 they are provided in the directory "necessary files".
 
+First, please get the example files by:
+
+:code:`git clone https://github.com/selimsami/qforce_examples.git`
+
 |
 
 1) Default settings
