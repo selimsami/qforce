@@ -26,11 +26,12 @@ Now run this QM calculation and put the output file (.out) and the formatted che
 Treating the flexible dihedrals
 ++++++++++++++++++++++++++++++++
 
-Now we can run Q-Force again to create fragments and the corresponding QM dihedral scan input
-files in the directory "propane_qforce/fragments":
+Now we can run Q-Force again from the same folder to create fragments and the corresponding QM dihedral scan input
+files by:
 
 :code:`qforce propane`
 
+This will create all the necessary input files in the directory "propane_qforce/fragments".
 Then, run these calculations and put the output file(s) (.out) in the same directory.
 
 Creating the force field
