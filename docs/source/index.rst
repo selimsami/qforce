@@ -13,6 +13,7 @@ Documentation
 =============
 
 * :doc:`install`
+* :doc:`method`
 * :doc:`usage`
 * :doc:`examples`
 * :doc:`options`
@@ -23,6 +24,7 @@ Documentation
    :caption: Documentation
 
    install.rst
+   method.rst
    usage.rst
    examples.rst
    options.rst

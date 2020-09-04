@@ -25,18 +25,18 @@ Let's first create the QM input file:
 
 This will create a *propane_qforce* directory, and in it, you will find 'propane_hessian.com'.
 Now run this QM calculation and put the output file (.out) and the formatted checkpoint file
-(.fchk) in the same directory.
+(.fchk) in the same directory. (remember: output files are available in *necessary_files*)
 
 Treating the flexible dihedrals
 ++++++++++++++++++++++++++++++++
 
-Now we can run Q-Force again from the same folder to create fragments and the corresponding 
+Now we can run Q-Force again from the same directory to create fragments and the corresponding 
 QM dihedral scan input files by:
 
 :code:`qforce propane`
 
-This will create all the necessary input files in the directory *propane_qforce/fragments*.
-Then, run these calculations and put the output file(s) (.out) in the same directory.
+This will create all the necessary input files in the subdirectory *propane_qforce/fragments*.
+Then, run these calculations and put the output file(s) (.out) in the same subdirectory.
 
 Creating the force field
 ++++++++++++++++++++++++++++++++
@@ -45,7 +45,7 @@ Now that all necessary QM data is available, let's create our force field:
 
 :code:`qforce propane`
 
-You can now find the necessary force field files in the *propane_qforce* directory.
+You can now find the Q-Force force field files in the *propane_qforce* directory.
 
 |
 
@@ -58,28 +58,30 @@ The custom settings are provided with an external file with:
 
 :code:`qforce benzene.pdb -o settings`
 
+Now let's create the **settings** file.
 
 Custom Lennard-Jones and Charges
 ++++++++++++++++++++++++++++++++
 
 By default, Q-Force determines the atom types for Lennard-Jones interactions automatically.
 Alternatively, the user can also provide atom types manually, for a force field of their choice.
-Here, we choose to use the GAFF force field by:
+Here, we choose to use the GAFF force field by adding the following line to the **settings** file:
 
 .. code-block:: text
 
     lennard_jones = gaff
 
-With this command, the user also has to provide the atom types manually in the 'benzene_qforce'
-directory in a file called "ext_lj". In this file, every line should contain the atom type of one
-atom in the same order as the coordinate file.
+With this command, the user also has to provide the atom types manually 
+in the 'benzene_qforce' directory in a file called "ext_lj". In this file, every line should
+contain the atom type of one atom in the same order as the coordinate file.
 
 Similarly, for the point charges, by default CM5 charges are used. In this example, we want to use
-ESP charges instead. This is done by:
+ESP charges instead. This is done by adding the following line to the **settings** file:
 
 .. code-block:: text
 
     point_charges = esp
+
 
 Conversion to job script
 ++++++++++++++++++++++++
@@ -87,7 +89,7 @@ Conversion to job script
 Often the QM calculations are needed to be submitted as jobs in supercomputers.
 For large molecules Q-Force can have a large number of QM dihedral scans that needs to be
 performed and therefore it may be convenient to have input files converted to job scripts.
-This can be done with the **[job_script]** block setting as shown in the following example:
+This can be done by adding the **[job_script]** block to the **settings** file:
 
 .. code-block:: text
 
@@ -100,9 +102,9 @@ This can be done with the **[job_script]** block setting as shown in the followi
     <input>
     EOF
 
-Here we make a SLURM job script. Two placeholders can be used: **<outfile>** and **<input>**.
-**<outfile>** gets replaced by the name of the calculation, for example in the case of the
-'benzene_hessian.inp', it will be 'benzene_hessian.out'.
+Here we make a SLURM job script. Two placeholders that can be used are **<outfile>** and
+**<input>**. **<outfile>** gets replaced by the name of the calculation, for example in the case 
+of the 'benzene_hessian.inp', it will be 'benzene_hessian.out'.
 **<input>** is where the content of the QM input file will be placed.
 
 
