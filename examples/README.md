@@ -2,6 +2,6 @@
 
 ## **Q**uantum Mechanically augmented molecular **force** fields
 
-Please find the examples for Q-Force [here](https://github.com/selimsami/qforce_examples) 
+Please find the examples for Q-Force [here](https://github.com/selimsami/qforce_examples).
 
 
