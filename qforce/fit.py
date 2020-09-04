@@ -42,6 +42,6 @@ def fit_forcefield(inp, qm=None, mol=None):
 
     print(f'\nOutput files can be found in the directory: {inp.job_dir}.')
     print('- Q-Force force field parameters in GROMACS format (gas.gro, gas.itp, gas.top).')
-    print('- QM vs MD vibrational frequencies (frequencies.txt, frequencies.pdf).')
+    print('- QM vs MM vibrational frequencies (frequencies.txt, frequencies.pdf).')
     print('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
-    print('- QM vs MD dihedral profiles (if any) in "fragments" folder as ".pdf" files.')
+    print('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.')

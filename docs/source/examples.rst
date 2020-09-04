@@ -56,7 +56,7 @@ In this example, we look at some of the custom settings available with Q-Force a
 can be executed.
 The custom settings are provided with an external file with:
 
-:code:`qforce benzene.pdb -o settings_file_name`.
+:code:`qforce benzene.pdb -o settings`
 
 
 Custom Lennard-Jones and Charges
