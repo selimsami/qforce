@@ -1,7 +1,6 @@
 import subprocess
 import numpy as np
 import pulp
-import sys
 from scipy.optimize import curve_fit
 from itertools import combinations_with_replacement
 #

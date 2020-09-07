@@ -60,7 +60,7 @@ def check_and_notify(inp, n_unique, n_have):
     else:
         print(f"There are {n_unique} unique flexible dihedrals.")
         if n_missing == 0:
-            print(f"All scan data is available. Fitting the dihedrals...\n")
+            print("All scan data is available. Fitting the dihedrals...\n")
         else:
             print(f"{n_missing} of them are missing the scan data.")
             print(f"QM input files for them are created in: {inp.frag_dir}")
@@ -125,11 +125,13 @@ class Fragment():
                 if n in self.atomids:
                     pass
                 elif (inp.frag_n_neighbor < 1 or  # fragmentation turned off
-                      n_neigh < inp.frag_n_neighbor  # don't break first N neighbors
+                      n_neigh < inp.frag_n_neighbor  # don't break first n neighbors
                       or bond['order'] > 1.5  # don't break double/triple bonds
                       or (bond['in_ring'] and (mol.topo.node(a)['n_ring'] > 1 or  # no multi ring
                           any([mol.topo.edge(a, neigh)['order'] > 1 for neigh
-                               in mol.topo.neighbors[0][a]])))  # don't break conjugated rings
+                               in mol.topo.neighbors[0][a]]) or  # don't break conjugated rings
+                          any([mol.topo.edge(n, neigh)['order'] > 1 for neigh
+                               in mol.topo.neighbors[0][n]])))  # don't break conjugated rings
                       or ELE_ENEG[mol.elements[a]] > 3  # don't break if very electronegative
                       or mol.topo.n_neighbors[n] == 1):  # don't break terminal atoms
                     new.append(n)
@@ -293,26 +295,18 @@ class Fragment():
 
     def make_fragment_terms(self, inp, mol):
         mapping_mol_to_db = {}
-
-        # for i in range(self.n_atoms_without_cap, self.n_atoms):
-        #     print(i, self.mapping_frag_to_db[i])
-        #     self.mapping_frag_to_db[i] = i
-
         mapping_db_to_frag = {v: k for k, v in self.mapping_frag_to_db.items()}
 
         self.elements = [self.elements[mapping_db_to_frag[i]] for i in range(self.n_atoms)]
-
         self.scanned_atomids = [self.mapping_frag_to_db[s] for s in self.scanned_atomids]
 
         for id_mol, id_frag in self.mapping_mol_to_frag.items():
             mapping_mol_to_db[id_mol] = self.mapping_frag_to_db[id_frag]
 
         mapping_db_to_mol = {v: k for k, v in mapping_mol_to_db.items()}
-
         self.terms = mol.terms.subset(self.atomids, mapping_mol_to_db,
                                       remove_non_bonded=self.remove_non_bonded)
         self.non_bonded = mol.non_bonded.subset(inp, mol.non_bonded, mapping_mol_to_db)
-
         self.remove_non_bonded = [mapping_mol_to_db[i] for i in self.remove_non_bonded]
 
         for cap in self.caps:

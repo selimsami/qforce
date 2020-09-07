@@ -1,11 +1,9 @@
 from itertools import product
-#
 import numpy as np
 #
 from .baseterms import TermABC, TermFactory
-#
 from ..forces import get_dihed, get_angle
-from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion, calc_periodic_dihed
+from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion  # , calc_periodic_dihed
 
 
 class DihedralBaseTerm(TermABC):
@@ -179,11 +177,12 @@ class DihedralTerms(TermFactory):
             atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
                           a4s) if d[0] != d[-1]]
 
-            if (central['order'] > 1.5 or central["in_ring3"]
-                    or (central['in_ring'] and central['order'] > 1)
-                    or (all([topo.node(a)['n_ring'] > 1 for a in [a2, a3]]) and
+            if (central['order'] > 1.5 or central["in_ring3"]  # double bond or 3-member ring
+                    or (central['in_ring'] and central['order'] > 1)  # in ring and conjugated
+                    or (all([topo.node(a)['n_ring'] > 1 for a in [a2, a3]]) and  # in many rings
                         any([topo.node(a)['n_ring'] > 1 for a in a1s]) and
                         any([topo.node(a)['n_ring'] > 1 for a in a4s]))
+                    or (central['in_ring'] and check_if_in_a_fully_planar_ring(topo, a2, a3))
                     or topo.all_rigid):
                 # rigid
                 for atoms in atoms_comb:
@@ -191,19 +190,17 @@ class DihedralTerms(TermFactory):
                     add_term('rigid', topo, atoms, d_type)
 
             elif central['in_ring']:
-                continue
-                # atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
-                #                  for r in topo.rings)]
+                atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
+                                 for r in topo.rings)]
 
-                # for atoms in atoms_in_ring:
-                #     phi = get_dihed(topo.coords[atoms])[0]
-                #     d_type = get_dtype(topo, *atoms)
+                for atoms in atoms_in_ring:
+                    phi = get_dihed(topo.coords[atoms])[0]
+                    d_type = get_dtype(topo, *atoms)
 
-                #     if abs(phi) < 0.1745:  # check planarity <10 degrees
-                #         # add_term('rigid', topo, atoms, d_type)
-                #         continue
-                #     else:
-                #         add_term('inversion', topo, atoms, phi, d_type)
+                    if abs(phi) < 0.43625:  # check planarity < 25 degrees
+                        add_term('rigid', topo, atoms, d_type)
+                    else:
+                        add_term('inversion', topo, atoms, phi, d_type)
 
             else:
                 add_term('flexible', topo, a1s, a2, a3, a4s)
@@ -233,8 +230,27 @@ class DihedralTerms(TermFactory):
             if any(b == list(term.atomids[1:3]) for term in terms['rigid'] for b in bonds):
                 continue
             imp_type = f"ki_{topo.types[i]}"
-            if abs(phi) < 0.1745:  # check planarity <10 degrees
+            if abs(phi) < 0.43625:  # check planarity < 25 degrees
                 add_term('improper', topo, atoms, phi, imp_type)
             else:
                 add_term('inversion', topo, atoms, phi, imp_type)
         return terms
+
+
+def check_if_in_a_fully_planar_ring(topo, a2, a3):
+    rings = [r for r in topo.rings if set([a2, a3]).issubset(set(r))]
+    for ring in rings:
+        is_planar = []
+        ring_graph = topo.graph.subgraph(ring)
+        for edge in ring_graph.edges:
+            a1 = [n for n in list(ring_graph.neighbors(edge[0])) if n not in edge][0]
+            a4 = [n for n in list(ring_graph.neighbors(edge[1])) if n not in edge][0]
+            dihed = [a1, edge[0], edge[1], a4]
+
+            is_planar.append(get_dihed(topo.coords[dihed])[0] < 0.43625)  # < 25 degrees
+        if all(is_planar):
+            all_planar = True
+            break
+    else:
+        all_planar = False
+    return all_planar

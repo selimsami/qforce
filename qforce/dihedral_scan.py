@@ -131,25 +131,22 @@ def fit_dihedrals(frag, angles, md_energies, inp):
     angles = angles[order]
     md_energies = md_energies[order]
     qm_energies = frag.qm_energies[order]
-
-    if frag.id == 'CO_H12C9O2_0_1_PBEPBE-GD3BJ_6-31+G-D_bf8a6c00dfe92fe61f38991bb2ec92dd~2':
-        sym_info = [{'start': 0, 'end': 180, 'direct': True},
-                    {'start': 180, 'end': 360, 'direct': False}]
-        angles, md_energies, order = symmetrize_potential(angles, md_energies, sym_info)
-        qm_energies = qm_energies[order]
+    md_energies -= md_energies.min()
 
     energy_diff = qm_energies - md_energies
-    energy_diff -= energy_diff.min()
+#    energy_diff -= energy_diff.min()
 
     weights = 1/np.exp(-0.2 * np.sqrt(qm_energies))
     params = curve_fit(calc_rb, angles, energy_diff, absolute_sigma=False, sigma=weights)[0]
     r_squared = calc_r_squared(calc_rb, angles, energy_diff, params)
 
+    plot_results(inp, frag, angles, qm_energies, md_energies, r_squared, 'unfit')
+
     md_energies += calc_rb(angles, *params)
-    md_energies -= md_energies.min()
+#
 
     plot_fit(inp, frag, angles, energy_diff, calc_rb(angles, *params))
-    plot_results(inp, frag, angles, qm_energies, md_energies, r_squared)
+    plot_results(inp, frag, angles, qm_energies, md_energies, r_squared, 'scan')
 
     np.save(f'{inp.frag_dir}/scan_data_{frag.id}', np.vstack((angles, qm_energies, md_energies)))
     return params
@@ -217,20 +214,21 @@ def read_gromacs_energies(directory):
     return md_energy
 
 
-def plot_results(inp, frag, angles, qm_energies, md_energies, r_squared):
+def plot_results(inp, frag, angles, qm_energies, md_energies, r_squared, title):
     angles_deg = np.degrees(angles)
     width, height = plt.figaspect(0.6)
     f = plt.figure(figsize=(width, height), dpi=300)
     sns.set(font_scale=1.3)
-    plt.title(f'R-squared = {round(r_squared, 3)}', loc='left')
     plt.xlabel('Angle')
     plt.ylabel('Energy (kJ/mol)')
     plt.plot(angles_deg, qm_energies, linewidth=4, label='QM')
     plt.plot(angles_deg, md_energies, linewidth=4, label='Q-Force')
     plt.xticks(np.arange(0, 361, 60))
-    plt.tight_layout()
     plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
-    f.savefig(f"{inp.frag_dir}/scan_data_{frag.id}.pdf", bbox_inches='tight')
+    if title == 'scan':
+        plt.title(f'R-squared = {round(r_squared, 3)}', loc='left')
+    plt.tight_layout()
+    f.savefig(f"{inp.frag_dir}/{title}_data_{frag.id}.pdf", bbox_inches='tight')
     plt.close()
 
 
@@ -265,6 +263,12 @@ def calc_rb(angles, c0, c1, c2, c3, c4, c5):
         rb += params[i] * np.cos(angles-np.pi)**i
     return rb
 
+
+    # # Symmetrize usage:
+    # sym_info = [{'start': 0, 'end': 180, 'direct': True},
+    #             {'start': 180, 'end': 360, 'direct': False}]
+    # angles, md_energies, order = symmetrize_potential(angles, md_energies, sym_info)
+    # qm_energies = qm_energies[order]
 
 class Region:
 
