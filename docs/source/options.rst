@@ -19,8 +19,8 @@ frag_lib = ~/qforce_fragments :: folder
 
 ----------------
 
-# Number of n equivalent neighbors needed to consider two atoms equivalent
-# Negative values turns off equivalence, 0 makes same elements equivalent
+# Number of n equivalent neighbors needed to consider two atoms equivalent.
+Negative values turns off equivalence, 0 makes same elements equivalent
 
 n_equiv = 4 :: int
 
@@ -56,10 +56,17 @@ non_bonded = yes :: bool
 
 ----------------
 
-# Make fragments and calculate flexible dihedrals
-# Use 'available' option to skip dihedrals with missing scan data
+# Make fragments and calculate flexible dihedrals.
+Use 'available' option to skip dihedrals with missing scan data
 
 fragment = yes :: str :: [yes, no, available]
+
+----------------
+
+# Symmetrize a dihedral profile. For symmetrizing the dihedral profile between atoms 77 and 80
+where 0-180 region is inversely equivalent to 180-360: "77 80 = 0 180 360 : +-"
+
+sym_scan = :: literal
 
 ----------------
 

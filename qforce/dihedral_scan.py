@@ -7,7 +7,7 @@ import seaborn as sns
 from ase.optimize import BFGS
 from ase import Atoms
 from scipy.optimize import curve_fit
-
+from scipy.interpolate import interp1d as interpolate
 #
 from . import qforce_data
 from .forcefield import ForceField
@@ -117,9 +117,9 @@ def find_restraints(frag, coord, n_run):
     restraints = []
     for term in frag.terms['dihedral/flexible']:
         phi0 = get_dihed(coord[term.atomids])[0]
-        if (  # n_run == 0 or
-            all([term.atomids[i] == frag.scanned_atomids[i] for i in range(3)])):
-                # or not all([idx in term.atomids for idx in frag.scanned_atomids[1:3]])):
+        if (all([term.atomids[i] == frag.scanned_atomids[i] for i in range(3)])):
+            # or not all([idx in term.atomids for idx in frag.scanned_atomids[1:3]])):
+            # n_run == 0 or
             restraints.append([term.atomids, phi0])
     return restraints
 
@@ -133,18 +133,18 @@ def fit_dihedrals(frag, angles, md_energies, inp):
     qm_energies = frag.qm_energies[order]
     md_energies -= md_energies.min()
 
-    energy_diff = qm_energies - md_energies
-#    energy_diff -= energy_diff.min()
+    if inp.sym_scan and frag.central_atoms in list(inp.sym_scan.keys()):
+        _, qm_energies = symmetrize_dihedral(angles, qm_energies, inp.sym_scan[frag.central_atoms])
+        angles, md_energies = symmetrize_dihedral(angles, md_energies,
+                                                  inp.sym_scan[frag.central_atoms])
 
+    energy_diff = qm_energies - md_energies
     weights = 1/np.exp(-0.2 * np.sqrt(qm_energies))
     params = curve_fit(calc_rb, angles, energy_diff, absolute_sigma=False, sigma=weights)[0]
     r_squared = calc_r_squared(calc_rb, angles, energy_diff, params)
 
     plot_results(inp, frag, angles, qm_energies, md_energies, r_squared, 'unfit')
-
     md_energies += calc_rb(angles, *params)
-#
-
     plot_fit(inp, frag, angles, energy_diff, calc_rb(angles, *params))
     plot_results(inp, frag, angles, qm_energies, md_energies, r_squared, 'scan')
 
@@ -152,24 +152,70 @@ def fit_dihedrals(frag, angles, md_energies, inp):
     return params
 
 
-def symmetrize_potential(angles, energy, sym_info):
-    regions = []
+def symmetrize_dihedral(angles, energies, regions):
+    sym_profile = np.array([])
+    energy_sum = np.inf
+    angles_deg = np.degrees(angles)
+    spacing = get_periodic_angle(abs(angles_deg[1] - angles_deg[0]))
 
-    for region in sym_info:
-        regions.append(RegionRange(region['start'], region['end'], region['direct']))
+    for region in regions:
+        select = get_periodic_range(angles_deg, region['start'], region['end'], spacing)
+        ang_reg = angles_deg[select]
+        energy_reg = energies[select]
 
-    sym = Symmetrizer({region: Region(region) for region in regions}, [regions])
+        ang_continious = np.copy(ang_reg)
+        ang_continious[ang_reg < region['start']-spacing] += 360
+        ip_funct = interpolate(ang_continious, energy_reg, fill_value="extrapolate", kind=2)
+        ip_angle = np.arange(region['start'], make_continious(region['start'], region['end'])+1)
+        ip_energy = ip_funct(ip_angle)
 
-    points = [[angle, energy] for angle, energy in zip(np.degrees(angles), energy)]
-    points = sym.symmetrize(points)
+        if ip_energy.sum() < energy_sum:
+            energy_sum = ip_energy.sum()
+            if not region['direct']:
+                lowest = ip_energy[::-1]
+            else:
+                lowest = ip_energy
 
-    points = np.array(points)
-    new_angles = np.radians(points[:, 0])
-    new_values = points[:, 1]
+    for region in regions:
+        if region['direct']:
+            current = lowest
+        else:
+            current = lowest[::-1]
+        sym_profile = np.concatenate((sym_profile, current[:-1]))
 
-    order = [np.where(energy == val)[0][0] for val in new_values]
+    sym_angle = np.radians(np.arange(regions[0]['start'], make_continious(regions[0]['start'],
+                                                                          regions[-1]['end'])))
+    sym_profile -= sym_profile.min()
+    return sym_angle, sym_profile
 
-    return new_angles, new_values, order
+
+def get_periodic_angle(angle):
+    if angle > 360:
+        angle -= 360
+    elif angle < 0:
+        angle += 360
+    return angle
+
+
+def get_periodic_angles(angles):
+    angles[angles > 360] -= 360
+    angles[angles < 0] += 360
+    return angles
+
+
+def get_periodic_range(angles, start, end, spacing):
+    half_spacing = spacing/2
+    if end > start:
+        select = (start-half_spacing <= angles) * (angles <= end+half_spacing)
+    elif end < start:
+        select = (angles >= start-half_spacing) + (angles <= end+half_spacing)
+    return select
+
+
+def make_continious(start, end):
+    if end <= start:
+        end += 360
+    return end
 
 
 def make_scan_dir(scan_name):
@@ -262,143 +308,3 @@ def calc_rb(angles, c0, c1, c2, c3, c4, c5):
     for i in range(1, 6):
         rb += params[i] * np.cos(angles-np.pi)**i
     return rb
-
-
-    # # Symmetrize usage:
-    # sym_info = [{'start': 0, 'end': 180, 'direct': True},
-    #             {'start': 180, 'end': 360, 'direct': False}]
-    # angles, md_energies, order = symmetrize_potential(angles, md_energies, sym_info)
-    # qm_energies = qm_energies[order]
-
-class Region:
-
-    def __init__(self, re_range, *, buffer_region=5):
-        self.start = re_range.start
-        self.end = re_range.end
-        self.range = buffer_region
-        self.direct = re_range.direct
-
-    def __call__(self, value):
-        if value < self.start:
-            return False
-        if value > self.end:
-            return False
-        return True
-
-    def to_region(self, value, other):
-        if not isinstance(other, Region):
-            raise ValueError("other needs to be a region")
-        # if value already in region, return it
-        if self(value) is True:
-            return value
-        # if value not in other raise Exception
-        if other(value) is False:
-            raise ValueError("value needs to be in the 'other' region")
-        direct = self.direct == other.direct
-        # transform
-        if direct is True:
-            value = self.start + value - other.start
-        else:
-            value = other.end - value + self.start
-        # sanity check
-        if self(value) is False:
-            raise ValueError("value not in region!")
-        #
-        return value
-
-    def is_within_range(self, value):
-        if self(value) is False:
-            return False
-        if value < self.start + self.range:
-            return True
-        if value > self.end - self.range:
-            return True
-        return False
-
-
-class RegionRange:
-
-    def __init__(self, start, end, direct=True):
-        self.start = float(start)
-        self.end = float(end)
-        self.direct = direct
-
-    def __str__(self):
-        return f"Region({self.start},{self.end})"
-
-    def __repr__(self):
-        return f"Region({self.start},{self.end})"
-
-    def __hash__(self):
-        return hash(str(RegionRange) + f"{str(id(self))}")
-
-
-class Symmetrizer:
-
-    def __init__(self, regions, pairs):
-        self.regions = regions
-        self.joined_regions = pairs
-
-    def symmetrize(self, points):
-        points = self._get_regions(points)
-
-        for regions in self.joined_regions:
-            self._symmetrize(points, regions)
-
-        return self._cleanup_points(points)
-
-    def _cleanup_points(self, points):
-        # get rid of duplicates
-        points = {angle: value for values in points.values()
-                  for angle, value in values}
-        #
-        points = [[angle, value] for angle, value in points.items() if angle > 1
-                  and not 180 < angle < 181]
-        # sort output
-        points.sort(key=lambda x: x[0])
-        return points
-
-    def _get_regions(self, points):
-        output = {region: [] for region in self.regions}
-
-        for angle, value in points:
-            found = False
-            for region, validator in self.regions.items():
-                if validator(angle) is True:
-                    output[region].append([angle, value])
-                    found = True
-                    break
-            if found is False:
-                print(f"Could not find:\nangle = {angle}, value = {value}")
-        return output
-
-    def _get_smallest(self, pairs, validators):
-        smallest = pairs[0]
-        validator = validators[0]
-        for i, (angle, value) in enumerate(pairs):
-            if (value < smallest[1]):
-                smallest = (angle, value)
-                validator = validators[i]
-        return smallest, validator
-
-    def _symmetrize(self, points, regions):
-        first = points[regions[1]][0]
-        points[regions[1]] = points[regions[1]][1:] + [first]
-        out = tuple(points[region] if region.direct is True else points[region][::-1]
-                    for region in regions)
-        zipped = zip(*out)
-        #
-        validators = [self.regions[region] for region in regions]
-        results = []
-        #
-        for pairs in zipped:
-            print(pairs)
-            results.append(self._get_smallest(pairs, validators))
-            for i, (angle, value) in enumerate(pairs):
-                validator = validators[i]
-                if validator.is_within_range(angle) is True:
-                    results.append(([angle, value], validator))
-        # set results
-        for region in regions:
-            r1 = self.regions[region]
-            points[region] = [[r1.to_region(angle, r2), value] for (angle, value), r2 in results]

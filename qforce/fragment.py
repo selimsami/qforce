@@ -79,8 +79,9 @@ class Fragment():
     """
 
     def __init__(self, inp, mol, scanned_atomids, name):
+        self.central_atoms = tuple(scanned_atomids[1:3])
         self.scanned_atomids = scanned_atomids
-        self.atomids = list(self.scanned_atomids[1:3])
+        self.atomids = list(scanned_atomids[1:3])
         self.name = name
         self.caps = []
         self.n_atoms = 0
@@ -167,7 +168,9 @@ class Fragment():
                                                                     self.caps]]
         self.graph = mol.topo.graph.subgraph(self.atomids)
         self.graph = nx.relabel_nodes(self.graph, self.mapping_mol_to_frag)
-        self.graph.edges[[0, 1]]['scan'] = True
+
+        for atom in self.scanned_atomids:
+            self.graph.nodes[atom]['scan'] = True
         self.graph.graph['n_atoms'] = self.n_atoms
         self.graph.graph['scan'] = [scanned+1 for scanned in self.scanned_atomids]
 
@@ -239,8 +242,9 @@ class Fragment():
         self.mapping_frag_to_db = {i: i for i in range(self.n_atoms)}
         have_match = False
 
-        nm = iso.categorical_node_match(['elem', 'n_bonds', 'lone_e', 'capping'], [0, 0, 0, False])
-        em = iso.categorical_edge_match(['type', 'scan'], [0, False])
+        nm = iso.categorical_node_match(['elem', 'n_bonds', 'lone_e', 'capping', 'scan'],
+                                        [0, 0, 0, False, False])
+        em = iso.categorical_edge_match(['type'], [0])
 
         os.makedirs(self.dir, exist_ok=True)
         identifiers = [i for i in sorted(os.listdir(f'{self.dir}')) if i.startswith('ident')]
@@ -258,9 +262,7 @@ class Fragment():
 
         if not have_match:
             self.hash_idx = len(identifiers)+1
-
         self.id = f'{self.hash}~{self.hash_idx}'
-
         if not self.has_data:
             self.check_new_scan_data(inp)
             nx.write_gpickle(self.graph, f"{self.dir}/identifier_{self.hash_idx}")
@@ -286,9 +288,10 @@ class Fragment():
                       'Skipping it...\n')
 
     def write_xyz(self):
+        atomids = [atomid+1 for atomid in self.scanned_atomids]
         with open(f'{self.dir}/coords_{self.hash_idx}.xyz', 'w') as xyz:
             xyz.write(f'{self.n_atoms}\n')
-            xyz.write('Scanned atoms: {} {} {} {}\n'.format(*self.scanned_atomids))
+            xyz.write('Scanned atoms: {} {} {} {}\n'.format(*atomids))
             for data in sorted(self.graph.nodes.data()):
                 atom_name, [c1, c2, c3] = ATOM_SYM[data[1]['elem']], data[1]['coords']
                 xyz.write(f'{atom_name:>3s} {c1:>12.6f} {c2:>12.6f} {c3:>12.6f}\n')
@@ -332,5 +335,6 @@ class Fragment():
             data_file.write(f'{self.id}\n')
 
     def get_qm_data(self, inp):
-        self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}', unpack=True)[1]
+        self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}',
+                                      unpack=True)[1]
         self.coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')

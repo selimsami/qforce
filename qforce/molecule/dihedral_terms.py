@@ -122,7 +122,6 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
 
         ordered = [p for prio in priority for p in prio]
         a1, a4 = ordered[0]
-
         atoms = np.array((a1, a2, a3, a4))
 
         return cls(atoms, np.zeros(6), topo.edge(a2, a3)['vers'])

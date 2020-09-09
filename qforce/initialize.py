@@ -51,11 +51,11 @@ class Initialize(Colt):
     # Number of iterations of dihedral fitting
     n_dihed_scans = 3 :: int
 
-    # Symmetrize either md or qm profile of a specific dihedral by inputting the range
-    # For symmetrizing the MD dihedral profile between atoms 77 and 80 where 0-180 is inversely
-    # equivalent to 180-360 (reverse the order of the second):
-    # md 77 80 = 0 180 - 360 180
-    symmetrize_scan = :: literal
+    # Symmetrize the dihedral profile of a specific dihedral by inputting the range
+    # For symmetrizing the dihedral profile between atoms 77 and 80 where 0-180 is inversely
+    # equivalent to 180-360:
+    # 77 80 = 0 180 360 : +-
+    sym_scan = :: literal
 
     # Make a polarizable FF
     polar = no :: bool
@@ -139,8 +139,10 @@ class Initialize(Colt):
                 answers[key] = Initialize.set_exclusions(value)
             elif key in ['non_bonded', 'urey', 'cross_bond_angle'] and not value:
                 ignored_terms.append(key)
-            elif key in ['fragment']:
+            elif key == 'fragment':
                 answers[key], ignored_terms = Initialize.set_fragments(value, ignored_terms)
+            elif key == 'sym_scan' and value:
+                answers[key] = Initialize.set_symmetrize_scan(value)
 
         answers['ignored_terms'] = ignored_terms
         comb, fudge_lj, fudge_q = Initialize.set_non_bonded_props(config['lennard_jones'])
@@ -260,8 +262,23 @@ class Initialize(Colt):
         return not_scale
 
     @staticmethod
-    def set_symmetrize_scan():
-        ...
+    def set_symmetrize_scan(value):
+        sym_dict = {}
+        for line in value.split('\n'):
+            atom_info = line.split()
+            if len(atom_info) > 1:
+                atoms = tuple(sorted([int(atom_info[0])-1, int(atom_info[1])-1]))
+                sym_dict[atoms] = []
+                sym_info = line.partition('=')[2]
+                angles, _, direct = sym_info.partition(':')
+                angles = [float(a) for a in angles.split()]
+                direct = [d for d in list(direct) if d != ' ']
+
+                for i in range(len(angles)-1):
+                    sym_dict[atoms].append({'start': make_periodic(angles[i]),
+                                            'end': make_periodic(angles[i+1]),
+                                            'direct': direct[i] == '+'})
+        return sym_dict
 
     @staticmethod
     def set_exclusions(value):
@@ -305,3 +322,11 @@ class Initialize(Colt):
                      'software installed and the "dftd4" executable in PATH')
             if shutil.which(exe) is None:
                 raise FileNotFoundError({error})
+
+
+def make_periodic(angle):
+    if angle >= 360:
+        angle -= 360
+    elif angle < 0:
+        angle += 360
+    return angle
