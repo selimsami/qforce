@@ -68,6 +68,7 @@ Alternatively, the user can also provide atom types manually, for a force field 
 Here, we choose to use the GAFF force field by adding the following line to the **settings** file:
 
 .. code-block:: text
+
     [ff]
     lennard_jones = gaff
 
