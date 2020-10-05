@@ -1,2 +1,0 @@
-pycolt 
-numpy
