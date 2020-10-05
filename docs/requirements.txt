@@ -1,2 +1,9 @@
-pycolt
+scipy
 numpy
+ase
+matplotlib
+seaborn
+networkx
+pulp < 2.2
+numba 
+pycolt 
