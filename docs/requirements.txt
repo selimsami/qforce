@@ -1,2 +1,3 @@
-pycolt==0.2.2
-numpy==1.19.2
+qforce 
+pycolt 
+numpy
