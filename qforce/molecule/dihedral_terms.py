@@ -150,6 +150,10 @@ class DihedralTerms(TermFactory):
         'inversion': InversionDihedralTerm,
     }
 
+    _always_on = []
+    _default_off = []
+
+
     @classmethod
     def get_terms(cls, topo, non_bonded):
         terms = cls.get_terms_container()
@@ -189,17 +193,18 @@ class DihedralTerms(TermFactory):
                     add_term('rigid', topo, atoms, d_type)
 
             elif central['in_ring']:
-                atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
-                                 for r in topo.rings)]
+                continue
+                # atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
+                #                  for r in topo.rings)]
 
-                for atoms in atoms_in_ring:
-                    phi = get_dihed(topo.coords[atoms])[0]
-                    d_type = get_dtype(topo, *atoms)
+                # for atoms in atoms_in_ring:
+                #     phi = get_dihed(topo.coords[atoms])[0]
+                #     d_type = get_dtype(topo, *atoms)
 
-                    if abs(phi) < 0.43625:  # check planarity < 25 degrees
-                        add_term('rigid', topo, atoms, d_type)
-                    else:
-                        add_term('inversion', topo, atoms, phi, d_type)
+                #     if abs(phi) < 0.43625:  # check planarity < 25 degrees
+                #         add_term('rigid', topo, atoms, d_type)
+                #     else:
+                #         add_term('inversion', topo, atoms, phi, d_type)
 
             else:
                 add_term('flexible', topo, a1s, a2, a3, a4s)

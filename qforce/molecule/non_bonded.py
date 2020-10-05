@@ -9,55 +9,56 @@ from ..elements import ATOM_SYM
 
 
 class NonBonded():
-    def __init__(self, inp, n_atoms, q, lj_types, lj_pairs, lj_1_4, exclusions, n_excl, alpha):
+    def __init__(self, n_atoms, q, lj_types, lj_pairs, lj_1_4, exclusions, n_excl, comb_rule,
+                 fudge_lj, fudge_q, alpha):
         self.n_atoms = n_atoms
         self.q = q
         self.lj_types = lj_types
         self.lj_pairs = lj_pairs
         self.lj_1_4 = lj_1_4
-        self.fudge_lj = inp.fudge_lj
-        self.fudge_q = inp.fudge_q
+        self.fudge_lj = fudge_lj
+        self.fudge_q = fudge_q
+        self.comb_rule = comb_rule
         self.exclusions = exclusions
         self.n_excl = n_excl
         self.alpha = {key: alpha[key] for key in sorted(alpha.keys())}  # sort the dictionary
         self.alpha_map = {key: i+self.n_atoms for i, key in enumerate(self.alpha.keys())}
 
     @classmethod
-    def from_topology(cls, inp, qm, topo):
-        # RUN D4 IF NECESSARY
-        if 'd4' in [inp.point_charges, inp.lennard_jones]:
-            q, lj_a, lj_b = handle_d4(inp, qm, topo)
-
-        # CHARGES - esp and resp
-        if inp.point_charges == 'ext':
-            q = np.loadtxt(f'{inp.job_dir}/ext_q', comments=['#', ';'])
-        elif inp.point_charges == 'cm5':
-            q = qm.cm5
-        elif inp.point_charges == 'esp':
-            q = qm.esp
+    def from_topology(cls, config, job, qm_out, topo):
+        comb_rule, fudge_lj, fudge_q = set_non_bonded_props(config)
+        exclusions = cls._set_exclusions(config.exclusions)
+        # RUN D4 if necessary
+        if config._d4:
+            q, lj_a, lj_b = handle_d4(job, comb_rule, qm_out, topo)
+        # CHARGES
+        elif config.ext_charges:
+            q = np.loadtxt(f'{job.dir}/ext_q', comments=['#', ';'])
+        else:
+            q = qm_out.point_charges
         q = average_equivalent_terms(topo, [q])[0]
         q = sum_charges_to_qtotal(topo, q)
 
         # LENNARD-JONES
-        if inp.lennard_jones != 'd4':
-            if inp.lennard_jones == 'gromos_auto':
-                lj_types = determine_atom_types(topo, q)
-            else:
-                lj_types = np.loadtxt(f'{inp.job_dir}/ext_lj', dtype='str', comments=['#', ';'])
-            lj_pairs, lj_1_4 = set_external_lennard_jones(inp, lj_types)
-        else:
-            lj_types, lj_pairs = set_qforce_lennard_jones(topo, inp, lj_a, lj_b)
+        if config._d4:
+            lj_types, lj_pairs = set_qforce_lennard_jones(topo, comb_rule, lj_a, lj_b)
             lj_1_4 = lj_pairs
             print('WARNING: You are using Q-Force Lennard-Jones parameters. This is not finished.',
                   '\nYou are advised to provide external LJ parameters for production runs.\n')
+        else:
+            if config.lennard_jones == 'gromos_auto':
+                lj_types = determine_atom_types(topo, q)
+            else:
+                lj_types = np.loadtxt(f'{job.dir}/ext_lj', dtype='str', comments=['#', ';'])
+            lj_pairs, lj_1_4 = set_external_lennard_jones(config, comb_rule, lj_types)
 
-        alpha = set_polar(q, topo, inp)
+        alpha = set_polar(q, topo, config, job)
 
-        return cls(inp, topo.n_atoms, q, lj_types, lj_pairs, lj_1_4, inp.exclusions, inp.n_excl,
-                   alpha)
+        return cls(topo.n_atoms, q, lj_types, lj_pairs, lj_1_4, exclusions, config.n_excl,
+                   comb_rule, fudge_lj, fudge_q, alpha)
 
     @classmethod
-    def subset(cls, inp, non_bonded, mapping):
+    def subset(cls, non_bonded, mapping):
         n_atoms = len(mapping)
         rev_map = {v: k for k, v in mapping.items()}
 
@@ -67,13 +68,48 @@ class NonBonded():
                     if key[0] in lj_types and key[1] in lj_types}
         lj_1_4 = {key: val for key, val in list(non_bonded.lj_1_4.items())
                   if key[0] in lj_types and key[1] in lj_types}
-        exclusions = [(mapping[excl[0]], mapping[excl[1]]) for excl in inp.exclusions if
+        exclusions = [(mapping[excl[0]], mapping[excl[1]]) for excl in non_bonded.exclusions if
                       excl[0] in mapping.keys() and excl[1] in mapping.keys()]
 
         alpha = {mapping[key]: val for key, val in list(non_bonded.alpha.items())
                  if key in mapping.keys()}
 
-        return cls(inp, n_atoms, q, lj_types, lj_pairs, lj_1_4, exclusions, inp.n_excl, alpha)
+        return cls(n_atoms, q, lj_types, lj_pairs, lj_1_4, exclusions, non_bonded.n_excl,
+                   non_bonded.comb_rule, non_bonded.fudge_lj, non_bonded.fudge_q, alpha)
+
+    @staticmethod
+    def _set_exclusions(value):
+        exclusions = []
+        if value:
+            for line in value.split('\n'):
+                line = [int(i) for i in line.strip().partition('#')[0].split()]
+                if len(line) > 1:
+                    a1, a2s = line[0], line[1:]
+                    for a2 in a2s:
+                        pair = tuple(sorted([a1-1, a2-1]))
+                        if pair not in exclusions:
+                            exclusions.append(pair)
+                elif len(line) == 1:
+                    print('WARNING: Exclusion lines should contain at least two atom IDs:\n',
+                          'First entry is excluded from all the following entries.\n',
+                          f'Ignoring the line: {line[0]}\n')
+        return exclusions
+
+
+def set_non_bonded_props(config):
+    if config._d4 == 'd4':
+        comb_rule = 2
+        fudge_lj, fudge_q = 1.0, 1.0
+    elif config.lennard_jones in ['gromos', 'gromos_auto']:
+        comb_rule = 1
+        fudge_lj, fudge_q = 1.0, 1.0
+    elif config.lennard_jones == 'opls':
+        comb_rule = 3
+        fudge_lj, fudge_q = 0.5, 0.5
+    elif config.lennard_jones == 'gaff':
+        comb_rule = 2
+        fudge_lj, fudge_q = 0.5, 0.8333
+    return comb_rule, fudge_lj, fudge_q
 
 
 def determine_atom_types(topo, q):
@@ -132,7 +168,7 @@ def determine_atom_types(topo, q):
     return a_types
 
 
-def set_polar(q, topo, inp):
+def set_polar(q, topo, config, job):
     polar_dict = {1: 0.45330, 6: 1.30300, 7: 0.98840, 8: 0.83690, 16: 2.47400}
     # polar_dict = { 1: 0.000413835,  6: 0.00145,  7: 0.000971573,
     #               8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
@@ -145,9 +181,10 @@ def set_polar(q, topo, inp):
     #               17: 0.000994749, 35: 0.001828362, 53: 0.002964895}
     alpha_dict, alpha = {}, []
 
-    if inp.polar:
-        if inp.ext_alpha:
-            atoms, alpha = np.loadtxt(f'{inp.job_dir}/ext_alpha', unpack=True, comments=['#', ';'])
+    if config._polar:
+        if config.ext_alpha:
+            atoms, alpha = np.loadtxt(f'{job.dir}/ext_alpha', unpack=True,
+                                      comments=['#', ';'])
             atoms = atoms.astype(dtype='int') - 1
             alpha *= 1000  # convert from nm3 to ang3
         else:
@@ -164,14 +201,14 @@ def set_polar(q, topo, inp):
 
     # for i in range(topo.n_atoms):
     #     for j in range(i+1, topo.n_atoms):
-    #         close_neighbor = any([j in topo.neighbors[c][i] for c in range(inp.n_excl)])
-    #         if not close_neighbor and (i, j) not in inp.exclusions:
+    #         close_neighbor = any([j in topo.neighbors[c][i] for c in range(config.n_excl)])
+    #         if not close_neighbor and (i, j) not in config.exclusions:
     #             polar_pairs.append([i, j])
 
     return alpha_dict
 
 
-def set_qforce_lennard_jones(topo, inp, lj_a, lj_b):
+def set_qforce_lennard_jones(topo, comb_rule, lj_a, lj_b):
     lj_type_dict = {}
     lj_pairs = {}
     lj_types = topo.types
@@ -180,15 +217,15 @@ def set_qforce_lennard_jones(topo, inp, lj_a, lj_b):
 
     for comb in combinations_with_replacement(lj_type_dict.keys(), 2):
         comb = tuple(sorted(comb))
-        params = use_combination_rule(lj_type_dict[comb[0]], lj_type_dict[comb[1]], inp)
-        lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(inp, params)
+        params = use_combination_rule(lj_type_dict[comb[0]], lj_type_dict[comb[1]], comb_rule)
+        lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(comb_rule, params)
     return lj_types, lj_pairs
 
 
-def set_external_lennard_jones(inp, lj_types):
+def set_external_lennard_jones(config, comb_rule, lj_types):
     lj_pairs, lj_1_4 = {}, {}
 
-    atom_types, nonbond_params, nonbond_1_4 = read_ext_nonbonded_file(inp)
+    atom_types, nonbond_params, nonbond_1_4 = read_ext_nonbonded_file(config.lennard_jones)
 
     for comb in combinations_with_replacement(set(lj_types), 2):
         comb = tuple(sorted(comb))
@@ -198,24 +235,26 @@ def set_external_lennard_jones(inp, lj_types):
         elif comb[0] == comb[1]:
             params = atom_types[comb[0]]
         else:
-            params = use_combination_rule(atom_types[comb[0]], atom_types[comb[1]], inp)
+            params = use_combination_rule(atom_types[comb[0]], atom_types[comb[1]], comb_rule)
 
         if comb in nonbond_1_4.keys():
             params_1_4 = nonbond_1_4[comb]
-            lj_1_4[comb] = get_c6_c12_for_diff_comb_rules(inp, params_1_4)
+            lj_1_4[comb] = get_c6_c12_for_diff_comb_rules(comb_rule, params_1_4)
 
-        lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(inp, params)
+        lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(comb_rule, params)
 
-    if inp.polar:
+    if config._polar:
+        polar_not_scale_c6 = set_polar_not_scale_c6(config._polar_not_scale_c6)
         for key, val in lj_pairs.items():
-            if key[0] not in inp.polar_not_scale_c6 and key[1] not in inp.polar_not_scale_c6:
-                val[0] *= inp.polar_c6_scale
+            if (key[0] not in polar_not_scale_c6
+                    and key[1] not in polar_not_scale_c6):
+                val[0] *= config._polar_c6_scale
 
     return lj_pairs, lj_1_4
 
 
-def get_c6_c12_for_diff_comb_rules(inp, params):
-    if inp.comb_rule == 1:
+def get_c6_c12_for_diff_comb_rules(comb_rule, params):
+    if comb_rule == 1:
         c6 = params[0] * 1e6
         c12 = params[1] * 1e12
     else:
@@ -227,9 +266,9 @@ def get_c6_c12_for_diff_comb_rules(inp, params):
     return [c6, c12]
 
 
-def use_combination_rule(param1, param2, inp):
+def use_combination_rule(param1, param2, comb_rule):
     b = (param1[1] * param2[1])**0.5
-    if inp.comb_rule in [1, 3]:
+    if comb_rule in [1, 3]:
         a = (param1[0] * param2[0])**0.5
     else:
         a = (param1[0] + param2[0]) / 2
@@ -242,13 +281,13 @@ def calc_sigma_epsilon(c6, c12):
     return sigma, epsilon
 
 
-def read_ext_nonbonded_file(inp):
+def read_ext_nonbonded_file(lennard_jones):
     atom_types, nonbond_params, nonbond_1_4 = {}, {}, {}
 
-    if inp.lennard_jones == 'gromos_auto':
+    if lennard_jones == 'gromos_auto':
         lj_lib = 'gromos'
     else:
-        lj_lib = inp.lennard_jones
+        lj_lib = lennard_jones
 
     with open(f'{qforce_data}/{lj_lib}.itp', 'r') as file:
         for line in file:
@@ -277,8 +316,8 @@ def average_equivalent_terms(topo, terms):
     avg_terms = []
     for term in terms:
         term = np.array(term)
-        for l in topo.list:
-            term[l] = term[l].mean().round(5)
+        for tlist in topo.list:
+            term[tlist] = term[tlist].mean().round(5)
         avg_terms.append(term)
     return avg_terms
 
@@ -296,7 +335,7 @@ def sum_charges_to_qtotal(topo, q):
             sign = -1
             extra = - extra
 
-        n_eq = [len(l) for l in topo.list]
+        n_eq = [len(tlist) for tlist in topo.list]
         eq_no = [f"{i:05d}" for i, _ in enumerate(n_eq)]
 
         var = pulp.LpVariable.dicts("x", eq_no, lowBound=0, cat='Integer')
@@ -314,14 +353,14 @@ def sum_charges_to_qtotal(topo, q):
     return q
 
 
-def handle_d4(inp, qm, topo):
+def handle_d4(job, comb_rule, qm_out, topo):
     n_more = 0
     c6, c8, alpha, r_rel, q = [], [], [], [], []
     lj_a, lj_b = None, None
 
-    d4_out = run_d4(inp)
+    d4_out = run_d4(qm_out.charge)
 
-    with open(f'{inp.job_dir}/dftd4_results', 'w') as dftd4_file:
+    with open(f'{job.dir}/dftd4_results', 'w') as dftd4_file:
         dftd4_file.write(d4_out)
 
     for line in d4_out.split('\n'):
@@ -338,15 +377,14 @@ def handle_d4(inp, qm, topo):
             r_rel.append(float(line[8])**(1/3))
             n_more -= 1
 
-    if inp.lennard_jones == 'd4':
-        q, c6, c8, alpha, r_rel = average_equivalent_terms(topo, [q, c6, c8, alpha, r_rel])
-        c6, c8, alpha, r_rel = [term[topo.unique_atomids] for term in [c6, c8, alpha, r_rel]]
-        lj_a, lj_b = calc_c6_c12(inp, qm, topo, c6, c8, r_rel)
+    q, c6, c8, alpha, r_rel = average_equivalent_terms(topo, [q, c6, c8, alpha, r_rel])
+    c6, c8, alpha, r_rel = [term[topo.unique_atomids] for term in [c6, c8, alpha, r_rel]]
+    lj_a, lj_b = calc_c6_c12(comb_rule, qm_out, topo, c6, c8, r_rel)
     return q, lj_a, lj_b
 
 
-def run_d4(inp):
-    dftd4 = subprocess.Popen(['dftd4', '-c', str(inp.charge), inp.xyz_file],
+def run_d4(charge):
+    dftd4 = subprocess.Popen(['dftd4', '-c', str(charge), 'opt.xyz'],
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     dftd4.wait()
     check_termination(dftd4)
@@ -360,7 +398,7 @@ def check_termination(process):
         raise RuntimeError({"DFTD4 run has terminated unsuccessfully"})
 
 
-def calc_c6_c12(inp, qm, topo, c6s, c8s, r_rels):
+def calc_c6_c12(comb_rule, qm_out, topo, c6s, c8s, r_rels):
     hartree2kjmol = 2625.499638
     bohr2ang = 0.52917721067
     bohr2nm = 0.052917721067
@@ -370,7 +408,7 @@ def calc_c6_c12(inp, qm, topo, c6s, c8s, r_rels):
     s8_scale = {1: 0.133, 6: 0.133, 7: 0.683, 8: 0.683, 9: 0.683, 16: 0.5}
 
     for i, (c6, c8, r_rel) in enumerate(zip(c6s, c8s, r_rels)):
-        elem = qm.elements[topo.unique_atomids[i]]
+        elem = qm_out.elements[topo.unique_atomids[i]]
         c8 *= s8_scale[elem]
         c10 = 40/49*(c8**2)/c6
 
@@ -386,7 +424,7 @@ def calc_c6_c12(inp, qm, topo, c6s, c8s, r_rels):
     new_c6 = new_ljs[:, 0]*bohr2nm**6
     new_c12 = new_ljs[:, 1]*bohr2nm**12
 
-    if inp.comb_rule != 1:
+    if comb_rule != 1:
         new_a, new_b = calc_sigma_epsilon(new_c6, new_c12)
     else:
         new_a, new_b = new_c6, new_c12
@@ -396,6 +434,13 @@ def calc_c6_c12(inp, qm, topo, c6s, c8s, r_rels):
 def calc_lj(r, c6, c12):
     return c12/r**12 - c6/r**6
 
+
+def set_polar_not_scale_c6(value):
+    if value:
+        not_scale = value.split()
+    else:
+        not_scale = []
+    return not_scale
 
 # def move_polarizability_from_hydrogens(alpha, mol):
 #     new_alpha = np.zeros(mol.n_atoms)

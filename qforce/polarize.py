@@ -1,4 +1,5 @@
 import numpy as np
+import sys
 
 
 def polarize(inp, path):
@@ -10,7 +11,7 @@ def polarize(inp, path):
     polar_vel = []
 
     atoms, mol_natoms, max_resnr, polar_atoms = read_itp(inp.itp_file)
-    coords, velocities, gro_natoms, box_dim = read_gro(f'{path}{inp.coord_file}')
+    coords, velocities, gro_natoms, box_dim = read_gro(inp.coord_file)
 
     # add coords
     n_mols = int(gro_natoms/mol_natoms)
@@ -38,6 +39,7 @@ def polarize(inp, path):
 
     print("Done!")
     print(f"Polarizable coordinate file in: {polar_gro_file}\n\n")
+    sys.exit()
 
 
 def read_gro(gro_file):

@@ -1,7 +1,6 @@
 import numpy as np
 #
 from .baseterms import TermBase
-#
 from ..forces import calc_pairs
 
 

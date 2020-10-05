@@ -2,13 +2,13 @@ import scipy.optimize as optimize
 import numpy as np
 
 
-def fit_hessian(inp, mol, qm, ignore_flex=True):
+def fit_hessian(config, mol, qm):
     hessian, full_md_hessian_1d = [], []
     non_fit = []
     qm_hessian = np.copy(qm.hessian)
 
     print("Calculating the MD hessian matrix elements...")
-    full_md_hessian = calc_hessian(qm.coords, mol, inp, ignore_flex)
+    full_md_hessian = calc_hessian(qm.coords, mol)
 
     count = 0
     print("Fitting the MD hessian parameters to QM hessian values")
@@ -34,12 +34,12 @@ def fit_hessian(inp, mol, qm, ignore_flex=True):
             term.fconst = fit[term.idx]
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
-    average_unique_minima(mol.terms, inp)
+    average_unique_minima(mol.terms, config)
 
     return fit, full_md_hessian_1d
 
 
-def calc_hessian(coords, mol, inp, ignore_flex):
+def calc_hessian(coords, mol):
     """
     Scope:
     -----
@@ -51,37 +51,33 @@ def calc_hessian(coords, mol, inp, ignore_flex):
     for a in range(mol.topo.n_atoms):
         for xyz in range(3):
             coords[a][xyz] += 0.003
-            f_plus = calc_forces(coords, mol, inp, ignore_flex)
+            f_plus = calc_forces(coords, mol)
             coords[a][xyz] -= 0.006
-            f_minus = calc_forces(coords, mol, inp, ignore_flex)
+            f_minus = calc_forces(coords, mol)
             coords[a][xyz] += 0.003
             diff = - (f_plus - f_minus) / 0.006
             full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1, 3*mol.topo.n_atoms).T
     return full_hessian
 
 
-def calc_forces(coords, mol, inp, ignore_flex):
+def calc_forces(coords, mol):
     """
     Scope:
     ------
     For each displacement, calculate the forces from all terms.
 
     """
-    if ignore_flex:
-        ignores = ['dihedral/flexible']
-    else:
-        ignores = []
 
     force = np.zeros((mol.terms.n_fitted_terms+1, mol.topo.n_atoms, 3))
 
-    with mol.terms.add_ignore(ignores):
+    with mol.terms.add_ignore(['dihedral/flexible']):
         for term in mol.terms:
             term.do_fitting(coords, force)
 
     return force
 
 
-def average_unique_minima(terms, inp):
+def average_unique_minima(terms, config):
     unique_terms = {}
     averaged_terms = ['bond', 'angle', 'dihedral/inversion']
     for name in [term_name for term_name in averaged_terms]:
@@ -95,7 +91,7 @@ def average_unique_minima(terms, inp):
                 unique_terms[str(term)] = minimum
 
     # For Urey, recalculate length based on the averaged bonds/angles
-    if inp.urey:
+    if config.urey:
         for term in terms['urey']:
             if str(term) in unique_terms.keys():
                 term.equ = unique_terms[str(term)]

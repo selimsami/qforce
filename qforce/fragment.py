@@ -4,11 +4,9 @@ import hashlib
 import sys
 import networkx.algorithms.isomorphism as iso
 import numpy as np
+import yaml
 #
 from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
-from .read_qm_out import QM
-from .make_qm_input import make_qm_input
-
 
 """
 
@@ -20,25 +18,27 @@ Prompt a warning when if any point has an error larger than 2kJ/mol.
 """
 
 
-def fragment(inp, mol):
+def fragment(mol, qm, job, config):
     fragments, missing = [], []
     unique_dihedrals = {}
 
-    reset_data_files(inp)
+    os.makedirs(config.frag_lib, exist_ok=True)
+    os.makedirs(job.frag_dir, exist_ok=True)
+    reset_data_files(job.frag_dir)
 
     for term in mol.terms['dihedral/flexible']:
         if str(term) not in unique_dihedrals:
             unique_dihedrals[str(term)] = term.atomids
 
     for name, atomids in unique_dihedrals.items():
-        frag = Fragment(inp, mol, atomids, name)
+        frag = Fragment(job, config, mol, qm, atomids, name)
 
         if frag.has_data:
             fragments.append(frag)
         else:
             missing.append(frag)
 
-    check_and_notify(inp, len(unique_dihedrals), len(fragments))
+    check_and_notify(job, config, len(unique_dihedrals), len(fragments))
 
     for frag in missing:
         mol.terms.remove_terms_by_name(name=frag.name)
@@ -46,14 +46,14 @@ def fragment(inp, mol):
     return fragments
 
 
-def reset_data_files(inp):
+def reset_data_files(frag_dir):
     for data in ['missing', 'have']:
-        data_path = f'{inp.frag_dir}/{data}'
+        data_path = f'{frag_dir}/{data}'
         if os.path.exists(data_path):
             os.remove(data_path)
 
 
-def check_and_notify(inp, n_unique, n_have):
+def check_and_notify(job, config, n_unique, n_have):
     n_missing = n_unique - n_have
     if n_unique == 0:
         print('There are no flexible dihedrals.')
@@ -63,9 +63,9 @@ def check_and_notify(inp, n_unique, n_have):
             print("All scan data is available. Fitting the dihedrals...\n")
         else:
             print(f"{n_missing} of them are missing the scan data.")
-            print(f"QM input files for them are created in: {inp.frag_dir}")
+            print(f"QM input files for them are created in: {job.frag_dir}")
 
-            if inp.fragment == 'available':
+            if config.avail_only:
                 print('Continuing without the missing dihedrals...\n')
             else:
                 print('Exiting...\n')
@@ -78,7 +78,7 @@ class Fragment():
     For now necessary because of the mapping - but should be fixed at some point
     """
 
-    def __init__(self, inp, mol, scanned_atomids, name):
+    def __init__(self, job, config, mol, qm, scanned_atomids, name):
         self.central_atoms = tuple(scanned_atomids[1:3])
         self.scanned_atomids = scanned_atomids
         self.atomids = list(scanned_atomids[1:3])
@@ -99,22 +99,22 @@ class Fragment():
         self.qm_energies = []
         self.coords = []
 
-        self.check_fragment(inp, mol)
+        self.check_fragment(job, config, mol, qm)
 
-    def check_fragment(self, inp, mol):
-        self.identify_fragment(mol, inp)
+    def check_fragment(self, job, config, mol, qm):
+        self.identify_fragment(mol, config)
         self.make_fragment_graph(mol)
-        self.make_fragment_identifier(inp, mol)
-        self.check_for_fragment(inp)
-        self.make_fragment_terms(inp, mol)
-        self.write_have_or_missing(inp)
+        self.make_fragment_identifier(config, mol, qm)
+        self.check_for_fragment(job, config, qm)
+        self.make_fragment_terms(mol)
+        self.write_have_or_missing(job)
 
         if self.has_data:
-            self.get_qm_data(inp)
+            self.get_qm_data()
         else:
-            make_qm_input(inp, self.graph, self.id)
+            self.make_qm_input(job, qm)
 
-    def identify_fragment(self, mol, inp):
+    def identify_fragment(self, mol, config):
         n_neigh, n_cap = 0, 0
         possible_h_caps = {i: [] for i in range(mol.n_atoms)}
         next_neigh = [[a, n] for a in self.atomids for n
@@ -125,8 +125,8 @@ class Fragment():
                 bond = mol.topo.edge(a, n)
                 if n in self.atomids:
                     pass
-                elif (inp.frag_n_neighbor < 1 or  # fragmentation turned off
-                      n_neigh < inp.frag_n_neighbor  # don't break first n neighbors
+                elif (config.frag_threshold < 1 or  # fragmentation turned off
+                      n_neigh < config.frag_threshold  # don't break first n neighbors
                       or bond['order'] > 1.5  # don't break double/triple bonds
                       or (bond['in_ring'] and (mol.topo.node(a)['n_ring'] > 1 or  # no multi ring
                           any([mol.topo.edge(a, neigh)['order'] > 1 for neigh
@@ -178,7 +178,7 @@ class Fragment():
             for att in ['vector', 'length', 'order', 'vers', 'in_ring3', 'in_ring']:
                 d.pop(att, None)
         for _, d in self.graph.nodes(data=True):
-            for att in ['n_ring']:  # 'q',
+            for att in ['n_ring']:
                 d.pop(att, None)
 
         for cap in self.caps:
@@ -193,13 +193,12 @@ class Fragment():
             cap['idx'] = self.mapping_mol_to_frag[cap['idx']]
             cap['connected'] = self.mapping_mol_to_frag[cap['connected']]
 
-    def make_fragment_identifier(self, inp, mol):
+    def make_fragment_identifier(self, config, mol, qm):
         atom_ids = [[], []]
         comp_dict = {i: 0 for i in set(self.elements[:self.n_atoms_without_cap])}
         if 1 not in comp_dict.keys() and len(self.cap) > 0:
             comp_dict[1] = 0
-        mult = 1
-        composition = ""
+
         for a in range(2):
             neighbors = nx.bfs_tree(self.graph, a, depth_limit=4).nodes
             for n in neighbors:
@@ -211,34 +210,34 @@ class Fragment():
         frag_hash = "=".join(sorted(atom_ids))
         frag_hash = hashlib.md5(frag_hash.encode()).hexdigest()
 
+        multiplicity = 1
         charge = int(round(sum(nx.get_node_attributes(self.graph, 'q').values())))
-        s1, s2 = sorted([ATOM_SYM[elem] for elem in self.elements[:2]])
-        self.graph.graph['charge'] = charge
-
         n_electrons = sum(self.elements[:self.n_atoms_without_cap])+len(self.caps)
+        if config.frag_threshold < 1:  # If fragmentation is off - take molecule's charge&multi
+            charge = qm.config.charge
+            multiplicity = qm.config.multiplicity
+        elif (n_electrons + charge) % 2 == 1:
+            multiplicity = 2
 
-        if (n_electrons + charge) % 2 == 1:
-            mult = 2
-        self.graph.graph['mult'] = mult
+        qm_method = qm.method.copy()
+        qm_method.update({'charge': charge, 'multiplicity': multiplicity})
+        self.graph.graph['qm_method'] = qm_method
 
+        composition = ""
+        s1, s2 = sorted([ATOM_SYM[elem] for elem in self.elements[:2]])
         for elem in nx.get_node_attributes(self.graph, 'elem').values():
             comp_dict[elem] += 1
         for elem in sorted(comp_dict):
             composition += f"{ATOM_SYM[elem]}{comp_dict[elem]}"
-        if inp.disp == '':
-            disp = ''
-        else:
-            disp = f'-{inp.disp}'
-        frag_id = (f"{s1}{s2}_{composition}_{charge}_{mult}_{inp.method}"
-                   f"{disp}_{inp.basis}_{frag_hash}")
+        frag_id = f"{s1}{s2}_{composition}_{frag_hash}"
         self.hash = frag_id = frag_id.replace('(', '-').replace(',', '').replace(')', '')
 
-    def check_for_fragment(self, inp):
+    def check_for_fragment(self, job, config, qm):
         """
         Check if fragment exists in the database
         If not, check current fragment directory if new data is there
         """
-        self.dir = f'{inp.frag_lib}/{self.hash}'
+        self.dir = f'{config.frag_lib}/{self.hash}'
         self.mapping_frag_to_db = {i: i for i in range(self.n_atoms)}
         have_match = False
 
@@ -252,7 +251,7 @@ class Fragment():
         for id_no, id_file in enumerate(identifiers, start=1):
             compared = nx.read_gpickle(f"{self.dir}/{id_file}")
             GM = iso.GraphMatcher(self.graph, compared, node_match=nm, edge_match=em)
-            if GM.is_isomorphic():
+            if self.graph.graph['qm_method'] == compared.graph['qm_method'] and GM.is_isomorphic():
                 if os.path.isfile(f'{self.dir}/scandata_{id_no}'):
                     self.has_data = True
                     self.mapping_frag_to_db = GM.mapping
@@ -264,28 +263,22 @@ class Fragment():
             self.hash_idx = len(identifiers)+1
         self.id = f'{self.hash}~{self.hash_idx}'
         if not self.has_data:
-            self.check_new_scan_data(inp)
+            self.check_new_scan_data(job, qm)
             nx.write_gpickle(self.graph, f"{self.dir}/identifier_{self.hash_idx}")
             self.write_xyz()
+            with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
+                yaml.dump(self.graph.graph['qm_method'], file, default_flow_style=False)
 
-    def check_new_scan_data(self, inp):
-        outs = [f for f in os.listdir(inp.frag_dir) if f.startswith(self.id) and
-                f.endswith(('log', 'out'))]
-        for out in outs:
-            try:
-                qm = QM(inp, 'scan', out_file=f'{inp.frag_dir}/{out}')
-                sucessfully_read = True
-            except Exception:
-                sucessfully_read = False
-            if sucessfully_read and qm.normal_term:
-                self.has_data = True
-                with open(f'{self.dir}/scandata_{self.hash_idx}', 'w') as data:
-                    for angle, energy in zip(qm.angles, qm.energies):
-                        data.write(f'{angle:>10.3f} {energy:>20.8f}\n')
-                np.save(f'{self.dir}/scancoords_{self.hash_idx}.npy', qm.coords)
-            else:
-                print(f'WARNING: Following scan has not been terminated sucessfully:\n{out}\n'
-                      'Skipping it...\n')
+    def check_new_scan_data(self, job, qm):
+        out = [f for f in os.listdir(job.frag_dir) if f.startswith(self.id) and
+               f.endswith(('log', 'out'))]
+        if out:
+            qm_out = qm.read_scan(f'{job.frag_dir}/{out[0]}')
+            self.has_data = True
+            with open(f'{self.dir}/scandata_{self.hash_idx}', 'w') as data:
+                for angle, energy in zip(qm_out.angles, qm_out.energies):
+                    data.write(f'{angle:>10.3f} {energy:>20.8f}\n')
+                np.save(f'{self.dir}/scancoords_{self.hash_idx}.npy', qm_out.coords)
 
     def write_xyz(self):
         atomids = [atomid+1 for atomid in self.scanned_atomids]
@@ -296,7 +289,7 @@ class Fragment():
                 atom_name, [c1, c2, c3] = ATOM_SYM[data[1]['elem']], data[1]['coords']
                 xyz.write(f'{atom_name:>3s} {c1:>12.6f} {c2:>12.6f} {c3:>12.6f}\n')
 
-    def make_fragment_terms(self, inp, mol):
+    def make_fragment_terms(self, mol):
         mapping_mol_to_db = {}
         mapping_db_to_frag = {v: k for k, v in self.mapping_frag_to_db.items()}
 
@@ -309,7 +302,7 @@ class Fragment():
         mapping_db_to_mol = {v: k for k, v in mapping_mol_to_db.items()}
         self.terms = mol.terms.subset(self.atomids, mapping_mol_to_db,
                                       remove_non_bonded=self.remove_non_bonded)
-        self.non_bonded = mol.non_bonded.subset(inp, mol.non_bonded, mapping_mol_to_db)
+        self.non_bonded = mol.non_bonded.subset(mol.non_bonded, mapping_mol_to_db)
         self.remove_non_bonded = [mapping_mol_to_db[i] for i in self.remove_non_bonded]
 
         for cap in self.caps:
@@ -325,16 +318,27 @@ class Fragment():
                                           if neigh in mapping_mol_to_db.keys() and
                                           mapping_mol_to_db[neigh] < self.n_atoms])
 
-    def write_have_or_missing(self, inp):
+    def write_have_or_missing(self, job):
         if self.has_data:
             status = 'have'
         else:
             status = 'missing'
-        data_path = f'{inp.frag_dir}/{status}'
+        data_path = f'{job.frag_dir}/{status}'
         with open(data_path, 'a+') as data_file:
             data_file.write(f'{self.id}\n')
 
-    def get_qm_data(self, inp):
+    def get_qm_data(self):
         self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}',
                                       unpack=True)[1]
         self.coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')
+
+    def make_qm_input(self, job, qm):
+        coords, atnums = [], []
+        for data in sorted(self.graph.nodes.data()):
+            coords.append(data[1]['coords'])
+            atnums.append(data[1]['elem'])
+
+        with open(f'{job.frag_dir}/{self.id}.inp', 'w') as file:
+            qm.write_scan(file, self.id, coords, atnums, self.graph.graph['scan'],
+                          self.graph.graph['qm_method']['charge'],
+                          self.graph.graph['qm_method']['multiplicity'])

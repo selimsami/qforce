@@ -3,23 +3,22 @@ import numpy as np
 from .elements import ATOM_SYM, ATOMMASS
 from .molecule.non_bonded import calc_sigma_epsilon
 from .forces import convert_to_inversion_rb
-
-"""
-To do: write FF to other formats using ParmEd
-"""
+from .misc import LOGO_SEMICOL
 
 
 class ForceField():
-    def __init__(self, inp, mol, neighbors, residue='MOL', exclude_all=[]):
-        self.polar = inp.polar
-        self.mol_name = inp.job_name
+    def __init__(self, job_name, config, mol, neighbors, residue='MOL', exclude_all=[]):
+        self.polar = config.ff._polar
+        self.mol_name = job_name
         self.n_atoms = mol.n_atoms
         self.elements = mol.elements
         self.q = self.set_charge(mol.non_bonded)
         self.residue = residue
-        self.comb_rule = inp.comb_rule
-        self.urey = inp.urey
-        self.n_excl = inp.n_excl
+        self.comb_rule = mol.non_bonded.comb_rule
+        self.fudge_lj = mol.non_bonded.fudge_lj
+        self.fudge_q = mol.non_bonded.fudge_q
+        self.urey = config.terms.urey
+        self.n_excl = config.ff.n_excl
         self.atom_names = self.get_atom_names()
         self.masses = [round(ATOMMASS[i], 5) for i in self.elements]
         self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
@@ -30,17 +29,17 @@ class ForceField():
         else:
             self.polar_title = ''
 
-    def write_gromacs(self, inp, mol, directory, coords):
-        self.write_itp(inp, mol, directory)
-        self.write_top(inp, directory)
+    def write_gromacs(self, directory, mol, coords):
+        self.write_itp(mol, directory)
+        self.write_top(directory)
         self.write_gro(directory, coords, mol.non_bonded.alpha_map)
 
-    def write_top(self, inp, directory):
+    def write_top(self, directory):
         with open(f"{directory}/gas{self.polar_title}.top", "w") as top:
             # defaults
             top.write("\n[ defaults ]\n")
             top.write(";nbfunc   comb-rule   gen-pairs   fudgeLJ   fudgeQQ\n")
-            top.write(f"{1:>7}{self.comb_rule:>12}{'yes':>12}{inp.fudge_lj:>10}{inp.fudge_q:>10}"
+            top.write(f"{1:>7}{self.comb_rule:>12}{'yes':>12}{self.fudge_lj:>10}{self.fudge_q:>10}"
                       "\n\n\n")
 
             top.write("; Include the molecule ITP\n")
@@ -74,11 +73,10 @@ class ForceField():
                     gro.write(f"{coords_nm[atom][2]:>8.3f}\n")
             gro.write(f'{box[0]:>12.5f}{box[1]:>12.5f}{box[2]:>12.5f}\n')
 
-    def write_itp(self, inp, mol, directory):
+    def write_itp(self, mol, directory):
         with open(f"{directory}/{self.mol_name}_qforce{self.polar_title}.itp", "w") as itp:
-            self.write_itp_title(itp)
-            self.write_itp_parameters(itp, inp)
-            self.write_itp_atoms_and_molecule(itp, inp, mol.non_bonded)
+            itp.write(LOGO_SEMICOL)
+            self.write_itp_atoms_and_molecule(itp, mol.non_bonded)
             if self.polar:
                 self.write_itp_polarization(itp, mol.non_bonded)
             self.write_itp_bonds(itp, mol.terms, mol.non_bonded.alpha_map)
@@ -88,30 +86,11 @@ class ForceField():
             self.write_itp_exclusions(itp)
             itp.write('\n')
 
-    def write_itp_title(self, itp):
-        itp.write(""";
-;           ____         ______
-;          / __ \       |  ____|
-;         | |  | |______| |__ ___  _ __ ___ ___
-;         | |  | |______|  __/ _ \| '__/ __/ _ \\
-;         | |__| |      | | | (_) | | | (_|  __/
-;          \___\_\      |_|  \___/|_|  \___\___|
-;
-;          Selim Sami, Maximilian F.S.J. Menger
-;             University of Groningen - 2020
-;          ====================================
-;\n""")
-
-    def write_itp_parameters(self, itp, inp):
-        itp.write(f'; lj: {inp.lennard_jones}, charges: {inp.point_charges}\n')
-        itp.write(f'; NB fitting: {inp.non_bonded}, fragment_fitting: {inp.fragment}\n')
-        itp.write(f'; urey: {inp.urey}, cross_bond_angle: {inp.cross_bond_angle}\n;\n')
-
-    def convert_to_gromacs_nonbonded(self, non_bonded, inp):
+    def convert_to_gromacs_nonbonded(self, non_bonded):
         a_types, nb_pairs, nb_1_4 = {}, {}, {}
 
         for pair, val in non_bonded.lj_pairs.items():
-            if inp.comb_rule != 1:
+            if non_bonded.comb_rule != 1:
                 a, b = calc_sigma_epsilon(val[0], val[1])
                 a *= 0.1
             else:
@@ -124,7 +103,7 @@ class ForceField():
             nb_pairs[pair] = [a, b]
 
         for pair, val in non_bonded.lj_1_4.items():
-            if inp.comb_rule != 1:
+            if non_bonded.comb_rule != 1:
                 a, b = calc_sigma_epsilon(val[0], val[1])
                 a *= 0.1
             else:
@@ -135,11 +114,11 @@ class ForceField():
 
         return a_types, nb_pairs, nb_1_4
 
-    def write_itp_atoms_and_molecule(self, itp, inp, non_bonded):
-        gro_atomtypes, gro_nonbonded, gro_1_4 = self.convert_to_gromacs_nonbonded(non_bonded, inp)
+    def write_itp_atoms_and_molecule(self, itp, non_bonded):
+        gro_atomtypes, gro_nonbonded, gro_1_4 = self.convert_to_gromacs_nonbonded(non_bonded)
 
         # atom types
-        itp.write("[ atomtypes ]\n")
+        itp.write("\n[ atomtypes ]\n")
         if self.comb_rule == 1:
             itp.write(";   name     mass   charge  t           c6          c12\n")
         else:
@@ -428,14 +407,15 @@ class ForceField():
     #     for i, alpha in enumerate(alphas):
     #         if alpha > 0:
     #             # exclusions for balancing the drude particles
-    #             for j in mol.topo.neighbors[inp.nrexcl-2][i]+mol.topo.neighbors[inp.nrexcl-1][i]:
+    #             for j in (mol.topo.neighbors[self.n_excl-2][i] +
+    #                       mol.topo.neighbors[self.n_excl-1][i]):
     #                 if alphas[j] > 0:
     #                     ff.exclu[drude[i]-1].extend([drude[j]])
-    #             for j in mol.topo.neighbors[inp.nrexcl-1][i]:
+    #             for j in mol.topo.neighbors[self.n_excl-1][i]:
     #                 ff.exclu[drude[i]-1].extend([j+1])
     #             ff.exclu[drude[i]-1].sort()
     #             # thole polarizability
-    #             for neigh in [mol.topo.neighbors[n][i] for n in range(inp.nrexcl)]:
+    #             for neigh in [mol.topo.neighbors[n][i] for n in range(self.n_excl)]:
     #                 for j in neigh:
     #                     if i < j and alphas[j] > 0:
     #                         ff.thole.append([i+1, drude[i], j+1, drude[j], "2", 2.6, alpha,

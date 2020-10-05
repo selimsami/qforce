@@ -10,11 +10,11 @@ class Topology(object):
     Contains all bonding etc. information of the system
     """
 
-    def __init__(self, inp, qm):
-        self.n_equiv = inp.n_equiv
-        self.elements = qm.elements
+    def __init__(self, config, qm_out):
+        self.n_equiv = config.n_equiv
+        self.elements = qm_out.elements
         self.n_atoms = len(self.elements)
-        self.coords = qm.coords
+        self.coords = qm_out.coords
         #
         self.n_types = 0
         self.n_terms = 0
@@ -25,35 +25,36 @@ class Topology(object):
         self.types = [None for _ in self.elements]  # atom types of each atom
         self.unique_atomids = []  #
         self.atoms = np.zeros(self.n_atoms, dtype='int8')  # unique atom numbers of each atom
-        self.all_rigid = inp.all_rigid
+        self.all_rigid = config.all_rigid
         #
-        self._setup(inp, qm)
+        self._setup(qm_out)
 
-    def _setup(self, inp, qm):
-        self._find_bonds_and_rings(qm)
+    def _setup(self, qm_out):
+        self._find_bonds_and_rings(qm_out)
         self._find_atom_types()
-        self._find_neighbors(inp)
+        self._find_neighbors()
         self._find_bonds_angles_dihedrals()
 
-    def _find_bonds_and_rings(self, qm):
+    def _find_bonds_and_rings(self, qm_out):
         """Setup networkx graph """
         self.graph = nx.Graph()
         for i_idx, i_elem in enumerate(self.elements):
-            self.graph.add_node(i_idx, elem=i_elem, n_bonds=qm.n_bonds[i_idx], q=qm.cm5[i_idx],
-                                lone_e=qm.lone_e[i_idx], coords=self.coords[i_idx])
+            self.graph.add_node(i_idx, elem=i_elem, n_bonds=qm_out.n_bonds[i_idx],
+                                q=qm_out.point_charges[i_idx], lone_e=qm_out.lone_e[i_idx],
+                                coords=self.coords[i_idx])
             # add bonds
             for j_idx, j_elem in enumerate(self.elements):
-                order = qm.b_orders[i_idx, j_idx]
+                order = qm_out.b_orders[i_idx, j_idx]
                 if order > 0:
                     id1, id2 = sorted([i_elem, j_elem])
                     vec = self.coords[i_idx] - self.coords[j_idx]
                     dist = np.sqrt((vec**2).sum())
                     self.graph.add_edge(i_idx, j_idx, vector=vec, length=dist, order=order,
                                         type=f'{id1}({order}){id2}')
-            if qm.n_bonds[i_idx] > ELE_MAXB[i_elem]:
+            if qm_out.n_bonds[i_idx] > ELE_MAXB[i_elem]:
                 print(f"WARNING: Atom {i_idx+1} ({ATOM_SYM[i_elem]}) has too many",
-                      " ({qm.n_bonds[i_idx]}) bonds?")
-            elif qm.n_bonds[i_idx] == 0:
+                      " ({qm_out.n_bonds[i_idx]}) bonds?")
+            elif qm_out.n_bonds[i_idx] == 0:
                 print(f"WARNING: Atom {i_idx+1} ({ATOM_SYM[i_elem]}) has no bonds")
         # add rings
         self.rings = nx.minimum_cycle_basis(self.graph)
@@ -100,7 +101,7 @@ class Topology(object):
             types[self.elements[eq[0]]] += 1
         self.types = np.array(self.types, dtype='str')
 
-    def _find_neighbors(self, inp):
+    def _find_neighbors(self):
         for i in range(self.n_atoms):
             neighbors = nx.bfs_tree(self.graph, source=i,  depth_limit=3).nodes
             for n in neighbors:

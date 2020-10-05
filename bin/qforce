@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
 
-from qforce.initialize import Initialize
-from qforce.parser import parse
+from qforce.initialize import parse_command_line, Initialize
+from qforce.misc import LOGO
 
-print("""\n
-   ____         ______
-  / __ \       |  ____|
- | |  | |______| |__ ___  _ __ ___ ___
- | |  | |______|  __/ _ \| '__/ __/ _ \\
- | |__| |      | | | (_) | | | (_|  __/
-  \___\_\      |_|  \___/|_|  \___\___|
-
-Written by: Selim Sami
-University of Groningen - 2020
-==============================
-""")
-
-args = parse()
-inp = Initialize.from_questions(check_only=True, config=args.o)
-inp.setup(args.f)
-
-print("\n")
+if __name__ == '__main__':
+    print(LOGO)
+    input_arg, config_file = parse_command_line()
+    Initialize.from_questions(input_arg=input_arg, config=config_file, check_only=True)
+    print("\n")

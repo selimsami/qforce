@@ -6,14 +6,14 @@ import seaborn as sns
 from .elements import ATOMMASS, ATOM_SYM
 
 
-def calc_qm_vs_md_frequencies(inp, qm, md_hessian):
+def calc_qm_vs_md_frequencies(job, qm, md_hessian):
     qm_freq, qm_vec = calc_vibrational_frequencies(qm.hessian, qm)
     md_freq, md_vec = calc_vibrational_frequencies(md_hessian, qm)
-    mean_percent_error = write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp)
-    plot_frequencies(inp, qm_freq, md_freq, mean_percent_error)
+    mean_percent_error = write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, job)
+    plot_frequencies(job, qm_freq, md_freq, mean_percent_error)
 
 
-def plot_frequencies(inp, qm_freq, md_freq, mean_percent_error):
+def plot_frequencies(job, qm_freq, md_freq, mean_percent_error):
     n_freqs = np.arange(len(qm_freq))+1
     width, height = plt.figaspect(0.6)
     f = plt.figure(figsize=(width, height), dpi=300)
@@ -25,7 +25,7 @@ def plot_frequencies(inp, qm_freq, md_freq, mean_percent_error):
     plt.plot(n_freqs, md_freq, linewidth=3, label='Q-Force')
     plt.tight_layout()
     plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
-    f.savefig(f"{inp.job_dir}/frequencies.pdf", bbox_inches='tight')
+    f.savefig(f"{job.dir}/frequencies.pdf", bbox_inches='tight')
 
 
 def calc_vibrational_frequencies(upper, qm):
@@ -60,7 +60,7 @@ def calc_vibrational_frequencies(upper, qm):
     return freq, vec
 
 
-def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
+def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, job):
     """
     Scope:
     ------
@@ -73,8 +73,8 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
     JOBNAME_qforce.nmd : MD eigenvectors that can be played in VMD with:
                                 vmd -e filename
     """
-    freq_file = f"{inp.job_dir}/frequencies.txt"
-    nmd_file = f"{inp.job_dir}/frequencies.nmd"
+    freq_file = f"{job.dir}/frequencies.txt"
+    nmd_file = f"{job.dir}/frequencies.nmd"
     errors = []
 
     with open(freq_file, "w") as f:
@@ -95,8 +95,8 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, inp):
     mean_percent_error = np.abs(np.array(errors)).mean()
 
     with open(nmd_file, "w") as nmd:
-        nmd.write(f"nmwiz_load {inp.job_name}_qforce.nmd\n")
-        nmd.write(f"title {inp.job_name}\n")
+        nmd.write(f"nmwiz_load {job.name}_qforce.nmd\n")
+        nmd.write(f"title {job.name}\n")
         nmd.write("names")
         for ids in qm.elements:
             nmd.write(f" {ATOM_SYM[ids]}")

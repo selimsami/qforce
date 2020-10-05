@@ -1,46 +1,26 @@
-from .read_qm_out import QM
 from .forcefield import ForceField
 from .molecule import Molecule
 from .fragment import fragment
-from .dihedral_scan import scan_dihedrals
+from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian
 
 
-def fit_forcefield(inp, qm=None, mol=None):
-    """
-    Scope:
-    ------
-    Fit MD hessian to the QM hessian.
+def fit(qm, config, job):
+    qm_out = qm.read_hessian()
+    mol = Molecule(config, job, qm_out)
 
-    TO DO:
-    ------
-    - Move calc_energy_forces to forces and clean it up
-    - Include LJ, Coulomb flex dihed forces in the fitting as numbers
+    fit_results, md_hessian = fit_hessian(config.terms, mol, qm_out)
 
-    CHECK
-    -----
-    - Does having (0,inf) fitting bound cause problems? metpyrl lower accuracy
-      for dihed! Having -inf, inf causes problems for PTEG-1 (super high FKs)
-    - Fix acetone angle! bond-angle coupling?)
-    - Charges from IR intensities - together with interacting polarizable FF?
-    """
+    if config.scan.do_scan:
+        fragments = fragment(mol, qm, job, config.scan)
+        DihedralScan(fragments, mol, job, config)
 
-    qm = QM(inp, "freq", fchk_file=inp.fchk_file, out_file=inp.qm_freq_out)
+    calc_qm_vs_md_frequencies(job, qm_out, md_hessian)
+    ff = ForceField(job.name, config, mol, mol.topo.neighbors)
+    ff.write_gromacs(job.dir, mol, qm_out.coords)
 
-    mol = Molecule(inp, qm)
-
-    fit_results, md_hessian = fit_hessian(inp, mol, qm, ignore_flex=True)
-
-    if inp.fragment:
-        fragments = fragment(inp, mol)
-        scan_dihedrals(fragments, inp, mol)
-
-    calc_qm_vs_md_frequencies(inp, qm, md_hessian)
-    ff = ForceField(inp, mol, mol.topo.neighbors)
-    ff.write_gromacs(inp, mol, inp.job_dir, qm.coords)
-
-    print(f'\nOutput files can be found in the directory: {inp.job_dir}.')
+    print(f'\nOutput files can be found in the directory: {job.dir}.')
     print('- Q-Force force field parameters in GROMACS format (gas.gro, gas.itp, gas.top).')
     print('- QM vs MM vibrational frequencies (frequencies.txt, frequencies.pdf).')
     print('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')

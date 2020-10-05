@@ -20,6 +20,8 @@ class Terms(MappingIterator):
             'dihedral': DihedralTerms,
             'non_bonded': NonBondedTerms,
     }
+    _always_on = ['bond', 'angle']
+    _default_off = ['cross_bond_angle']
 
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
@@ -28,9 +30,9 @@ class Terms(MappingIterator):
         self._term_paths = self._get_term_paths(terms)
 
     @classmethod
-    def from_topology(cls, topo, non_bonded, ignore=[]):
-        not_fit_terms = [term for term in ['dihedral/flexible', 'non_bonded']
-                         if term not in ignore]
+    def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded']):
+        ignore = [name for name, term_enabled in config.__dict__.items() if not term_enabled]
+        not_fit_terms = [term for term in not_fit if term not in ignore]
         terms = {name: factory.get_terms(topo, non_bonded)
                  for name, factory in cls._term_factories.items() if name not in ignore}
         return cls(terms, ignore, not_fit_terms)
@@ -40,7 +42,6 @@ class Terms(MappingIterator):
         return cls(terms, ignore, not_fit_terms)
 
     def subset(self, fragment, mapping, remove_non_bonded=[], ignore=[], not_fit_terms=[]):
-
         subterms = {}
         for key, term in self.ho_items():
             if key in ignore:
@@ -61,6 +62,20 @@ class Terms(MappingIterator):
         if not isinstance(term, TermFactory):
             raise ValueError('New term needs to be a TermFactory!')
         cls._term_factories[name] = term
+
+    @classmethod
+    def get_questions(cls):
+        tpl = '# Turn {key} FF term on or off\n{key} = {default} :: bool\n\n'
+        questions = ''
+        for name, term in cls._term_factories.items():
+            if name not in cls._always_on:
+                if term._multiple_terms:
+                    for sub_name, sub_term in term._term_types.items():
+                        questions += tpl.format(key=f'{name}/{sub_name}',
+                                                default=(sub_name not in term._default_off))
+                else:
+                    questions += tpl.format(key=name, default=(name not in cls._default_off))
+        return questions
 
     @contextmanager
     def add_ignore(self, ignore_terms):
