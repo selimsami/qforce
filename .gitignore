@@ -1,6 +1,7 @@
 # Q-Force related
 dftd4/
 examples/*/*_qforce
+addtopypi
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
