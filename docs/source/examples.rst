@@ -89,14 +89,14 @@ This can be done by adding the **[qm::job_script]** block to the **settings** fi
     [qm::job_script]
     #!/bin/bash
     #SBATCH --time=1-00:00:00
-    #SBATCH -o <outfile>.out
+    #SBATCH -o <jobname>.out
 
     g16<<EOF
     <input>
     EOF
 
 Here we make a SLURM job script. Two placeholders that can be used are **<outfile>** and
-**<input>**. **<outfile>** gets replaced by the name of the calculation, for example in the case
+**<input>**. **<jobname>** gets replaced by the name of the calculation, for example in the case
 of the 'benzene_hessian.inp', it will be 'benzene_hessian.out'.
 **<input>** is where the content of the QM input file will be placed.
 
