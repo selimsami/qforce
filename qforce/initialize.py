@@ -4,7 +4,6 @@ import argparse
 from types import SimpleNamespace
 from qforce.fit import fit
 from colt import Colt
-from colt.ask import AskQuestions
 from .polarize import polarize
 from .qm.qm import QM, implemented_qm_software
 from .molecule.terms import Terms
@@ -62,8 +61,6 @@ _ext_alpha = no :: bool
     def __init__(self, config, input_arg):
         config = self._set_config(config)
         job = self._get_job_info(input_arg)
-
-        self.generate_input(f'{job.dir}/config.ini')
 
         if config.ff._polarize:
             polarize(job, config.ff)

@@ -4,7 +4,7 @@ import hashlib
 import sys
 import networkx.algorithms.isomorphism as iso
 import numpy as np
-import yaml
+import json
 #
 from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
 
@@ -267,7 +267,7 @@ class Fragment():
             nx.write_gpickle(self.graph, f"{self.dir}/identifier_{self.hash_idx}")
             self.write_xyz()
             with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
-                yaml.dump(self.graph.graph['qm_method'], file, default_flow_style=False)
+                json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)
 
     def check_new_scan_data(self, job, qm):
         out = [f for f in os.listdir(job.frag_dir) if f.startswith(self.id) and
