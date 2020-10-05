@@ -106,7 +106,7 @@ def scriptify(writer):
         if job_script:
             file = args[1]
             job_name = args[0].job.name
-            job_script = job_script.replace('<outfile>', f'{job_name}.out')
+            job_script = job_script.replace('<jobname>', f'{job_name}')
             job_script = job_script.split('\n')
             if '<input>' in job_script:
                 inp_line = job_script.index('<input>')
