@@ -12,7 +12,7 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
+sys.path.insert(0, os.path.abspath('../../qforce'))
 
 # -- Project information -----------------------------------------------------
 
@@ -21,7 +21,7 @@ copyright = '2020, Selim Sami'
 author = 'Selim Sami'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0'
+release = '0.1'
 
 # -- General configuration ---------------------------------------------------
 
