@@ -35,8 +35,8 @@ all_rigid = no :: bool
 # Use D4 method
 _d4 = no :: bool
 
-# Use Bond-Angle cross term
-_cross_bond_angle = no :: bool
+# Residue name printed on the force field file (Max 5 characters)
+res_name = MOL :: str
 
 # Polarize a coordinate file and quit (requires itp_file)
 _polarize = no :: bool

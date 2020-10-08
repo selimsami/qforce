@@ -20,12 +20,6 @@ class Gaussian(Colt):
     # QM basis set to be used - leave it empty to turn off
     basis = 6-31+G(D) :: str
 
-    # Number of processors for the QM calculation
-    nproc = 1 :: int
-
-    # Memory setting for the QM calculation
-    memory = 4GB :: str
-
     """
 
     _method = ['method', 'dispersion', 'basis']
@@ -46,14 +40,13 @@ class ReadGaussian(ReadABC):
                 lone_e, point_charges)
 
     def scan(self, file_name, n_scan_steps):
-        angles, energies, coords = [], [], []
+        n_atoms, angles, energies, coords = None, [], [], []
         with open(file_name, "r", encoding='utf-8') as gaussout:
             for line in gaussout:
                 if line.startswith(" NAtoms= "):
                     n_atoms = int(line.split()[1])
 
                 elif "following ModRedundant" in line:
-                    angles, energies = [], []
                     step = 0
                     for line in gaussout:
                         line = line.split()
@@ -132,8 +125,8 @@ class WriteGaussian(WriteABC):
 
     @staticmethod
     def _write_hessian_job_setting(job_name, config, file):
-        file.write(f"%nprocshared={config.nproc}\n")
-        file.write(f"%mem={config.memory}\n")
+        file.write(f"%nprocshared={config.n_proc}\n")
+        file.write(f"%mem={config.memory}GB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write(f"#Opt Freq {config.method} {config.dispersion} {config.basis}"
                    "pop=(CM5, ESP, NBOREAD) \n\n")

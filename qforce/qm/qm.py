@@ -29,6 +29,12 @@ charge = 0 :: int
 # Multiplicity of the system
 multiplicity = 1 :: int
 
+# Allocated memory for the QM calculation (in GB)
+memory = 4 :: float
+
+# Number of processors to set for the QM calculation
+n_proc = 1 :: int
+
 # Scaling of the vibrational frequency for the corresponding QM method (not implemented)
 _vibr_coef = 1.0 :: float
 """
@@ -48,7 +54,7 @@ _vibr_coef = 1.0 :: float
     def read_scan(self, file):
         n_scan_steps = int(np.ceil(360/self.config.scan_step_size))
         qm_out = self.software.read().scan(file, n_scan_steps)
-        return ScanOutput(*qm_out)
+        return ScanOutput(file, *qm_out)
 
     @scriptify
     def write_hessian(self, file, coords, atnums):

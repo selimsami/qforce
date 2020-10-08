@@ -7,13 +7,13 @@ from .misc import LOGO_SEMICOL
 
 
 class ForceField():
-    def __init__(self, job_name, config, mol, neighbors, residue='MOL', exclude_all=[]):
+    def __init__(self, job_name, config, mol, neighbors, exclude_all=[]):
         self.polar = config.ff._polar
         self.mol_name = job_name
         self.n_atoms = mol.n_atoms
         self.elements = mol.elements
         self.q = self.set_charge(mol.non_bonded)
-        self.residue = residue
+        self.residue = config.ff.res_name[:5]
         self.comb_rule = mol.non_bonded.comb_rule
         self.fudge_lj = mol.non_bonded.fudge_lj
         self.fudge_q = mol.non_bonded.fudge_q

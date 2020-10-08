@@ -28,7 +28,7 @@ class ReadABC(ABC):
 
     @staticmethod
     def _read_fchk_file(fchk_file):
-        elements, coords, hessian = [], [], []
+        n_atoms, charge, multiplicity, elements, coords, hessian = None, None, None, [], [], []
         with open(fchk_file, "r", encoding='utf-8') as file:
             for line in file:
                 if "Charge                                     I" in line:
@@ -64,6 +64,7 @@ class ReadABC(ABC):
 
     @staticmethod
     def _read_nbo_analysis(out_file, n_atoms):
+        n_bonds, b_orders, lone_e = [], [], []
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
                 if "N A T U R A L   B O N D   O R B I T A L" in line:
@@ -124,89 +125,76 @@ def scriptify(writer):
     return wrapper
 
 
-def check_array(name, expected_type, expected_shape):
-    private_name = '_' + name
-
-    @property
-    def prop(self):
-        return getattr(self, private_name)
-
-    @prop.setter
-    def prop(self, value):
-        value = np.asarray(value)
-        shape_input  = [getattr(self, att) for att in inspect.getfullargspec(expected_shape).args]
-
-        if value.size == 0:
-            sys.exit(f'No data found in the QM output file for "{name}". Exiting...\n')
-        elif value.dtype != np.dtype(expected_type):
-            raise TypeError(f'"{name}" expected a type of "{np.dtype(expected_type)}",'
-                            f' but got "{value.dtype}"')
-        elif value.shape != expected_shape(*shape_input):
-            raise ValueError(f'"{name}" expected a shape of "{expected_shape(*shape_input)}",'
-                             f' but got "{value.shape}"')
-        setattr(self, private_name, value)
-    return prop
-
-
-def check_type(name, expected_type):
-    private_name = '_' + name
-
-    @property
-    def prop(self):
-        return getattr(self, private_name)
-
-    @prop.setter
-    def prop(self, value):
-        if not isinstance(value, expected_type):
-            raise TypeError(f'"{name}" expected a type of "{expected_type}", '
-                            f'but got "{value.dtype}"')
-        setattr(self, private_name, value)
-    return prop
-
-
 class HessianOutput():
-    n_atoms = check_type('n_atoms', int)
-    charge = check_type('charge', int)
-    multiplicity = check_type('multiplicity', int)
-    elements = check_array('elements', int, lambda n_atoms: (n_atoms,))
-    coords = check_array('coords', float, lambda n_atoms: (n_atoms, 3))
-    hessian = check_array('hessian', float, lambda n_atoms: (((n_atoms*3)**2+n_atoms*3)/2,))
-    n_bonds = check_array('n_bonds', int, lambda n_atoms: (n_atoms,))
-    b_orders = check_array('b_orders', float, lambda n_atoms: (n_atoms, n_atoms))
-    lone_e = check_array('lone_e', int, lambda n_atoms: (n_atoms,))
-    point_charges = check_array('point_charges', float, lambda n_atoms: (n_atoms,))
-
     def __init__(self, n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds, b_orders,
                  lone_e, point_charges):
-        self.n_atoms = n_atoms
-        self.charge = charge
-        self.multiplicity = multiplicity
-        self.elements = elements
-        self.coords = coords
-        self.hessian = hessian
-        self.n_bonds = n_bonds
-        self.b_orders = b_orders
-        self.lone_e = lone_e
-        self.point_charges = point_charges
+        self.n_atoms = self.check_type(n_atoms, 'n_atoms', int)
+        self.charge = self.check_type(charge, 'charge', int)
+        self.multiplicity = self.check_type(multiplicity, 'n_atoms', int)
+        self.elements = self.check_type_and_shape(elements, 'elements', int, (n_atoms,))
+        self.coords = self.check_type_and_shape(coords, 'coords', float, (n_atoms, 3))
+        self.hessian = self.check_type_and_shape(hessian, 'hessian', float,
+                                                 (((n_atoms*3)**2+n_atoms*3)/2,))
+        self.n_bonds = self.check_type_and_shape(n_bonds, 'n_bonds', int, (n_atoms,))
+        self.b_orders = self.check_type_and_shape(b_orders, 'b_orders', float, (n_atoms, n_atoms))
+        self.lone_e = self.check_type_and_shape(lone_e, 'lone_e', int, (n_atoms,))
+        self.point_charges = self.check_type_and_shape(point_charges, 'point_charges', float,
+                                                       (n_atoms,))
+
+    @staticmethod
+    def check_type(value, name, expected_type):
+        if not isinstance(value, expected_type):
+            sys.exit(f'WARNING: A valid "{name}" property was not found in the hessian output'
+                     ' file(s). Exiting...\n\n')
+        return value
+
+    @staticmethod
+    def check_type_and_shape(value, name, expected_type, expected_shape):
+        value = np.asarray(value)
+        if value.size == 0:
+            sys.exit(f'ERROR: No data found in the QM Hessian output file(s) for "{name}".'
+                     ' Exiting...\n\n')
+        elif value.dtype != np.dtype(expected_type):
+            raise TypeError(f'"{name}" property expected a type of "{np.dtype(expected_type)}",'
+                            f' but got "{value.dtype}" for the QM Hessian output.')
+        elif value.shape != expected_shape:
+            sys.exit(f'ERROR: "{name}" property expected a shape of "{expected_shape}", but got '
+                     f'"{value.shape}" for the QM Hessian output. Exiting...\n\n')
+        return value
 
 
 class ScanOutput():
-    n_atoms = check_type('n_atoms', int)
-    n_steps = check_type('n_steps', int)
-    coords = check_array('coords', float, lambda n_atoms, n_steps: (n_steps, n_atoms, 3))
-    angles = check_array('angles', float, lambda n_steps: (n_steps,))
-    energies = check_array('energies', float, lambda n_steps: (n_steps,))
-
-    def __init__(self, n_atoms, n_steps, coords, angles, energies):
-        angles = (np.asarray(angles) % 360).round(4)
-        order = np.argsort(angles)
-        angles = angles[order]
-        coords = np.asarray(coords)[order]
-        energies = np.asarray(energies)[order]
-        energies -= energies.min()
-
+    def __init__(self, file, n_atoms, n_steps, coords, angles, energies):
         self.n_atoms = n_atoms
         self.n_steps = n_steps
-        self.coords = coords
-        self.angles = angles
-        self.energies = energies
+        angles, energies, coords, self.mismatch = self.check_shape(angles, energies, coords, file)
+        self.angles, self.energies, self.coords = self._rearrange(angles, energies, coords)
+
+    def check_shape(self, angles, energies, coords, file):
+        mismatched = []
+        if not isinstance(self.n_atoms, int):
+            mismatched.append('n_atoms')
+        if not isinstance(self.n_steps, int):
+            mismatched.append('n_steps')
+
+        angles, coords, energies = np.asarray(angles), np.asarray(coords), np.asarray(energies)
+
+        for prop, name, shape in [(angles, 'angles', (self.n_steps,)),
+                                  (energies, 'energies', (self.n_steps,)),
+                                  (coords, 'coords', (self.n_steps, self.n_atoms, 3))]:
+            if prop.shape != shape:
+                mismatched.append(name)
+        if mismatched:
+            print(f'WARNING: {mismatched} properties have missing data in the file:\n{file}')
+        return angles, energies, coords, mismatched
+
+    @staticmethod
+    def _rearrange(angles, energies, coords):
+        if energies.size != 0:
+            angles = (angles % 360).round(4)
+            order = np.argsort(angles)
+            angles = angles[order]
+            coords = coords[order]
+            energies = energies[order]
+            energies -= energies.min()
+        return angles, energies, coords

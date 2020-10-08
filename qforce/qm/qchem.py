@@ -20,11 +20,11 @@ class QChem(Colt):
     # QM basis set to be used (enter "no"/"false" to turn off)
     basis = 6-31+G(D) :: str, optional
 
-    # Number of processors for the QM calculation
-    nproc = 1 :: int
+    # Number of maximum SCF cycles
+    max_scf_cycles = 100 :: int
 
-    # Memory setting for the QM calculation
-    memory = 4GB :: str
+    # Number of maximum optimization cycles
+    max_opt_cycles = 100 :: int
 
     # Number of CIS roots to ask
     cis_n_roots = :: int, optional
@@ -34,9 +34,14 @@ class QChem(Colt):
 
     # CIS triplets turned on or off
     cis_triplets = :: bool, optional
+
+    # Sets CIS state for excited state optimizations and vibrational analysis
+    cis_state_deriv = :: int, optional
+
     """
 
-    _method = ['method', 'dispersion', 'basis', 'cis_n_roots', 'cis_singlets', 'cis_triplets']
+    _method = ['method', 'dispersion', 'basis', 'cis_n_roots', 'cis_singlets', 'cis_triplets',
+               'cis_state_deriv']
 
     def __init__(self):
         self.required_hessian_files = {'out_file': ['out', 'log'], 'fchk_file': ['fchk', 'fck']}
@@ -54,7 +59,7 @@ class ReadQChem(ReadABC):
                 lone_e, point_charges)
 
     def scan(self, file_name, n_scan_steps):
-        angles, energies, coords = [], [], []
+        n_atoms, angles, energies, coords = None, [], [], []
         with open(file_name, "r", encoding='utf-8') as gaussout:
             angles, energies, coords = [], [], []
             found_n_atoms = False
@@ -150,12 +155,17 @@ class WriteQChem(WriteABC):
             file.write(f'  basis = {config.basis}\n')
         if config.dispersion is not None:
             file.write(f'  dft_d = {config.dispersion}\n')
-        for key, val in job_rem.items():
-            file.write(f'  {key} = {val}\n')
         if config.cis_n_roots is not None:
             file.write(f'  cis_n_roots = {config.cis_n_roots}\n')
         if config.cis_singlets is not None:
             file.write(f'  cis_singlets = {config.cis_singlets}\n')
         if config.cis_triplets is not None:
             file.write(f'  cis_triplets = {config.cis_triplets}\n')
+        if config.cis_state_deriv is not None:
+            file.write(f'  cis_state_deriv = {config.cis_state_deriv}\n')
+        for key, val in job_rem.items():
+            file.write(f'  {key} = {val}\n')
+        file.write(f'  mem_total = {round(config.memory*1000)}\n')
+        file.write(f'  geom_opt_max_cycles = {config.max_opt_cycles}\n')
+        file.write(f'  max_scf_cycles = {config.max_scf_cycles}\n')
         file.write('$end\n')

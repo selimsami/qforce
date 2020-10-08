@@ -27,7 +27,8 @@ class DihedralScan():
 # Perform dihedral scan for flexible dihedrals
 do_scan = yes :: bool
 
-# Skip dihedrals with missing scan data and continue with the rest (false: exit if missing)
+# Skip dihedrals with missing scan data and accept scan data that is missing data points.
+# False: Exit if scan data for a dihedral is missing or if it has missing data points)
 avail_only = no :: bool
 
 # Number of neighbors after bonds can be fragmented (0 or smaller means no fragmentation)

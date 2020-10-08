@@ -106,13 +106,8 @@ class Fragment():
         self.make_fragment_graph(mol)
         self.make_fragment_identifier(config, mol, qm)
         self.check_for_fragment(job, config, qm)
+        self.check_for_qm_data(job, config, qm)
         self.make_fragment_terms(mol)
-        self.write_have_or_missing(job)
-
-        if self.has_data:
-            self.get_qm_data()
-        else:
-            self.make_qm_input(job, qm)
 
     def identify_fragment(self, mol, config):
         n_neigh, n_cap = 0, 0
@@ -262,23 +257,26 @@ class Fragment():
         if not have_match:
             self.hash_idx = len(identifiers)+1
         self.id = f'{self.hash}~{self.hash_idx}'
-        if not self.has_data:
-            self.check_new_scan_data(job, qm)
-            nx.write_gpickle(self.graph, f"{self.dir}/identifier_{self.hash_idx}")
-            self.write_xyz()
-            with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
-                json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)
 
-    def check_new_scan_data(self, job, qm):
+    def check_new_scan_data(self, job, config, qm):
         out = [f for f in os.listdir(job.frag_dir) if f.startswith(self.id) and
                f.endswith(('log', 'out'))]
         if out:
-            qm_out = qm.read_scan(f'{job.frag_dir}/{out[0]}')
             self.has_data = True
-            with open(f'{self.dir}/scandata_{self.hash_idx}', 'w') as data:
-                for angle, energy in zip(qm_out.angles, qm_out.energies):
-                    data.write(f'{angle:>10.3f} {energy:>20.8f}\n')
-                np.save(f'{self.dir}/scancoords_{self.hash_idx}.npy', qm_out.coords)
+            qm_out = qm.read_scan(f'{job.frag_dir}/{out[0]}')
+            self.qm_energies = qm_out.energies
+            self.coords = qm_out.coords
+            if qm_out.mismatch:
+                if config.avail_only:
+                    print('"\navail_only" requested, attempting to continue with the missing '
+                          'points...\n\n')
+                else:
+                    sys.exit('Exiting...\n\n')
+            else:
+                with open(f'{self.dir}/scandata_{self.hash_idx}', 'w') as data:
+                    for angle, energy in zip(qm_out.angles, qm_out.energies):
+                        data.write(f'{angle:>10.3f} {energy:>20.8f}\n')
+                    np.save(f'{self.dir}/scancoords_{self.hash_idx}.npy', qm_out.coords)
 
     def write_xyz(self):
         atomids = [atomid+1 for atomid in self.scanned_atomids]
@@ -318,6 +316,21 @@ class Fragment():
                                           if neigh in mapping_mol_to_db.keys() and
                                           mapping_mol_to_db[neigh] < self.n_atoms])
 
+    def check_for_qm_data(self, job, config, qm):
+        if self.has_data:
+            self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}', unpack=True)[1]
+            self.coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')
+        else:
+            self.check_new_scan_data(job, config, qm)
+            self.write_have_or_missing(job)
+            nx.write_gpickle(self.graph, f"{self.dir}/identifier_{self.hash_idx}")
+            self.write_xyz()
+            with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
+                json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)
+
+            if not self.has_data:
+                self.make_qm_input(job, qm)
+
     def write_have_or_missing(self, job):
         if self.has_data:
             status = 'have'
@@ -326,11 +339,6 @@ class Fragment():
         data_path = f'{job.frag_dir}/{status}'
         with open(data_path, 'a+') as data_file:
             data_file.write(f'{self.id}\n')
-
-    def get_qm_data(self):
-        self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}',
-                                      unpack=True)[1]
-        self.coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')
 
     def make_qm_input(self, job, qm):
         coords, atnums = [], []
