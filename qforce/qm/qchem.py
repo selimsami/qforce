@@ -78,10 +78,12 @@ class ReadQChem(ReadABC):
                         coord.append([float(c_xyz) for c_xyz in line[2:]])
                     coords.append(coord)
 
+                elif "Final energy is" in line:
+                    energy = float(line.split()[3])
+
                 elif "PES scan, value:" in line:
-                    line = line.split()
-                    angles.append(float(line[3]))
-                    energies.append(float(line[5]))
+                    angles.append(float(line.split()[3]))
+                    energies.append(energy)
 
         energies = np.array(energies) * Hartree * mol / kJ
         return n_atoms, n_scan_steps, coords, angles, energies
