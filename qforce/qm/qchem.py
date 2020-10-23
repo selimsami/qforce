@@ -167,7 +167,7 @@ class WriteQChem(WriteABC):
             file.write(f'  cis_state_deriv = {config.cis_state_deriv}\n')
         for key, val in job_rem.items():
             file.write(f'  {key} = {val}\n')
-        file.write(f'  mem_total = {round(config.memory*1000)}\n')
+        file.write(f'  mem_total = {config.memory}\n')
         file.write(f'  geom_opt_max_cycles = {config.max_opt_cycles}\n')
         file.write(f'  max_scf_cycles = {config.max_scf_cycles}\n')
         file.write('$end\n')

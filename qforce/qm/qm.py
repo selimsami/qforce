@@ -29,8 +29,8 @@ charge = 0 :: int
 # Multiplicity of the system
 multiplicity = 1 :: int
 
-# Allocated memory for the QM calculation (in GB)
-memory = 4 :: float
+# Allocated memory for the QM calculation (in MB)
+memory = 4000 :: int
 
 # Number of processors to set for the QM calculation
 n_proc = 1 :: int

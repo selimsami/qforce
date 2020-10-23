@@ -104,7 +104,7 @@ class WriteGaussian(WriteABC):
     def hessian(self, file, job_name, config, coords, atnums):
         self._write_hessian_job_setting(job_name, config, file)
         self._write_coords(atnums, coords, file)
-        file.write('$\nnbo BNDIDX $end\n\n')
+        file.write('\n$nbo BNDIDX $end\n\n')
 
     def scan(self, file, job_name, config, coords, atnums, scanned_atoms, charge, multiplicity):
         self._write_scan_job_setting(job_name, config, file, charge, multiplicity)
@@ -126,17 +126,17 @@ class WriteGaussian(WriteABC):
     @staticmethod
     def _write_hessian_job_setting(job_name, config, file):
         file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}GB\n")
-        file.write(f"%chk={job_name}.chk\n")
-        file.write(f"#Opt Freq {config.method} {config.dispersion} {config.basis}"
+        file.write(f"%mem={config.memory}MB\n")
+        file.write(f"%chk={job_name}_hessian.chk\n")
+        file.write(f"#Opt Freq {config.method} {config.dispersion} {config.basis} "
                    "pop=(CM5, ESP, NBOREAD) \n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
     @staticmethod
     def _write_scan_job_setting(job_name, config, file, charge, multiplicity):
-        file.write(f"%nprocshared={config.nproc}\n")
-        file.write(f"%mem={config.memory}\n")
+        file.write(f"%nprocshared={config.n_proc}\n")
+        file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write(f"#Opt=Modredundant {config.method} {config.dispersion} {config.basis}\n\n")
         file.write(f"{job_name}\n\n")
