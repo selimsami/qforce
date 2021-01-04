@@ -7,6 +7,7 @@ import numpy as np
 import json
 #
 from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
+from .forces import get_dihed
 
 """
 
@@ -346,7 +347,10 @@ class Fragment():
             coords.append(data[1]['coords'])
             atnums.append(data[1]['elem'])
 
+        coords = np.array(coords)
+        start_angle = np.degrees(get_dihed(coords[self.scanned_atomids])[0])
+
         with open(f'{job.frag_dir}/{self.id}.inp', 'w') as file:
-            qm.write_scan(file, self.id, coords, atnums, self.graph.graph['scan'],
+            qm.write_scan(file, self.id, coords, atnums, self.graph.graph['scan'], start_angle,
                           self.graph.graph['qm_method']['charge'],
                           self.graph.graph['qm_method']['multiplicity'])

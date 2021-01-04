@@ -120,12 +120,12 @@ class ForceField():
         # atom types
         itp.write("\n[ atomtypes ]\n")
         if self.comb_rule == 1:
-            itp.write(";   name     mass   charge  t           c6          c12\n")
+            itp.write(";   name  at_num     mass   charge  type           c6          c12\n")
         else:
-            itp.write(";   name     mass   charge  t        sigma      epsilon\n")
+            itp.write(";   name  at_num     mass   charge  type        sigma      epsilon\n")
 
         for lj_type, lj_params in gro_atomtypes.items():
-            itp.write(f'{lj_type:>8} {0:>8.4f} {0:>8.4f} {"A":>2} ')
+            itp.write(f'{lj_type:>8} {non_bonded.lj_atomic_number[lj_type]:>7} {0:>8.4f} {0:>8.4f} {"A":>5} ')
             itp.write(f'{lj_params[0]:>12.5e} {lj_params[1]:>12.5e}\n')
 
         if self.polar:
@@ -134,9 +134,9 @@ class ForceField():
         # non-bonded pair types
         itp.write("\n[ nonbond_params ]\n")
         if self.comb_rule == 1:
-            itp.write(";  name1    name2   type             c6            c12\n")
+            itp.write(";  name1    name2   type             c6             c12\n")
         else:
-            itp.write(";  name1    name2   type          sigma        epsilon\n")
+            itp.write(";  name1    name2   type          sigma         epsilon\n")
 
         for lj_types, lj_params in gro_nonbonded.items():
             itp.write(f'{lj_types[0]:>8} {lj_types[1]:>8}      1')
@@ -146,9 +146,9 @@ class ForceField():
         if self.n_excl == 2 and gro_1_4 != {}:
             itp.write("\n[ pairtypes ]\n")
             if self.comb_rule == 1:
-                itp.write(";  name1    name2   type             c6            c12\n")
+                itp.write(";  name1    name2   type             c6             c12\n")
             else:
-                itp.write(";  name1    name2   type          sigma        epsilon\n")
+                itp.write(";  name1    name2   type          sigma         epsilon\n")
             for lj_types, lj_params in gro_1_4.items():
                 itp.write(f'{lj_types[0]:>8} {lj_types[1]:>8}      1')
                 itp.write(f'{lj_params[0]:>15.5e} {lj_params[1]:>15.5e}\n')

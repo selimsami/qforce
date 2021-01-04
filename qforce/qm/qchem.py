@@ -124,16 +124,18 @@ class WriteQChem(WriteABC):
         self._write_job_setting(file, job_name, config, self.hess_freq_rem)
         file.write('\n$nbo\n  nbo\n  bndidx\n$end\n\n')
 
-    def scan(self, file, job_name, config, coords, atnums, scanned_atoms, charge, multiplicity):
+    def scan(self, file, job_name, config, coords, atnums, scanned_atoms, start_angle, charge,
+             multiplicity):
         self._write_molecule(file, job_name, atnums, coords, charge, multiplicity)
         self._write_job_setting(file, job_name, config, self.scan_rem)
-        self._write_scanned_atoms(file, scanned_atoms, config.scan_step_size)
+        self._write_scanned_atoms(file, scanned_atoms, start_angle, config.scan_step_size)
 
     @staticmethod
-    def _write_scanned_atoms(file, scanned_atoms, scan_step_size):
+    def _write_scanned_atoms(file, scanned_atoms, start_angle, scan_step_size):
         a1, a2, a3, a4 = scanned_atoms
         file.write('\n$scan\n')
-        file.write(f'  tors {a1} {a2} {a3} {a4} -180 179.9 {scan_step_size:.2f}\n')
+        file.write(f'  tors {a1} {a2} {a3} {a4} {start_angle:.3f} {start_angle-0.01:.3f} '
+                   f'{scan_step_size:.2f}\n')
         file.write('$end\n\n')
 
     @staticmethod

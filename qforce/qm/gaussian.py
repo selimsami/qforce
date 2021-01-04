@@ -106,7 +106,8 @@ class WriteGaussian(WriteABC):
         self._write_coords(atnums, coords, file)
         file.write('\n$nbo BNDIDX $end\n\n')
 
-    def scan(self, file, job_name, config, coords, atnums, scanned_atoms, charge, multiplicity):
+    def scan(self, file, job_name, config, coords, atnums, scanned_atoms, start_angle, charge,
+             multiplicity):
         self._write_scan_job_setting(job_name, config, file, charge, multiplicity)
         self._write_coords(atnums, coords, file)
         self._write_scanned_atoms(file, scanned_atoms, config.scan_step_size)

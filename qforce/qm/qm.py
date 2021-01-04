@@ -61,9 +61,10 @@ _vibr_coef = 1.0 :: float
         self.software.write().hessian(file, self.job.name, self.config, coords, atnums)
 
     @scriptify
-    def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, charge, multiplicity):
+    def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge,
+                   multiplicity):
         self.software.write().scan(file, scan_id, self.config, coords, atnums, scanned_atoms,
-                                   charge, multiplicity)
+                                   start_angle, charge, multiplicity)
 
     def _check_hessian_output(self):
         hessian_files = {}

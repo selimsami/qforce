@@ -168,9 +168,6 @@ frag_lib = ~/qforce_fragments :: folder
             angles, md_energies = self.symmetrize_dihedral(angles, md_energies,
                                                            self.symmetrize[frag.central_atoms])
 
-        np.save(f'{self.frag_dir}/scan_data_{frag.id}', np.vstack((angles, qm_energies,
-                                                                   md_energies)))
-
         energy_diff = qm_energies - md_energies
         weights = 1/np.exp(-0.2 * np.sqrt(qm_energies))
         params = curve_fit(calc_rb, angles, energy_diff, absolute_sigma=False, sigma=weights)[0]
@@ -183,6 +180,9 @@ frag_lib = ~/qforce_fragments :: folder
         md_energies += calc_rb(angles, *params)
         self.plot_fit(frag, angles, energy_diff, calc_rb(angles, *params))
         self.plot_results(frag, angles, qm_energies, md_energies, r_squared, 'scan')
+
+        np.save(f'{self.frag_dir}/scan_data_{frag.id}', np.vstack((angles, qm_energies,
+                                                                   md_energies)))
         return params
 
     @staticmethod
