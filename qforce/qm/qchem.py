@@ -1,3 +1,4 @@
+import sys
 from colt import Colt
 import numpy as np
 from ase.units import Hartree, mol, kJ
@@ -126,15 +127,37 @@ class WriteQChem(WriteABC):
 
     def scan(self, file, job_name, config, coords, atnums, scanned_atoms, start_angle, charge,
              multiplicity):
+
+        direct = [1, -1]
+        if start_angle + config.scan_step_size > 180:
+            direct.remove(1)
+        elif start_angle - config.scan_step_size < -180:
+            direct.remove(-1)
+        if not direct:
+            sys.exit('ERROR: Your scan step size is too large to perform a scan.\n')
+
         self._write_molecule(file, job_name, atnums, coords, charge, multiplicity)
         self._write_job_setting(file, job_name, config, self.scan_rem)
-        self._write_scanned_atoms(file, scanned_atoms, start_angle, config.scan_step_size)
+        self._write_scan_info(file, scanned_atoms, start_angle, direct[0]*180,
+                              direct[0]*config.scan_step_size)
+
+        if len(direct) == 2:
+            new_start = start_angle
+            while new_start < 180:
+                new_start += config.scan_step_size
+            new_start -= 360
+
+            file.write('\n\n@@@\n\n\n')
+            file.write('$molecule\n  read\n$end\n\n')
+            self._write_job_setting(file, job_name, config, self.scan_rem)
+            self._write_scanned_atoms(file, scanned_atoms, new_start, start_angle-0.1,
+                                      config.scan_step_size)
 
     @staticmethod
-    def _write_scanned_atoms(file, scanned_atoms, start_angle, scan_step_size):
+    def _write_scan_info(file, scanned_atoms, start_angle, final_angle, scan_step_size):
         a1, a2, a3, a4 = scanned_atoms
         file.write('\n$scan\n')
-        file.write(f'  tors {a1} {a2} {a3} {a4} {start_angle:.3f} {start_angle-0.01:.3f} '
+        file.write(f'  tors {a1} {a2} {a3} {a4} {start_angle:.3f} {final_angle:.3f} '
                    f'{scan_step_size:.2f}\n')
         file.write('$end\n\n')
 

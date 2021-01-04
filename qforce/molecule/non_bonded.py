@@ -115,7 +115,7 @@ def get_external_lennard_jones(config, topo, q, job):
             sys.exit('ERROR: Format of your "ext_lj" file is wrong.\nPlease provide there '
                      'an atom type for each atom in the same order as your coordinate file'
                      '.\n')
-        return lj_types
+    return lj_types
 
 
 def set_non_bonded_props(config):
