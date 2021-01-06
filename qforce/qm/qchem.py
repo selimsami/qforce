@@ -150,8 +150,8 @@ class WriteQChem(WriteABC):
             file.write('\n\n@@@\n\n\n')
             file.write('$molecule\n  read\n$end\n\n')
             self._write_job_setting(file, job_name, config, self.scan_rem)
-            self._write_scanned_atoms(file, scanned_atoms, new_start, start_angle-0.1,
-                                      config.scan_step_size)
+            self._write_scan_info(file, scanned_atoms, new_start, start_angle-0.1,
+                                  config.scan_step_size)
 
     @staticmethod
     def _write_scan_info(file, scanned_atoms, start_angle, final_angle, scan_step_size):
