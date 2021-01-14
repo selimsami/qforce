@@ -16,12 +16,12 @@ class Terms(MappingIterator):
             'bond': BondTerm,
             'angle': AngleTerm,
             'urey': UreyAngleTerm,
-            'cross_bond_angle': CrossBondAngleTerm,
+            '_cross_bond_angle': CrossBondAngleTerm,
             'dihedral': DihedralTerms,
             'non_bonded': NonBondedTerms,
     }
     _always_on = ['bond', 'angle']
-    _default_off = ['cross_bond_angle']
+    _default_off = ['_cross_bond_angle']
 
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
