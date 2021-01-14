@@ -5,11 +5,13 @@ import numpy as np
 #
 from .gaussian import Gaussian
 from .qchem import QChem
+from .external import External
 from .qm_base import scriptify, HessianOutput, ScanOutput
 
 
 implemented_qm_software = {'gaussian': Gaussian,
-                           'qchem': QChem}
+                           'qchem': QChem,
+                           'exteral': External}
 
 
 class QM():
@@ -44,8 +46,12 @@ _vibr_coef = 1.0 :: float
         self.job = job
         self.config = config
         self.software = self._set_qm_software(config.software)
-        self.hessian_files = self._check_hessian_output()
-        self.method = self._register_method()
+
+        if config.software == 'external':
+            self._read_external_output()
+        else:
+            self.hessian_files = self._check_hessian_output()
+            self.method = self._register_method()
 
     def read_hessian(self):
         qm_out = self.software.read().hessian(self.config, **self.hessian_files)
@@ -65,6 +71,9 @@ _vibr_coef = 1.0 :: float
                    multiplicity):
         self.software.write().scan(file, scan_id, self.config, coords, atnums, scanned_atoms,
                                    start_angle, charge, multiplicity)
+
+    def _read_external_output(self):
+        ...
 
     def _check_hessian_output(self):
         hessian_files = {}

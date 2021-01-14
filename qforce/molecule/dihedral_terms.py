@@ -40,9 +40,9 @@ class DihedralBaseTerm(TermABC):
 
     @staticmethod
     def remove_linear_angles(coords, a1s, a2, a3, a4s):
-        # Don't add a dihedral if its 3-atom planes have an angle > 175 degrees
-        a1s = [a1 for a1 in a1s if get_angle(coords[[a1, a2, a3]])[0] < 3.0543]
-        a4s = [a4 for a4 in a4s if get_angle(coords[[a4, a3, a2]])[0] < 3.0543]
+        # Don't add a dihedral if its 3-atom planes have an angle > 170 degrees
+        a1s = [a1 for a1 in a1s if get_angle(coords[[a1, a2, a3]])[0] < 2.9671]
+        a4s = [a4 for a4 in a4s if get_angle(coords[[a4, a3, a2]])[0] < 2.9671]
         return a1s, a4s
 
     @staticmethod
@@ -152,7 +152,6 @@ class DihedralTerms(TermFactory):
 
     _always_on = []
     _default_off = []
-
 
     @classmethod
     def get_terms(cls, topo, non_bonded):

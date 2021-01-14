@@ -40,7 +40,7 @@ class AngleTerm(TermBase):
 
             if not topo.edge(a2, a1)['in_ring3'] or not topo.edge(a2, a3)['in_ring3']:
                 theta = get_angle(topo.coords[[a1, a2, a3]])[0]
-                if theta > 3.0543:
+                if theta > 2.9671:  # if angle is larger than 170 degree, make it 180
                     theta = np.pi
 
                 b21 = topo.edge(a2, a1)['vers']
@@ -66,8 +66,8 @@ class UreyAngleTerm(TermBase):
         for a1, a2, a3 in topo.angles:
             dist = get_dist(topo.coords[a1], topo.coords[a3])[1]
             theta = get_angle(topo.coords[[a1, a2, a3]])[0]
-            #  No Urey term  if linear angle (>175) or if in 3-member ring
-            if theta < 3.0543 and (not topo.edge(a2, a1)['in_ring3'] or
+            #  No Urey term  if linear angle (>170) or if in 3-member ring
+            if theta < 2.9671 and (not topo.edge(a2, a1)['in_ring3'] or
                                    not topo.edge(a2, a3)['in_ring3']):
                 b21, b23 = topo.edge(a2, a1)['vers'], topo.edge(a2, a3)['vers']
 
@@ -93,8 +93,8 @@ class CrossBondAngleTerm(TermBase):
 
         for a1, a2, a3 in topo.angles:
             theta = get_angle(topo.coords[[a1, a2, a3]])[0]
-            #  No Urey term  if linear angle (>175) or if in 3-member ring
-            if theta < 3.0543 and (not topo.edge(a2, a1)['in_ring3'] or
+            #  No CrossBondAngle term  if linear angle (>170) or if in 3-member ring
+            if theta < 2.9671 and (not topo.edge(a2, a1)['in_ring3'] or
                                    not topo.edge(a2, a3)['in_ring3']):
                 dist12 = get_dist(topo.coords[a1], topo.coords[a2])[1]
                 dist32 = get_dist(topo.coords[a3], topo.coords[a2])[1]
