@@ -39,7 +39,20 @@ class NonBonded():
         elif config.ext_charges:
             q = np.loadtxt(f'{job.dir}/ext_q', comments=['#', ';'])
         else:
-            q = qm_out.point_charges
+            if config.charge_scaling != 1.0 and qm_out.charge != 0:
+                print('WARNING: Your system has a net charge and therefore point charges for the '
+                      'FF cannot be scaled.\n         If you will simulate in the condensed phase'
+                      ', you might want to account for condensed\n         phase polarization in '
+                      'another way (Hartree-Fock charges, implicit solvent, ...).\n')
+                q = qm_out.point_charges
+            elif config.charge_scaling != 1.0 and qm_out.charge == 0:
+                q = qm_out.point_charges * config.charge_scaling
+                print(f'NOTE: QM atomic charges are scaled by {config.charge_scaling} to account '
+                      'for the condensed phase polarization.\n      Set this value to 1 for gas '
+                      'phase simulations.\n')
+            else:
+                q = qm_out.point_charges
+
         q = average_equivalent_terms(topo, [q])[0]
         q = sum_charges_to_qtotal(topo, q)
 

@@ -26,6 +26,9 @@ lennard_jones = gromos_auto :: str :: [gromos_auto, gromos, opls, gaff]
 # Use externally provided point charges in the file "ext_q" in the job directyory
 ext_charges = no :: bool
 
+# Scale QM charges to account for condensed phase polarization (should be set to 1 for gas phase)
+charge_scaling = 1.2 :: float
+
 # Additional exclusions (GROMACS format)
 exclusions = :: literal
 
