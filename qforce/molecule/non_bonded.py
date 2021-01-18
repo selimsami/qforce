@@ -6,7 +6,6 @@ import os
 from scipy.optimize import curve_fit
 from itertools import combinations_with_replacement
 #
-from .. import qforce_data
 from ..elements import ATOM_SYM
 
 
@@ -64,7 +63,7 @@ class NonBonded():
                   '\nYou are advised to provide external LJ parameters for production runs.\n')
         else:
             lj_types = get_external_lennard_jones(config, topo, q, job)
-            lj_pairs, lj_1_4, lj_atomic_number = set_external_lennard_jones(config, comb_rule,
+            lj_pairs, lj_1_4, lj_atomic_number = set_external_lennard_jones(job, config, comb_rule,
                                                                             lj_types)
         alpha = set_polar(q, topo, config, job)
 
@@ -257,10 +256,11 @@ def set_qforce_lennard_jones(topo, comb_rule, lj_a, lj_b):
     return lj_types, lj_pairs
 
 
-def set_external_lennard_jones(config, comb_rule, lj_types):
+def set_external_lennard_jones(job, config, comb_rule, lj_types):
     lj_pairs, lj_1_4 = {}, {}
 
-    atom_types, nonbond_params, nonbond_1_4, at_no = read_ext_nonbonded_file(config.lennard_jones)
+    atom_types, nonbond_params, nonbond_1_4, at_no = read_ext_nonbonded_file(config.lennard_jones,
+                                                                             job.md_data)
 
     for lj_type in lj_types:
         if lj_type not in atom_types.keys():
@@ -321,7 +321,7 @@ def calc_sigma_epsilon(c6, c12):
     return sigma, epsilon
 
 
-def read_ext_nonbonded_file(lennard_jones):
+def read_ext_nonbonded_file(lennard_jones, md_data):
     atom_types, nonbond_params, nonbond_1_4, atomic_number = {}, {}, {}, {}
 
     if lennard_jones == 'gromos_auto':
@@ -329,7 +329,7 @@ def read_ext_nonbonded_file(lennard_jones):
     else:
         lj_lib = lennard_jones
 
-    with open(f'{qforce_data}/{lj_lib}.itp', 'r') as file:
+    with open(f'{md_data}/{lj_lib}.itp', 'r') as file:
         for line in file:
             line = line.partition('#')[0].partition(';')[0].strip()
             if line == '':

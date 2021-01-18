@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 from types import SimpleNamespace
+import pkg_resources
 from qforce.fit import fit
 from colt import Colt
 from .polarize import polarize
@@ -107,6 +108,7 @@ _ext_alpha = no :: bool
 
         job['dir'] = f'{path}{job["name"]}_qforce'
         job['frag_dir'] = f'{job["dir"]}/fragments'
+        job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
         os.makedirs(job['dir'], exist_ok=True)
         return SimpleNamespace(**job)
 
@@ -146,3 +148,7 @@ def parse_command_line():
     args = parser.parse_args()
 
     return args.f, args.o
+
+
+def run_qforce(input_arg, config_file=None):
+    Initialize.from_questions(input_arg=input_arg, config=config_file, check_only=True)

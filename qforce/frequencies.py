@@ -26,6 +26,7 @@ def plot_frequencies(job, qm_freq, md_freq, mean_percent_error):
     plt.tight_layout()
     plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
     f.savefig(f"{job.dir}/frequencies.pdf", bbox_inches='tight')
+    plt.close()
 
 
 def calc_vibrational_frequencies(upper, qm):

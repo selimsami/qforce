@@ -1,2 +1,3 @@
-import pkg_resources
-qforce_data = pkg_resources.resource_filename('qforce', 'data')
+__all__ = ['run_qforce']
+
+from .initialize import run_qforce

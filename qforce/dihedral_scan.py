@@ -9,7 +9,6 @@ from ase import Atoms
 from scipy.optimize import curve_fit
 from scipy.interpolate import interp1d as interpolate
 #
-from . import qforce_data
 from .forcefield import ForceField
 from .calculator import QForce
 from .forces import get_dihed, get_dist
@@ -56,6 +55,7 @@ frag_lib = ~/qforce_fragments :: folder
     def __init__(self, fragments, mol, job, all_config):
         self.frag_dir = job.frag_dir
         self.job_name = job.name
+        self.mdp_file = f'{job.md_data}/default.mdp'
         self.config = all_config.scan
         self.symmetrize = self._set_symmetrize()
         self.scan_method = getattr(self, f'scan_dihed_{self.config.method.lower()}')
@@ -131,7 +131,7 @@ frag_lib = ~/qforce_fragments :: folder
             make_scan_dir(step_dir)
 
             ff.write_gromacs(step_dir, frag, coord)
-            shutil.copy2(f'{qforce_data}/default.mdp', step_dir)
+            shutil.copy2(self.mdp_file, step_dir)
 
             restraints = self.find_restraints(frag, coord, n_run)
             ff.add_restraints(restraints, step_dir)
