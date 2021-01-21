@@ -36,21 +36,6 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
 
 def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
                                      config=None, presets=None):
-    """
-
-    Parameters
-    ----------
-    job_dir : str
-        Path for the Q-Force job directory. "_qforce" is added automatically to the end.
-    qm_data : dict
-        DESCRIPTION.
-    config : str, optional
-        Options file for Q-Force. See documentation for the format.
-    presets : str, optional
-        Presets for the options file for Q-Force. See documentation for the format.
-
-
-    """
 
     # Next: Read atom types and LJ (list vs string)
 
