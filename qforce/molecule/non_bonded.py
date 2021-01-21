@@ -27,14 +27,17 @@ class NonBonded():
         self.alpha_map = {key: i+self.n_atoms for i, key in enumerate(self.alpha.keys())}
 
     @classmethod
-    def from_topology(cls, config, job, qm_out, topo):
+    def from_topology(cls, config, job, qm_out, topo, ext_q, ext_lj):
         comb_rule, fudge_lj, fudge_q = set_non_bonded_props(config)
         exclusions = cls._set_exclusions(config.exclusions)
 
         # RUN D4 if necessary
         if config._d4:
             q, lj_a, lj_b = handle_d4(job, comb_rule, qm_out, topo)
+
         # CHARGES
+        elif ext_q:
+            q = np.array(ext_q)
         elif config.ext_charges:
             q = np.loadtxt(f'{job.dir}/ext_q', comments=['#', ';'])
         else:
@@ -59,12 +62,13 @@ class NonBonded():
         if config._d4:
             lj_types, lj_pairs = set_qforce_lennard_jones(topo, comb_rule, lj_a, lj_b)
             lj_1_4 = lj_pairs
-            print('WARNING: You are using Q-Force Lennard-Jones parameters. This is not finished.',
+            print('WARNING: You are using Q-Force Lennard-Jones parameters. This is unfinished.',
                   '\nYou are advised to provide external LJ parameters for production runs.\n')
         else:
-            lj_types = get_external_lennard_jones(config, topo, q, job)
+            lj_types = get_external_lennard_jones(config, topo, q, job, ext_lj)
             lj_pairs, lj_1_4, lj_atomic_number = set_external_lennard_jones(job, config, comb_rule,
-                                                                            lj_types)
+                                                                            lj_types, ext_lj)
+        # POLARIZABILITY
         alpha = set_polar(q, topo, config, job)
 
         return cls(topo.n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions,
@@ -81,13 +85,15 @@ class NonBonded():
                     if key[0] in lj_types and key[1] in lj_types}
         lj_1_4 = {key: val for key, val in list(non_bonded.lj_1_4.items())
                   if key[0] in lj_types and key[1] in lj_types}
+        lj_atomic_number = {key: val for key, val in list(non_bonded.lj_atomic_number.items())
+                            if key in lj_types}
         exclusions = [(mapping[excl[0]], mapping[excl[1]]) for excl in non_bonded.exclusions if
                       excl[0] in mapping.keys() and excl[1] in mapping.keys()]
 
         alpha = {mapping[key]: val for key, val in list(non_bonded.alpha.items())
                  if key in mapping.keys()}
 
-        return cls(n_atoms, q, lj_types, lj_pairs, lj_1_4, non_bonded.lj_atomic_number, exclusions,
+        return cls(n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions,
                    non_bonded.n_excl, non_bonded.comb_rule, non_bonded.fudge_lj,
                    non_bonded.fudge_q, alpha)
 
@@ -110,9 +116,19 @@ class NonBonded():
         return exclusions
 
 
-def get_external_lennard_jones(config, topo, q, job):
+def get_external_lennard_jones(config, topo, q, job, ext_lj):
     if config.lennard_jones == 'gromos_auto':
         lj_types = determine_atom_types(topo, q)
+    elif ext_lj:
+        if 'lj_types' not in ext_lj:
+            sys.exit('ERROR: You have not provided the "lj_types" list in the "ext_lj" '
+                     'dictionary.\n')
+        elif len(ext_lj['lj_types']) != topo.n_atoms:
+            sys.exit('ERROR: Provided number of Lennard-Jones parameters does not match number '
+                     'of atoms.\n')
+        else:
+            lj_types = ext_lj['lj_types']
+
     else:
         lj_file = f'{job.dir}/ext_lj'
         if os.path.isfile(lj_file):
@@ -134,6 +150,17 @@ def set_non_bonded_props(config):
     if config._d4 == 'd4':
         comb_rule = 2
         fudge_lj, fudge_q = 1.0, 1.0
+
+    elif config.lennard_jones == 'ext':
+        if not config.ext_lj_fudge or not config.ext_q_fudge or not config.ext_comb_rule:
+            sys.exit('ERROR: External set of Lennard-Jones interactions requested but not all '
+                     'required\n       parameters (ext_lj_fudge, ext_q_fudge, ext_comb_rule) are '
+                     'set.\n')
+        else:
+            comb_rule = config.ext_comb_rule
+            fudge_lj = config.ext_lj_fudge
+            fudge_q = config.ext_q_fudge
+
     elif config.lennard_jones in ['gromos', 'gromos_auto']:
         comb_rule = 1
         fudge_lj, fudge_q = 1.0, 1.0
@@ -256,11 +283,15 @@ def set_qforce_lennard_jones(topo, comb_rule, lj_a, lj_b):
     return lj_types, lj_pairs
 
 
-def set_external_lennard_jones(job, config, comb_rule, lj_types):
+def set_external_lennard_jones(job, config, comb_rule, lj_types, ext_lj):
     lj_pairs, lj_1_4 = {}, {}
 
-    atom_types, nonbond_params, nonbond_1_4, at_no = read_ext_nonbonded_file(config.lennard_jones,
-                                                                             job.md_data)
+    if config.lennard_jones == 'ext' and ext_lj:
+        (atom_types, nonbond_params,
+         nonbond_1_4, atomic_numbers) = set_external_lennard_jones_from_dict(ext_lj)
+    else:
+        (atom_types, nonbond_params,
+         nonbond_1_4, atomic_numbers) = read_ext_nonbonded_file(config, job.md_data)
 
     for lj_type in lj_types:
         if lj_type not in atom_types.keys():
@@ -290,7 +321,7 @@ def set_external_lennard_jones(job, config, comb_rule, lj_types):
                     and key[1] not in polar_not_scale_c6):
                 val[0] *= config._polar_c6_scale
 
-    return lj_pairs, lj_1_4, at_no
+    return lj_pairs, lj_1_4, atomic_numbers
 
 
 def get_c6_c12_for_diff_comb_rules(comb_rule, params):
@@ -321,15 +352,47 @@ def calc_sigma_epsilon(c6, c12):
     return sigma, epsilon
 
 
-def read_ext_nonbonded_file(lennard_jones, md_data):
-    atom_types, nonbond_params, nonbond_1_4, atomic_number = {}, {}, {}, {}
+def set_external_lennard_jones_from_dict(ext_lj):
+    atomic_numbers = {}
 
-    if lennard_jones == 'gromos_auto':
-        lj_lib = 'gromos'
+    atom_types = ext_lj['atom_types']
+
+    if 'nonbond_params' not in ext_lj:
+        nonbond_params = {}
     else:
-        lj_lib = lennard_jones
+        nonbond_params = ext_lj['nonbond_params']
 
-    with open(f'{md_data}/{lj_lib}.itp', 'r') as file:
+    if 'nonbond_1_4' not in ext_lj:
+        nonbond_1_4 = {}
+    else:
+        nonbond_1_4 = ext_lj['nonbond_1_4']
+
+    if 'atomic_numbers' not in ext_lj or ext_lj['atomic_numbers'] == {}:
+        for key in atom_types.keys():
+            atomic_numbers[key] = 0
+    else:
+        atomic_numbers = ext_lj['atomic_numbers']
+
+    return atom_types, nonbond_params, nonbond_1_4, atomic_numbers
+
+
+def read_ext_nonbonded_file(config, md_data):
+    atom_types, nonbond_params, nonbond_1_4, atomic_numbers = {}, {}, {}, {}
+
+    if config.lennard_jones == 'ext':
+        if config.ext_lj_lib:
+            lj_lib = config.ext_lj_lib
+        else:
+            sys.exit('ERROR: External set of Lennard-Jones interactions requested but the \n'
+                     '       non-bonded interactions library is not provided (ext_lj_lib).\n')
+    else:
+        if config.lennard_jones.endswith('_auto'):
+            lj_lib = config.lennard_jones[:-5]
+        else:
+            lj_lib = config.lennard_jones
+        lj_lib = f'{md_data}/{lj_lib}.itp'
+
+    with open(lj_lib, 'r') as file:
         for line in file:
             line = line.partition('#')[0].partition(';')[0].strip()
             if line == '':
@@ -343,9 +406,9 @@ def read_ext_nonbonded_file(lennard_jones, md_data):
                     atype, a, b = line[0], float(line[-2]), float(line[-1])
                     atom_types[atype] = [a, b]
                     if line[-6].isdigit():
-                        atomic_number[atype] = int(line[-6])
+                        atomic_numbers[atype] = int(line[-6])
                     else:
-                        atomic_number[atype] = 0
+                        atomic_numbers[atype] = 0
                 elif in_section == 'nonbond_params':
                     atype1, atype2, a, b = line[0], line[1], float(line[-2]), float(line[-1])
                     nonbond_params[tuple(sorted([atype1, atype2]))] = [a, b]
@@ -353,7 +416,7 @@ def read_ext_nonbonded_file(lennard_jones, md_data):
                     atype1, atype2, a, b = line[0], line[1], float(line[-2]), float(line[-1])
                     nonbond_1_4[tuple(sorted([atype1, atype2]))] = [a, b]
 
-        return atom_types, nonbond_params, nonbond_1_4, atomic_number
+        return atom_types, nonbond_params, nonbond_1_4, atomic_numbers
 
 
 def average_equivalent_terms(topo, terms):

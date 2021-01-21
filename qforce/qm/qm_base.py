@@ -94,7 +94,6 @@ class ReadABC(ABC):
                                     occ = int(round(float(line.split()[6]), 0))
                                     if occ > 0:
                                         lone_e[atom-1] += occ
-        b_orders = np.round(np.array(b_orders)*2)/2
         return n_bonds, b_orders, lone_e
 
 
@@ -127,6 +126,7 @@ def scriptify(writer):
 class HessianOutput():
     def __init__(self, n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds, b_orders,
                  lone_e, point_charges):
+
         self.n_atoms = self.check_type(n_atoms, 'n_atoms', int)
         self.charge = self.check_type(charge, 'charge', int)
         self.multiplicity = self.check_type(multiplicity, 'n_atoms', int)
@@ -136,6 +136,7 @@ class HessianOutput():
                                                  (((n_atoms*3)**2+n_atoms*3)/2,))
         self.n_bonds = self.check_type_and_shape(n_bonds, 'n_bonds', int, (n_atoms,))
         self.b_orders = self.check_type_and_shape(b_orders, 'b_orders', float, (n_atoms, n_atoms))
+        self.b_orders = np.round(self.b_orders*2)/2
         self.lone_e = self.check_type_and_shape(lone_e, 'lone_e', int, (n_atoms,))
         self.point_charges = self.check_type_and_shape(point_charges, 'point_charges', float,
                                                        (n_atoms,))

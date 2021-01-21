@@ -1,4 +1,5 @@
-
+import os
+import sys
 
 LOGO = """
           ____         ______
@@ -25,3 +26,9 @@ LOGO_SEMICOL = """
 ;            University of Groningen - 2020
 ;            ==============================
 """
+
+
+def check_if_file_exists(file):
+    if not os.path.exists(file) and not os.path.exists(f'{file}_qforce'):
+        sys.exit(f'ERROR: "{file}" does not exist.\n')
+    return file

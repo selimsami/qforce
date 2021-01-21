@@ -84,7 +84,7 @@ frag_lib = ~/qforce_fragments :: folder
 
                 for term in mol.terms.get_terms_from_name(frag.name):
                     term.equ = params
-        print('Done!')
+        print('Done!\n')
 
     @staticmethod
     def move_capping_atoms(fragments):

@@ -36,7 +36,7 @@ def fit_hessian(config, mol, qm):
 
     average_unique_minima(mol.terms, config)
 
-    return fit, full_md_hessian_1d
+    return full_md_hessian_1d
 
 
 def calc_hessian(coords, mol):

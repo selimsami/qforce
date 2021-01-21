@@ -1,3 +1,3 @@
-__all__ = ['run_qforce']
+__all__ = ['run_qforce', 'run_hessian_fitting_for_external']
 
-from .initialize import run_qforce
+from .main import run_qforce, run_hessian_fitting_for_external
