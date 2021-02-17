@@ -8,6 +8,7 @@ from .molecule.terms import Terms
 from .dihedral_scan import DihedralScan
 from qforce.misc import LOGO
 
+
 class Initialize(Colt):
     _questions = """
 [ff]

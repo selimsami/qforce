@@ -63,6 +63,8 @@ frag_lib = ~/qforce_fragments :: folder
         self.scan_dihedrals(fragments, mol, all_config)
 
     def scan_dihedrals(self, fragments, mol, all_config):
+        bad_fits = []
+
         for n_run in range(self.config.n_dihed_scans):
             for n_fit, frag in enumerate(fragments, start=1):
 
@@ -76,7 +78,7 @@ frag_lib = ~/qforce_fragments :: folder
                 make_scan_dir(scan_dir)
 
                 md_energies, angles = self.scan_method(all_config, frag, scan_dir, mol, n_run)
-                params = self.fit_dihedrals(frag, angles, md_energies)
+                params, bad_fits = self.fit_dihedrals(frag, angles, md_energies)
 
                 for frag2 in fragments:
                     for term in frag2.terms.get_terms_from_name(frag.name):
@@ -84,7 +86,15 @@ frag_lib = ~/qforce_fragments :: folder
 
                 for term in mol.terms.get_terms_from_name(frag.name):
                     term.equ = params
+
         print('Done!\n')
+
+        if bad_fits:
+            print('WARNING: R-squared < 0.9 for the dihedral fit of the following fragment(s):')
+            for bad_fit in bad_fits:
+                print(f'         - {bad_fit}')
+
+            print('         Please check manually to see if you find the accuracy satisfactory.\n')
 
     @staticmethod
     def move_capping_atoms(fragments):
@@ -154,6 +164,7 @@ frag_lib = ~/qforce_fragments :: folder
         return restraints
 
     def fit_dihedrals(self, frag, angles, md_energies):
+        bad_fits = []
         angles[angles < 0] += 2*np.pi
 
         order = np.argsort(angles)
@@ -173,6 +184,9 @@ frag_lib = ~/qforce_fragments :: folder
         params = curve_fit(calc_rb, angles, energy_diff, absolute_sigma=False, sigma=weights)[0]
         r_squared = calc_r_squared(calc_rb, angles, energy_diff, params)
 
+        if r_squared < 0.9 and np.any(energy_diff > 2.0):
+            bad_fits.append(frag.id)
+
         # if r_squared < 0.85:
         #     self.try_periodic(angles, energy_diff, weights, r_squared)
 
@@ -183,7 +197,7 @@ frag_lib = ~/qforce_fragments :: folder
 
         np.save(f'{self.frag_dir}/scan_data_{frag.id}', np.vstack((angles, qm_energies,
                                                                    md_energies)))
-        return params
+        return params, bad_fits
 
     @staticmethod
     def try_periodic(angles, energy_diff, weights, r_squared):

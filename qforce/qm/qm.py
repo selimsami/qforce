@@ -36,7 +36,7 @@ memory = 4000 :: int
 n_proc = 1 :: int
 
 # Scaling of the vibrational frequency for the corresponding QM method (not implemented)
-_vibr_coef = 1.0 :: float
+vib_scaling = 1.0 :: float
 """
     _method = ['scan_step_size']
 
@@ -49,7 +49,7 @@ _vibr_coef = 1.0 :: float
 
     def read_hessian(self):
         qm_out = self.software.read().hessian(self.config, **self.hessian_files)
-        return HessianOutput(*qm_out)
+        return HessianOutput(self.config.vib_scaling, *qm_out)
 
     def read_scan(self, file):
         n_scan_steps = int(np.ceil(360/self.config.scan_step_size))

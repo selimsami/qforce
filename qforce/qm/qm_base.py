@@ -90,8 +90,8 @@ class ReadABC(ABC):
                             while "Total Lewis" not in line:
                                 line = file.readline()
                                 if " LP " in line:
-                                    atom = int(line.split()[5])
-                                    occ = int(round(float(line.split()[6]), 0))
+                                    atom = int(line[19:23])
+                                    occ = int(round(float(line[40:48]), 0))
                                     if occ > 0:
                                         lone_e[atom-1] += occ
         return n_bonds, b_orders, lone_e
@@ -104,7 +104,14 @@ def scriptify(writer):
 
         if job_script:
             file = args[1]
-            job_name = args[0].job.name
+
+            if writer.__name__ == 'write_hessian':
+                job_name = f'{args[0].job.name}_hessian'
+            elif writer.__name__ == 'write_scan':
+                job_name = args[2]
+            else:
+                job_name = args[0].job.name
+
             job_script = job_script.replace('<jobname>', f'{job_name}')
             job_script = job_script.split('\n')
             if '<input>' in job_script:
@@ -124,8 +131,8 @@ def scriptify(writer):
 
 
 class HessianOutput():
-    def __init__(self, n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds, b_orders,
-                 lone_e, point_charges):
+    def __init__(self, vib_scaling, n_atoms, charge, multiplicity, elements, coords, hessian,
+                 n_bonds, b_orders, lone_e, point_charges):
 
         self.n_atoms = self.check_type(n_atoms, 'n_atoms', int)
         self.charge = self.check_type(charge, 'charge', int)
@@ -133,7 +140,7 @@ class HessianOutput():
         self.elements = self.check_type_and_shape(elements, 'elements', int, (n_atoms,))
         self.coords = self.check_type_and_shape(coords, 'coords', float, (n_atoms, 3))
         self.hessian = self.check_type_and_shape(hessian, 'hessian', float,
-                                                 (((n_atoms*3)**2+n_atoms*3)/2,))
+                                                 (((n_atoms*3)**2+n_atoms*3)/2,)) * vib_scaling**2
         self.n_bonds = self.check_type_and_shape(n_bonds, 'n_bonds', int, (n_atoms,))
         self.b_orders = self.check_type_and_shape(b_orders, 'b_orders', float, (n_atoms, n_atoms))
         self.b_orders = np.round(self.b_orders*2)/2

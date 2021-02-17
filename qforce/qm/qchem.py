@@ -27,6 +27,9 @@ class QChem(Colt):
     # Number of maximum optimization cycles
     max_opt_cycles = 100 :: int
 
+    # DFT Quadrature grid size
+    xc_grid = 3 :: int :: [0, 1, 2, 3]
+
     # Number of CIS roots to ask
     cis_n_roots = :: int, optional
 
@@ -39,10 +42,13 @@ class QChem(Colt):
     # Sets CIS state for excited state optimizations and vibrational analysis
     cis_state_deriv = :: int, optional
 
+    # Include implicit solvent for the complete parametrization
+    solvent_method = :: str, optional
+
     """
 
     _method = ['method', 'dispersion', 'basis', 'cis_n_roots', 'cis_singlets', 'cis_triplets',
-               'cis_state_deriv']
+               'cis_state_deriv', 'solvent_method']
 
     def __init__(self):
         self.required_hessian_files = {'out_file': ['out', 'log'], 'fchk_file': ['fchk', 'fck']}
@@ -61,21 +67,21 @@ class ReadQChem(ReadABC):
 
     def scan(self, file_name, n_scan_steps):
         n_atoms, angles, energies, coords = None, [], [], []
-        with open(file_name, "r", encoding='utf-8') as gaussout:
+        with open(file_name, "r", encoding='utf-8') as out_file:
             angles, energies, coords = [], [], []
             found_n_atoms = False
 
-            for line in gaussout:
+            for line in out_file:
                 if not found_n_atoms and " NAtoms, " in line:
-                    line = gaussout.readline()
+                    line = out_file.readline()
                     n_atoms = int(line.split()[0])
 
                 elif "OPTIMIZATION CONVERGED" in line:
                     coord = []
                     for _ in range(4):
-                        gaussout.readline()
+                        out_file.readline()
                     for n in range(n_atoms):
-                        line = gaussout.readline().split()
+                        line = out_file.readline().split()
                         coord.append([float(c_xyz) for c_xyz in line[2:]])
                     coords.append(coord)
 
@@ -182,6 +188,8 @@ class WriteQChem(WriteABC):
             file.write(f'  basis = {config.basis}\n')
         if config.dispersion is not None:
             file.write(f'  dft_d = {config.dispersion}\n')
+        if config.solvent_method is not None:
+            file.write(f'  solvent_method = {config.solvent_method}\n')
         if config.cis_n_roots is not None:
             file.write(f'  cis_n_roots = {config.cis_n_roots}\n')
         if config.cis_singlets is not None:
@@ -195,4 +203,5 @@ class WriteQChem(WriteABC):
         file.write(f'  mem_total = {config.memory}\n')
         file.write(f'  geom_opt_max_cycles = {config.max_opt_cycles}\n')
         file.write(f'  max_scf_cycles = {config.max_scf_cycles}\n')
+        file.write(f'  xc_grid = {config.xc_grid}\n')
         file.write('$end\n')

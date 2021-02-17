@@ -36,12 +36,9 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
 
 def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
                                      config=None, presets=None):
-
-    # Next: Read atom types and LJ (list vs string)
-
     config, job = initialize(job_dir, config, presets)
 
-    qm_hessian_out = HessianOutput(**qm_data)
+    qm_hessian_out = HessianOutput(config.qm.vib_scaling, **qm_data)
 
     mol = Molecule(config, job, qm_hessian_out, ext_q, ext_lj)
 
