@@ -51,10 +51,15 @@ vib_scaling = 1.0 :: float
         qm_out = self.software.read().hessian(self.config, **self.hessian_files)
         return HessianOutput(self.config.vib_scaling, *qm_out)
 
-    def read_scan(self, file):
+    def read_scan(self, files):
+        qm_outs = []
         n_scan_steps = int(np.ceil(360/self.config.scan_step_size))
-        qm_out = self.software.read().scan(file, n_scan_steps)
-        return ScanOutput(file, *qm_out)
+
+        for file in files:
+            qm_outs.append(self.software.read().scan(self.config, f'{self.job.frag_dir}/{file}'))
+        qm_out = self._get_unique_scan_points(qm_outs, n_scan_steps)
+
+        return ScanOutput(file, n_scan_steps, *qm_out)
 
     @scriptify
     def write_hessian(self, file, coords, atnums):
@@ -65,6 +70,34 @@ vib_scaling = 1.0 :: float
                    multiplicity):
         self.software.write().scan(file, scan_id, self.config, coords, atnums, scanned_atoms,
                                    start_angle, charge, multiplicity)
+
+    def _get_unique_scan_points(self, qm_outs, n_scan_steps):
+        all_angles, all_energies, all_coords, chosen_point_charges, final_e = [], [], [], {}, 0
+        all_angles_rounded = []
+
+        for n_atoms, coords, angles, energies, point_charges in qm_outs:
+            angles = [round(a % 360, 3) for a in angles]
+
+            for angle, coord, energy in zip(angles, coords, energies):
+                angle_rounded = round(angle)
+                if angle_rounded not in all_angles_rounded:
+                    all_angles.append(angle)
+                    all_energies.append(energy)
+                    all_coords.append(coord)
+                    all_angles_rounded.append(angle_rounded)
+                else:
+                    idx = all_angles_rounded.index(angle_rounded)
+                    if energy < all_energies[idx]:
+                        all_energies[idx] = energy
+                        all_coords[idx] = coord
+
+        if not chosen_point_charges:
+            chosen_point_charges = point_charges
+            final_e = energies[-1]
+        elif energies[-1] < final_e:
+            chosen_point_charges = point_charges
+
+        return n_atoms, all_coords, all_angles, all_energies, chosen_point_charges
 
     def _check_hessian_output(self):
         hessian_files = {}

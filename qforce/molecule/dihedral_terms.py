@@ -89,42 +89,8 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
         return calc_rb_diheds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_term(cls, topo, a1s, a2, a3, a4s):
-        def pick_end_atom(atom_list):
-            n_neighbors = topo.n_neighbors[atom_list]
-            choices = atom_list[n_neighbors > 1]
-            if len(choices) == 0:
-                choices = atom_list
-            if len(choices) > 1:
-                heaviest_elem = np.amax(topo.elements[choices])
-                choices = choices[topo.elements[choices] == heaviest_elem]
-            return choices
-
-        a1s = pick_end_atom(a1s)
-        a4s = pick_end_atom(a4s)
-
-        priority = [[] for _ in range(6)]
-
-        for a1, a4 in product(a1s, a4s):
-            phi = np.degrees(abs(get_dihed(topo.coords[[a1, a2, a3, a4]])[0]))
-            if phi > 168:
-                priority[0].append([a1, a4])
-            elif phi < 12:
-                priority[1].append([a1, a4])
-            elif topo.edge(a1, a2)['in_ring'] and topo.edge(a3, a4)['in_ring']:
-                priority[5].append([a1, a4])
-            elif topo.edge(a1, a2)['in_ring'] or topo.edge(a3, a4)['in_ring']:
-                priority[4].append([a1, a4])
-            elif 55 < phi < 65 or 85 < phi < 95:
-                priority[2].append([a1, a4])
-            else:
-                priority[3].append([a1, a4])
-
-        ordered = [p for prio in priority for p in prio]
-        a1, a4 = ordered[0]
-        atoms = np.array((a1, a2, a3, a4))
-
-        return cls(atoms, np.zeros(6), topo.edge(a2, a3)['vers'])
+    def get_term(cls, topo, atoms, d_type):
+        return cls(atoms, np.zeros(6), d_type)
 
 
 class InversionDihedralTerm(DihedralBaseTerm):
@@ -179,8 +145,8 @@ class DihedralTerms(TermFactory):
             atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
                           a4s) if d[0] != d[-1]]
 
-            if (central['order'] > 1.5 or central["in_ring3"]  # double bond or 3-member ring
-                    or (central['in_ring'] and central['order'] > 1)  # in ring and conjugated
+            if (central['order'] >= 1.75 or central["in_ring3"]  # double bond or 3-member ring
+                    or (central['in_ring'] and central['order'] >= 1.25)  # in ring and conjugated
                     or (all([topo.node(a)['n_ring'] > 1 for a in [a2, a3]]) and  # in many rings
                         any([topo.node(a)['n_ring'] > 1 for a in a1s]) and
                         any([topo.node(a)['n_ring'] > 1 for a in a4s]))
@@ -205,7 +171,13 @@ class DihedralTerms(TermFactory):
                         add_term('inversion', topo, atoms, phi, d_type)
 
             else:
-                add_term('flexible', topo, a1s, a2, a3, a4s)
+                atoms = find_flexible_atoms(topo, a1s, a2, a3, a4s)
+                for dih in atoms:
+                    atypes = [topo.types[dih[0]], topo.types[dih[3]]]
+                    if central['vers'].startswith(topo.types[a3]):
+                        atypes = atypes[::-1]
+                    d_type = f"{central['vers']}_{atypes[0]}-{atypes[1]}"
+                    add_term('flexible', topo, dih, d_type)
 
         # improper dihedrals
         for i in range(topo.n_atoms):
@@ -256,3 +228,54 @@ def check_if_in_a_fully_planar_ring(topo, a2, a3):
     else:
         all_planar = False
     return all_planar
+
+
+def find_flexible_atoms(topo, a1s, a2, a3, a4s):
+    def pick_end_atom(atom_list):
+        n_neighbors = topo.n_neighbors[atom_list]
+        choices = atom_list[n_neighbors > 1]
+        if len(choices) == 0:
+            choices = atom_list
+        # if len(choices) > 1:
+        #     heaviest_elem = np.amax(topo.elements[choices])
+        #     choices = choices[topo.elements[choices] == heaviest_elem]
+        return choices
+
+    a1s = pick_end_atom(a1s)
+    a4s = pick_end_atom(a4s)
+
+    priority = [[] for _ in range(6)]
+
+    for a1, a4 in product(a1s, a4s):
+        phi = np.degrees(abs(get_dihed(topo.coords[[a1, a2, a3, a4]])[0]))
+        if phi > 155:
+            priority[0].append([a1, a4])
+        elif phi < 25:
+            priority[1].append([a1, a4])
+        elif topo.edge(a1, a2)['in_ring'] and topo.edge(a3, a4)['in_ring']:
+            priority[5].append([a1, a4])
+        elif topo.edge(a1, a2)['in_ring'] or topo.edge(a3, a4)['in_ring']:
+            priority[4].append([a1, a4])
+        elif 55 < phi < 65 or 85 < phi < 95:
+            priority[2].append([a1, a4])
+        else:
+            priority[3].append([a1, a4])
+
+    ordered = [p for prio in priority for p in prio]
+    a1_select, a4_select = ordered[0]
+    atoms = [[a1_select, a2, a3, a4_select]]
+
+    for a1, a4 in ordered[1:]:
+        if ((len(topo.neighbors[0][a1]) > 1 or len(topo.neighbors[0][a2]) == 2) and
+                (len(topo.neighbors[0][a4]) > 1 or len(topo.neighbors[0][a3]) == 2)):
+            atoms.append([a1, a2, a3, a4])
+
+    # add a second dihedral term if minimum is non-planar
+    # if priority[0] == [] and priority[1] == []:
+    #     phi0 = np.degrees(get_dihed(topo.coords[[a1_select, a2, a3, a4_select]])[0])
+    #     for a1, a4 in product(a1s, a4s):
+    #         phi = np.degrees(get_dihed(topo.coords[[a1, a2, a3, a4]])[0])
+    #         if 100 < (phi0-phi) % 360 < 140 or 220 < (phi0-phi) % 360 < 260:
+    #             atoms.append([a1, a2, a3, a4])
+    #             break
+    return atoms

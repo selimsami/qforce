@@ -10,8 +10,8 @@ from ..elements import ATOM_SYM
 
 
 class NonBonded():
-    def __init__(self, n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions,
-                 n_excl, comb_rule, fudge_lj, fudge_q, alpha):
+    def __init__(self, n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
+                 n_excl, comb_rule, fudge_lj, fudge_q, h_cap, alpha):
         self.n_atoms = n_atoms
         self.q = q
         self.lj_types = lj_types
@@ -21,15 +21,18 @@ class NonBonded():
         self.fudge_lj = fudge_lj
         self.fudge_q = fudge_q
         self.comb_rule = comb_rule
+        self.h_cap = h_cap
         self.exclusions = exclusions
+        self.pairs = pairs
         self.n_excl = n_excl
         self.alpha = {key: alpha[key] for key in sorted(alpha.keys())}  # sort the dictionary
         self.alpha_map = {key: i+self.n_atoms for i, key in enumerate(self.alpha.keys())}
 
     @classmethod
     def from_topology(cls, config, job, qm_out, topo, ext_q, ext_lj):
-        comb_rule, fudge_lj, fudge_q = set_non_bonded_props(config)
+        comb_rule, fudge_lj, fudge_q, h_cap = set_non_bonded_props(config)
         exclusions = cls._set_exclusions(config.exclusions)
+        pairs = cls._set_pairs(config.pairs)
 
         # RUN D4 if necessary
         if config._d4:
@@ -67,35 +70,44 @@ class NonBonded():
         else:
             lj_types = get_external_lennard_jones(config, topo, q, job, ext_lj)
             lj_pairs, lj_1_4, lj_atomic_number = set_external_lennard_jones(job, config, comb_rule,
-                                                                            lj_types, ext_lj)
+                                                                            lj_types, ext_lj,
+                                                                            h_cap)
         # POLARIZABILITY
         alpha = set_polar(q, topo, config, job)
 
         return cls(topo.n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions,
-                   config.n_excl, comb_rule, fudge_lj, fudge_q, alpha)
+                   pairs, config.n_excl, comb_rule, fudge_lj, fudge_q, h_cap, alpha)
 
     @classmethod
-    def subset(cls, non_bonded, mapping):
+    def subset(cls, non_bonded, frag_charges, mapping):
         n_atoms = len(mapping)
         rev_map = {v: k for k, v in mapping.items()}
+        h_cap = non_bonded.h_cap
 
-        q = np.array([non_bonded.q[rev_map[i]] for i in range(n_atoms)])
+        if frag_charges != []:
+            q = frag_charges
+        else:
+            q = np.array([non_bonded.q[rev_map[i]] for i in range(n_atoms)])
+
         lj_types = [non_bonded.lj_types[rev_map[i]] for i in range(n_atoms)]
         lj_pairs = {key: val for key, val in list(non_bonded.lj_pairs.items())
-                    if key[0] in lj_types and key[1] in lj_types}
+                    if key[0] in lj_types+[h_cap] and key[1] in lj_types+[h_cap]}
         lj_1_4 = {key: val for key, val in list(non_bonded.lj_1_4.items())
-                  if key[0] in lj_types and key[1] in lj_types}
+                  if key[0] in lj_types+[h_cap] and key[1] in lj_types+[h_cap]}
         lj_atomic_number = {key: val for key, val in list(non_bonded.lj_atomic_number.items())
-                            if key in lj_types}
+                            if key in lj_types+[h_cap]}
         exclusions = [(mapping[excl[0]], mapping[excl[1]]) for excl in non_bonded.exclusions if
                       excl[0] in mapping.keys() and excl[1] in mapping.keys()]
+
+        pairs = [(mapping[pair[0]], mapping[pair[1]]) for pair in non_bonded.pairs if
+                 pair[0] in mapping.keys() and pair[1] in mapping.keys()]
 
         alpha = {mapping[key]: val for key, val in list(non_bonded.alpha.items())
                  if key in mapping.keys()}
 
-        return cls(n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions,
+        return cls(n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
                    non_bonded.n_excl, non_bonded.comb_rule, non_bonded.fudge_lj,
-                   non_bonded.fudge_q, alpha)
+                   non_bonded.fudge_q, non_bonded.h_cap, alpha)
 
     @staticmethod
     def _set_exclusions(value):
@@ -115,10 +127,27 @@ class NonBonded():
                           f'Ignoring the line: {line[0]}\n')
         return exclusions
 
+    @staticmethod
+    def _set_pairs(value):
+        pairs = []
+        if value:
+            for line in value.split('\n'):
+                line = [int(i) for i in line.strip().partition('#')[0].split()]
+                if len(line) == 2:
+                    pair = tuple(sorted([line[0]-1, line[1]-1]))
+                    if pair not in pairs:
+                        pairs.append(pair)
+                elif len(line) != 0:
+                    print('WARNING: [ pairs ] input lines should contain two atom IDs:\n',
+                          f'         Ignoring the line: {line}\n')
+        return pairs
+
 
 def get_external_lennard_jones(config, topo, q, job, ext_lj):
     if config.lennard_jones == 'gromos_auto':
-        lj_types = determine_atom_types(topo, q)
+        lj_types = determine_gromos_atom_types(topo, q)
+    elif config.lennard_jones == 'opls_auto':
+        lj_types = determine_opls_atom_types(topo, q)
     elif ext_lj:
         if 'lj_types' not in ext_lj:
             sys.exit('ERROR: You have not provided the "lj_types" list in the "ext_lj" '
@@ -152,28 +181,181 @@ def set_non_bonded_props(config):
         fudge_lj, fudge_q = 1.0, 1.0
 
     elif config.lennard_jones == 'ext':
-        if not config.ext_lj_fudge or not config.ext_q_fudge or not config.ext_comb_rule:
+        if (not config.ext_lj_fudge or not config.ext_q_fudge or not config.ext_comb_rule or
+                not config.ext_h_cap):
             sys.exit('ERROR: External set of Lennard-Jones interactions requested but not all '
-                     'required\n       parameters (ext_lj_fudge, ext_q_fudge, ext_comb_rule) are '
-                     'set.\n')
+                     'required\n       parameters (ext_lj_fudge, ext_q_fudge, ext_comb_rule, '
+                     'ext_h_cap) are set.\n')
         else:
             comb_rule = config.ext_comb_rule
             fudge_lj = config.ext_lj_fudge
             fudge_q = config.ext_q_fudge
+            h_cap = config.ext_h_cap
 
     elif config.lennard_jones in ['gromos', 'gromos_auto']:
         comb_rule = 1
         fudge_lj, fudge_q = 1.0, 1.0
-    elif config.lennard_jones == 'opls':
+        h_cap = 'HC'
+    elif config.lennard_jones in ['opls', 'opls_auto']:
         comb_rule = 3
         fudge_lj, fudge_q = 0.5, 0.5
+        h_cap = 'opls_140'
     elif config.lennard_jones == 'gaff':
         comb_rule = 2
         fudge_lj, fudge_q = 0.5, 0.8333
-    return comb_rule, fudge_lj, fudge_q
+        h_cap = 'hc'
+    return comb_rule, fudge_lj, fudge_q, h_cap
 
 
-def determine_atom_types(topo, q):
+class Neighbor():
+    def __init__(self, elem, b_order, in_ring, lone_e):
+        self.elem = elem
+        self.b_order = b_order
+        self.in_ring = in_ring
+        self.lone_e = lone_e
+
+
+class Neighbors(list):
+    @classmethod
+    def generate(cls, topo, atomid):
+        neighbors = []
+        for neigh in topo.neighbors[0][atomid]:
+            elem = topo.elements[neigh]
+            b_order = topo.edge(atomid, neigh)['order']
+            in_ring = topo.edge(atomid, neigh)['n_rings'] > 0
+            lone_e = topo.node(neigh)['lone_e']
+            neighbors.append(Neighbor(elem, b_order, in_ring, lone_e))
+        return cls(neighbors)
+
+    def count(neighs, elem=None, b_order_gt=None, b_order_lt=None, in_ring=None, lone_e_lt=None):
+        matched = []
+        for neigh in neighs:
+            if ((elem is None or neigh.elem == elem) and
+                (b_order_gt is None or neigh.b_order > b_order_gt) and
+                (b_order_lt is None or neigh.b_order < b_order_lt) and
+                (lone_e_lt is None or neigh.lone_e < lone_e_lt) and
+                    (in_ring is None or in_ring)):
+                matched.append(neigh)
+        return len(matched)
+
+
+def determine_opls_atom_types(topo, q):
+    """
+    Carbon
+    #CA (aromatic): opls_145  ---- LigParGen puts C=N a CA atomtype, why???
+    CT/CO (alkane, C-0 bonds): opls_135
+    #CM (alkene), C= (diene): opls_141
+    #C (C=O double b.): opls_231
+    #CZ (acetonitrile, or O=C=C): opls_754
+    MORE CZ...??
+
+    Hydrogen
+    HA (aromatic): opls_146
+    HC (bound to C): opls_140
+    H/HO/HS (no LJ): opls_155
+
+    Oxygen
+    OH (H bound): opls_154
+    #OS (COC, COS): opls_179
+    #O (C=0): opls_236
+    #OY / ON (O=N, O=S): opls_475
+
+    Nitrogen
+    NO (nitro): opls_760
+    NZ (N#C): opls_262
+    N (N=.., sulfamide): opls_237
+    NT (amide, other single bonds): opls_900
+
+    Sulphur
+    S (sulfamide): opls_203
+    SZ (S=O): opls_496
+    SH (S-H): opls_202
+    S (S...): opls_200
+    """
+
+    print('NOTE: Automatic atom-type determination (used only for LJ interactions) is new. \n'
+          '      Double check your atom types or enter them manually.\n')
+    a_types = []
+    for atomid, elem in enumerate(topo.elements):
+
+        neighs = Neighbors.generate(topo, atomid)
+
+        if elem == 1:
+            if neighs.count(elem=6):
+                second_neighs = Neighbors.generate(topo, topo.neighbors[0][atomid][0])
+                if second_neighs.count(elem=6, b_order_gt=1.25, b_order_lt=1.6, in_ring=True):
+                    a_type = 'opls_146'  # HA
+                elif neighs.count(elem=6):
+                    a_type = 'opls_140'  # HC
+            else:
+                a_type = 'opls_155'  # H/HO/HS
+
+        elif elem == 6:
+            if neighs.count(b_order_gt=1.25, b_order_lt=1.6, in_ring=True):
+                a_type = 'opls_145'  # CA
+            elif neighs.count(b_order_gt=1.4) > 1 or neighs.count(b_order_gt=2.4) > 1:
+                a_type = 'opls_754'  # CZ
+            elif neighs.count(elem=6, b_order_gt=1.4):
+                a_type = 'opls_141'  # CM
+            elif neighs.count(elem=8, b_order_gt=1.4):
+                a_type = 'opls_231'  # C
+            else:
+                a_type = 'opls_135'  # CT/CO
+
+        elif elem == 7:
+            if neighs.count(elem=8, b_order_gt=1.25) > 1:
+                a_type = 'opls_760'  # NO (nitro group)
+            elif neighs.count(b_order_gt=2.4):
+                a_type = 'opls_262'  # NZ
+            elif (neighs.count(b_order_gt=1.25) or neighs.count(elem=16, lone_e_lt=1) > 1):
+                a_type = 'opls_237'  # N
+            else:
+                a_type = 'opls_900'  # NT
+
+        elif elem == 8:
+            if neighs.count(elem=6, b_order_gt=1.4):
+                a_type = 'opls_236'  # O
+            elif neighs.count(b_order_gt=1.4):
+                a_type = 'opls_475'  # OY / ON
+            elif neighs.count(elem=1):
+                a_type = 'opls_154'  # OH
+            else:
+                a_type = 'opls_179'  # OS
+
+        elif elem == 9:
+            a_type = 'opls_164'  # F
+
+        elif elem == 16:
+            if neighs.count(elem=8, b_order_gt=1.25) == 1:
+                a_type = 'opls_496'  # SZ
+            if neighs.count(elem=8, b_order_gt=1.25) > 1:
+                a_type = 'opls_203'  # S
+            elif neighs.count(elem=1):
+                a_type = 'opls_200'  # S
+            else:
+                a_type = 'opls_202'
+
+        elif elem == 15:
+            a_type = 'opls_393'
+
+        elif elem == 17:
+            a_type = 'opls_151'
+
+        elif elem == 35:
+            a_type = 'opls_722'
+
+        elif elem == 53:
+            a_type = 'opls_732'
+
+        else:
+            sys.exit(f'ERROR: Atom ID "{atomid}" not implemented for auto-atom-type detection.')
+
+        a_types.append(a_type)
+
+    return a_types
+
+
+def determine_gromos_atom_types(topo, q):
     print('NOTE: Automatic atom-type determination (used only for LJ interactions) is new. \n'
           '      Double check your atom types or enter them manually.\n')
     a_types = []
@@ -187,8 +369,8 @@ def determine_atom_types(topo, q):
                 a_type = 'HS14'
 
         elif elem == 6:
-            in_ring_and_conj = [all([topo.edge(*edge)['order'] > 1, topo.edge(*edge)['in_ring']])
-                                for edge in topo.graph.edges(i)]
+            in_ring_and_conj = [all([topo.edge(*edge)['order'] >= 1.25,
+                                topo.edge(*edge)['in_ring']])for edge in topo.graph.edges(i)]
             united_charge = q[i] + sum([q[j] for j in topo.neighbors[0][i] if
                                         topo.elements[j] == 1])
 
@@ -283,7 +465,7 @@ def set_qforce_lennard_jones(topo, comb_rule, lj_a, lj_b):
     return lj_types, lj_pairs
 
 
-def set_external_lennard_jones(job, config, comb_rule, lj_types, ext_lj):
+def set_external_lennard_jones(job, config, comb_rule, lj_types, ext_lj, h_cap):
     lj_pairs, lj_1_4 = {}, {}
 
     if config.lennard_jones == 'ext' and ext_lj:
@@ -298,7 +480,7 @@ def set_external_lennard_jones(job, config, comb_rule, lj_types, ext_lj):
             sys.exit(f'ERROR: The atom type you have entered ({lj_type}) is not in the FF library '
                      f'you have chosen ({config.lennard_jones}).\nPlease check your settings.\n')
 
-    for comb in combinations_with_replacement(set(lj_types), 2):
+    for comb in combinations_with_replacement(set(lj_types + [h_cap]), 2):
         comb = tuple(sorted(comb))
 
         if comb in nonbond_params.keys():
@@ -393,6 +575,7 @@ def read_ext_nonbonded_file(config, md_data):
         lj_lib = f'{md_data}/{lj_lib}.itp'
 
     with open(lj_lib, 'r') as file:
+        in_section = 'atomtypes'
         for line in file:
             line = line.partition('#')[0].partition(';')[0].strip()
             if line == '':

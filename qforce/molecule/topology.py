@@ -15,6 +15,7 @@ class Topology(object):
         self.elements = qm_out.elements
         self.n_atoms = len(self.elements)
         self.coords = qm_out.coords
+        self.b_order_matrix = qm_out.b_orders
         #
         self.n_types = 0
         self.n_terms = 0
@@ -44,13 +45,14 @@ class Topology(object):
                                 coords=self.coords[i_idx])
             # add bonds
             for j_idx, j_elem in enumerate(self.elements):
-                order = qm_out.b_orders[i_idx, j_idx]
-                if order > 0:
+                b_order = qm_out.b_orders[i_idx, j_idx]
+                if b_order > 0.3:
                     id1, id2 = sorted([i_elem, j_elem])
+                    b_order_half_rounded = np.round(b_order*2)/2
                     vec = self.coords[i_idx] - self.coords[j_idx]
                     dist = np.sqrt((vec**2).sum())
-                    self.graph.add_edge(i_idx, j_idx, vector=vec, length=dist, order=order,
-                                        type=f'{id1}({order}){id2}')
+                    self.graph.add_edge(i_idx, j_idx, vector=vec, length=dist, order=b_order,
+                                        type=f'{id1}({b_order_half_rounded}){id2}', n_rings=0)
             if qm_out.n_bonds[i_idx] > ELE_MAXB[i_elem]:
                 print(f"WARNING: Atom {i_idx+1} ({ATOM_SYM[i_elem]}) has too many",
                       " ({qm_out.n_bonds[i_idx]}) bonds?")
@@ -64,8 +66,9 @@ class Topology(object):
             self.node(i)['n_ring'] = sum([i in ring for ring in self.rings])
         #
         for atoms in self.graph.edges:
-            self.edge(*atoms)['in_ring'] = any(set(atoms).issubset(set(ring))
-                                               for ring in self.rings)
+            ring_members = [set(atoms).issubset(set(ring)) for ring in self.rings]
+            self.edge(*atoms)['n_rings'] = sum(ring_members)
+            self.edge(*atoms)['in_ring'] = any(ring_members)
             self.edge(*atoms)['in_ring3'] = any(set(atoms).issubset(set(ring))
                                                 for ring in self.rings3)
 

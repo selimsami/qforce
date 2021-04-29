@@ -32,23 +32,32 @@ class Gaussian(Colt):
 
 class ReadGaussian(ReadABC):
     def hessian(self, config, out_file, fchk_file):
+        n_bonds, b_orders, lone_e, point_charges = [], [], [], []
+
         n_atoms, charge, multiplicity, elements, coords, hessian = self._read_fchk_file(fchk_file)
-        n_bonds, b_orders, lone_e = self._read_nbo_analysis(out_file, n_atoms)
-        point_charges = self._read_point_charges(out_file, n_atoms, config.charge_method)
+
+        with open(out_file, "r", encoding='utf-8') as file:
+            for line in file:
+                if "Hirshfeld charges, spin densities" in line and config.charge_method == "cm5":
+                    point_charges = self._read_cm5_charges(file, n_atoms)
+                elif " ESP charges:" in line and config.charge_method == "esp":
+                    point_charges = self._read_cm5_charges(file, n_atoms)
+                elif "N A T U R A L   B O N D   O R B I T A L" in line:
+                    n_bonds, b_orders, lone_e = self._read_nbo_analysis(file, line, n_atoms)
 
         return (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds, b_orders,
                 lone_e, point_charges)
 
-    def scan(self, file_name, n_scan_steps):
-        n_atoms, angles, energies, coords = None, [], [], []
-        with open(file_name, "r", encoding='utf-8') as gaussout:
-            for line in gaussout:
+    def scan(self, config, file_name):
+        n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
+        with open(file_name, "r", encoding='utf-8') as file:
+            for line in file:
                 if line.startswith(" NAtoms= "):
                     n_atoms = int(line.split()[1])
 
                 elif "following ModRedundant" in line:
                     step = 0
-                    for line in gaussout:
+                    for line in file:
                         line = line.split()
                         if line == []:
                             break
@@ -62,41 +71,51 @@ class ReadGaussian(ReadABC):
                 elif "orientation:" in line:
                     coord = []
                     for _ in range(5):
-                        line = gaussout.readline()
+                        line = file.readline()
                     while "--" not in line:
                         coord.append([float(a) for a in line.split()[3:6]])
-                        line = gaussout.readline()
+                        line = file.readline()
 
                 elif "SCF Done:" in line:
                     energy = round(float(line.split()[4]), 8)
 
                 # Get optimized energies, coords for each scan angle
-                elif "-- Stationary" in line:
+                elif "-- Stationary" in line or '-- Number of steps exceeded' in line:
                     angle = init_angle + step * step_size
                     angles.append(angle)
                     energies.append(energy)
                     coords.append(coord)
                     step += 1
+
+                    if '-- Number of steps exceeded' in line:
+                        print('WARNING: An optimization step is unconverged in the file:\n'
+                              f'         - {file_name}\n'
+                              '           Double check to make sure it is fine.\n')
+
+                elif "Hirshfeld charges, spin densities" in line:
+                    point_charges['cm5'] = self._read_cm5_charges(file, n_atoms)
+                elif " ESP charges:" in line:
+                    point_charges['esp'] = self._read_esp_charges(file, n_atoms)
+
         energies = np.array(energies) * Hartree * mol / kJ
-        return n_atoms, n_scan_steps, coords, angles, energies
+        return n_atoms, coords, angles, energies, point_charges
 
     @staticmethod
-    def _read_point_charges(out_file, n_atoms, charge_method):
+    def _read_cm5_charges(file, n_atoms):
+        point_charges = []  # reset here because gaussian prints it multiple times
+        line = file.readline()
+        for i in range(n_atoms):
+            line = file.readline().split()
+            point_charges.append(float(line[7]))
+        return point_charges
+
+    @staticmethod
+    def _read_esp_charges(file, n_atoms):
         point_charges = []
-        with open(out_file, "r", encoding='utf-8') as file:
-            for line in file:
-                if charge_method == "cm5" and "Hirshfeld charges, spin densities" in line:
-                    point_charges = []  # reset here because gaussian prints it multiple times
-                    line = file.readline()
-                    for i in range(n_atoms):
-                        line = file.readline().split()
-                        point_charges.append(float(line[7]))
-                elif charge_method == "esp" and " ESP charges:" in line:
-                    point_charges = []
-                    line = file.readline()
-                    for i in range(n_atoms):
-                        line = file.readline().split()
-                        point_charges.append(float(line[2]))
+        line = file.readline()
+        for i in range(n_atoms):
+            line = file.readline().split()
+            point_charges.append(float(line[2]))
         return point_charges
 
 
@@ -130,7 +149,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write(f"#Opt Freq {config.method} {config.dispersion} {config.basis} "
-                   "pop=(CM5, ESP, NBOREAD) \n\n")
+                   "pop=(CM5, ESP, NBOREAD)\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
@@ -139,6 +158,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
-        file.write(f"#Opt=Modredundant {config.method} {config.dispersion} {config.basis}\n\n")
+        file.write(f"#Opt=Modredundant {config.method} {config.dispersion} {config.basis} "
+                   "pop=(CM5, ESP)\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")

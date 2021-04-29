@@ -58,32 +58,40 @@ class QChem(Colt):
 
 class ReadQChem(ReadABC):
     def hessian(self, config, out_file, fchk_file):
+        n_bonds, b_orders, lone_e, point_charges = [], [], [], []
         n_atoms, charge, multiplicity, elements, coords, hessian = self._read_fchk_file(fchk_file)
-        n_bonds, b_orders, lone_e = self._read_nbo_analysis(out_file, n_atoms)
-        point_charges = self._read_point_charges(out_file, n_atoms, config.charge_method)
+
+        with open(out_file, "r", encoding='utf-8') as file:
+            for line in file:
+                if "Charge Model 5" in line and config.charge_method == "cm5":
+                    point_charges = self._read_cm5_charges(file, n_atoms)
+                elif "Merz-Kollman RESP Net Atomic" in line and config.charge_method == "resp":
+                    point_charges = self._read_resp_charges(file, n_atoms)
+                self._check_point_charges(file, line, n_atoms, config.charge_method, point_charges)
+                if "N A T U R A L   B O N D   O R B I T A L" in line:
+                    n_bonds, b_orders, lone_e = self._read_nbo_analysis(file, line, n_atoms)
 
         return (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds, b_orders,
                 lone_e, point_charges)
 
-    def scan(self, file_name, n_scan_steps):
-        n_atoms, angles, energies, coords = None, [], [], []
-        with open(file_name, "r", encoding='utf-8') as out_file:
+    def scan(self, config, file_name):
+        n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
+        with open(file_name, "r", encoding='utf-8') as file:
             angles, energies, coords = [], [], []
             found_n_atoms = False
 
-            for line in out_file:
+            for line in file:
                 if not found_n_atoms and " NAtoms, " in line:
-                    line = out_file.readline()
+                    line = file.readline()
                     n_atoms = int(line.split()[0])
 
                 elif "OPTIMIZATION CONVERGED" in line:
                     coord = []
                     for _ in range(4):
-                        out_file.readline()
+                        file.readline()
                     for n in range(n_atoms):
-                        line = out_file.readline().split()
+                        line = file.readline().split()
                         coord.append([float(c_xyz) for c_xyz in line[2:]])
-                    coords.append(coord)
 
                 elif "Final energy is" in line:
                     energy = float(line.split()[3])
@@ -91,37 +99,40 @@ class ReadQChem(ReadABC):
                 elif "PES scan, value:" in line:
                     angles.append(float(line.split()[3]))
                     energies.append(energy)
+                    coords.append(coord)
+
+                elif "Charge Model 5" in line:
+                    point_charges['cm5'] = self._read_cm5_charges(file, n_atoms)
+                elif "Merz-Kollman RESP Net Atomic" in line:
+                    point_charges['resp'] = self._read_resp_charges(file, n_atoms)
 
         energies = np.array(energies) * Hartree * mol / kJ
-        return n_atoms, n_scan_steps, coords, angles, energies
+        return n_atoms, coords, angles, energies, point_charges
 
     @staticmethod
-    def _read_point_charges(out_file, n_atoms, charge_method):
+    def _read_cm5_charges(file, n_atoms):
+        point_charges = []  # reset here because gaussian prints it multiple times
+        for _ in range(3):
+            file.readline()
+        for i in range(n_atoms):
+            line = file.readline().split()
+            point_charges.append(float(line[2]))
+
+    @staticmethod
+    def _read_resp_charges(file, n_atoms):
         point_charges = []
-        with open(out_file, "r", encoding='utf-8') as file:
-            for line in file:
-                if charge_method == "cm5" and "Charge Model 5" in line:
-                    point_charges = []  # reset here because gaussian prints it multiple times
-                    for _ in range(3):
-                        file.readline()
-                    for i in range(n_atoms):
-                        line = file.readline().split()
-                        point_charges.append(float(line[2]))
-                elif charge_method == "resp" and "Merz-Kollman RESP Net Atomic Charges" in line:
-                    point_charges = []
-                    for _ in range(3):
-                        file.readline()
-                    for i in range(n_atoms):
-                        line = file.readline().split()
-                        point_charges.append(float(line[2]))
-        return point_charges
+        for _ in range(3):
+            file.readline()
+        for i in range(n_atoms):
+            line = file.readline().split()
+            point_charges.append(float(line[2]))
 
 
 class WriteQChem(WriteABC):
     hess_opt_rem = {'jobtype': 'opt'}
     hess_freq_rem = {'jobtype': 'freq', 'cm5': 'true', 'resp_charges': 'true', 'nbo': 2,
                      'iqmol_fchk': 'true'}
-    scan_rem = {'jobtype': 'pes_scan'}
+    scan_rem = {'jobtype': 'pes_scan', 'cm5': 'true', 'resp_charges': 'true'}
 
     def hessian(self, file, job_name, config, coords, atnums):
         self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)

@@ -26,7 +26,8 @@ class NonBondedTerms(TermBase):
                     pair_name = tuple(sorted([non_bonded.lj_types[i], non_bonded.lj_types[j]]))
                     term_type = '-'.join(pair_name)
 
-                    if non_bonded.n_excl == 2 and j in topo.neighbors[2][i]:  # 1-4 interactions
+                    if ((non_bonded.n_excl == 2 and j in topo.neighbors[2][i]) or  # 1-4 inter.
+                            (i, j) in non_bonded.pairs):  # extra pair interactions
                         if pair_name in non_bonded.lj_1_4.keys():
                             param = non_bonded.lj_1_4[pair_name][:]
                         else:

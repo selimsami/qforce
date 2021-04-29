@@ -62,38 +62,34 @@ class ReadABC(ABC):
         return n_atoms, charge, multiplicity, elements, coords, hessian
 
     @staticmethod
-    def _read_nbo_analysis(out_file, n_atoms):
-        n_bonds, b_orders, lone_e = [], [], []
-        with open(out_file, "r", encoding='utf-8') as file:
-            for line in file:
-                if "N A T U R A L   B O N D   O R B I T A L" in line:
-                    found_wiberg = False
-                    lone_e = np.zeros(n_atoms, dtype=int)
-                    n_bonds = []
-                    b_orders = [[] for _ in range(n_atoms)]
-                    while "Calling FoFJK" not in line and "Charge unit " not in line:
-                        line = file.readline()
-                        if ("bond index matrix" in line and not found_wiberg):
-                            for _ in range(int(np.ceil(n_atoms/9))):
-                                for atom in range(-3, n_atoms):
-                                    line = file.readline().split()
-                                    if atom >= 0:
-                                        order = [float(line_cut) for line_cut in line[2:]]
-                                        b_orders[atom].extend(order)
-                        if ("bond index, Totals" in line and not found_wiberg):
-                            found_wiberg = True
-                            for i in range(-3, n_atoms):
-                                line = file.readline()
-                                if i >= 0:
-                                    n_bonds.append(int(round(float(line.split()[2]), 0)))
-                        if "Natural Bond Orbitals (Summary)" in line:
-                            while "Total Lewis" not in line:
-                                line = file.readline()
-                                if " LP " in line:
-                                    atom = int(line[19:23])
-                                    occ = int(round(float(line[40:48]), 0))
-                                    if occ > 0:
-                                        lone_e[atom-1] += occ
+    def _read_nbo_analysis(file, line, n_atoms):
+        found_wiberg = False
+        lone_e = np.zeros(n_atoms, dtype=int)
+        n_bonds = []
+        b_orders = [[] for _ in range(n_atoms)]
+        while "Calling FoFJK" not in line and "Charge unit " not in line:
+            line = file.readline()
+            if ("bond index matrix" in line and not found_wiberg):
+                for _ in range(int(np.ceil(n_atoms/9))):
+                    for atom in range(-3, n_atoms):
+                        line = file.readline().split()
+                        if atom >= 0:
+                            order = [float(line_cut) for line_cut in line[2:]]
+                            b_orders[atom].extend(order)
+            if ("bond index, Totals" in line and not found_wiberg):
+                found_wiberg = True
+                for i in range(-3, n_atoms):
+                    line = file.readline()
+                    if i >= 0:
+                        n_bonds.append(int(round(float(line.split()[2]), 0)))
+            if "Natural Bond Orbitals (Summary)" in line:
+                while "Total Lewis" not in line:
+                    line = file.readline()
+                    if " LP " in line:
+                        atom = int(line[19:23])
+                        occ = int(round(float(line[40:48]), 0))
+                        if occ > 0:
+                            lone_e[atom-1] += occ
         return n_bonds, b_orders, lone_e
 
 
@@ -143,7 +139,6 @@ class HessianOutput():
                                                  (((n_atoms*3)**2+n_atoms*3)/2,)) * vib_scaling**2
         self.n_bonds = self.check_type_and_shape(n_bonds, 'n_bonds', int, (n_atoms,))
         self.b_orders = self.check_type_and_shape(b_orders, 'b_orders', float, (n_atoms, n_atoms))
-        self.b_orders = np.round(self.b_orders*2)/2
         self.lone_e = self.check_type_and_shape(lone_e, 'lone_e', int, (n_atoms,))
         self.point_charges = self.check_type_and_shape(point_charges, 'point_charges', float,
                                                        (n_atoms,))
@@ -171,13 +166,15 @@ class HessianOutput():
 
 
 class ScanOutput():
-    def __init__(self, file, n_atoms, n_steps, coords, angles, energies):
+    def __init__(self, file,  n_steps, n_atoms, coords, angles, energies, charges):
         self.n_atoms = n_atoms
         self.n_steps = n_steps
-        angles, energies, coords, self.mismatch = self.check_shape(angles, energies, coords, file)
+        angles, energies, coords, self.charges, self.mismatch = self.check_shape(angles, energies,
+                                                                                 coords, charges,
+                                                                                 file)
         self.angles, self.energies, self.coords = self._rearrange(angles, energies, coords)
 
-    def check_shape(self, angles, energies, coords, file):
+    def check_shape(self, angles, energies, coords, charges, file):
         mismatched = []
         if not isinstance(self.n_atoms, int):
             mismatched.append('n_atoms')
@@ -191,9 +188,16 @@ class ScanOutput():
                                   (coords, 'coords', (self.n_steps, self.n_atoms, 3))]:
             if prop.shape != shape:
                 mismatched.append(name)
+
+        for key, val in charges.items():
+            if len(val) == self.n_atoms:
+                charges[key] = list(val)
+            else:
+                mismatched.append('charges')
+
         if mismatched:
             print(f'WARNING: {mismatched} properties have missing data in the file:\n{file}')
-        return angles, energies, coords, mismatched
+        return angles, energies, coords, charges, mismatched
 
     @staticmethod
     def _rearrange(angles, energies, coords):

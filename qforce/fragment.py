@@ -20,29 +20,25 @@ Prompt a warning when if any point has an error larger than 2kJ/mol.
 
 
 def fragment(mol, qm, job, config):
-    fragments, missing = [], []
+    fragments = []
     unique_dihedrals = {}
 
-    os.makedirs(config.frag_lib, exist_ok=True)
+    os.makedirs(config.scan.frag_lib, exist_ok=True)
     os.makedirs(job.frag_dir, exist_ok=True)
     reset_data_files(job.frag_dir)
 
     for term in mol.terms['dihedral/flexible']:
-        if str(term) not in unique_dihedrals:
-            unique_dihedrals[str(term)] = term.atomids
+        name = term.typename.partition('_')[0]
+
+        if name not in unique_dihedrals:
+            unique_dihedrals[name] = term.atomids
 
     for name, atomids in unique_dihedrals.items():
         frag = Fragment(job, config, mol, qm, atomids, name)
-
         if frag.has_data:
             fragments.append(frag)
-        else:
-            missing.append(frag)
 
-    check_and_notify(job, config, len(unique_dihedrals), len(fragments))
-
-    for frag in missing:
-        mol.terms.remove_terms_by_name(name=frag.name)
+    check_and_notify(job, config.scan, len(unique_dihedrals), len(fragments))
 
     return fragments
 
@@ -91,24 +87,43 @@ class Fragment():
         self.hash_idx = 0
         self.id = ''
         self.has_data = False
-        self.mapping_frag_to_db = {}
-        self.mapping_mol_to_frag = {}
+        self.map_frag_to_db = {}
+        self.map_mol_to_frag = {}
         self.elements = []
         self.terms = None
         self.non_bonded = None
         self.remove_non_bonded = []
         self.qm_energies = []
+        self.qm_coords = []
+        self.qm_angles = []
+        self.fit_terms = []
         self.coords = []
+        self.frag_charges = []
+        self.charge_scaling = config.ff.charge_scaling
+        self.ext_charges = config.ff.ext_charges
+        self.charge_method = config.qm.charge_method
 
-        self.check_fragment(job, config, mol, qm)
+        self.check_fragment(job, config.scan, mol, qm)
 
     def check_fragment(self, job, config, mol, qm):
         self.identify_fragment(mol, config)
         self.make_fragment_graph(mol)
         self.make_fragment_identifier(config, mol, qm)
         self.check_for_fragment(job, config, qm)
-        self.check_for_qm_data(job, config, qm)
+        self.check_for_qm_data(job, config, mol, qm)
         self.make_fragment_terms(mol)
+
+    def check_single_ring_rules(self, mol, bond, a1, a2):
+        ring = [ring for ring in mol.topo.rings if {a1, a2}.issubset(ring)][0]
+        n_atoms_in_ring = sum([atom in self.atomids for atom in ring])
+
+        conj_bonds_in_ring = np.any(mol.topo.b_order_matrix[ring][:, ring] > 1.25)
+
+        if n_atoms_in_ring != 1 or conj_bonds_in_ring:
+            not_breakable = True
+        else:
+            not_breakable = False
+        return not_breakable
 
     def identify_fragment(self, mol, config):
         n_neigh, n_cap = 0, 0
@@ -123,14 +138,13 @@ class Fragment():
                     pass
                 elif (config.frag_threshold < 1 or  # fragmentation turned off
                       n_neigh < config.frag_threshold  # don't break first n neighbors
-                      or bond['order'] > 1.5  # don't break double/triple bonds
-                      or (bond['in_ring'] and (mol.topo.node(a)['n_ring'] > 1 or  # no multi ring
-                          any([mol.topo.edge(a, neigh)['order'] > 1 for neigh
-                               in mol.topo.neighbors[0][a]]) or  # don't break conjugated rings
-                          any([mol.topo.edge(n, neigh)['order'] > 1 for neigh
-                               in mol.topo.neighbors[0][n]])))  # don't break conjugated rings
+                      or bond['order'] >= 1.4  # don't break bonds conjugated more than 1.4
                       or ELE_ENEG[mol.elements[a]] > 3  # don't break if very electronegative
-                      or mol.topo.n_neighbors[n] == 1):  # don't break terminal atoms
+                      or (config.break_co_bond and ELE_ENEG[mol.elements[n]] > 3)
+                      or mol.topo.n_neighbors[n] == 1  # don't break terminal atoms
+                      or bond['n_rings'] > 1  # don't break a bond that is in multiple rings
+                      or (bond['n_rings'] == 1 and self.check_single_ring_rules(mol, bond, a, n))):
+
                     new.append(n)
                     self.atomids.append(n)
                     if mol.topo.node(n)['elem'] == 1:
@@ -150,20 +164,20 @@ class Fragment():
         self.n_atoms_without_cap = len(self.atomids)
         self.n_atoms = self.n_atoms_without_cap + len(self.caps)
 
-        self.remove_non_bonded = [cap['idx'] for cap in self.caps]
-        for cap in self.caps:
-            hydrogens = possible_h_caps[cap['connected']]
-            for h in hydrogens:
-                if h not in self.remove_non_bonded:
-                    self.remove_non_bonded.append(h)
+        # self.remove_non_bonded = [cap['idx'] for cap in self.caps]
+        # for cap in self.caps:
+        #     hydrogens = possible_h_caps[cap['connected']]
+            # for h in hydrogens:
+            #     if h not in self.remove_non_bonded:
+            #         self.remove_non_bonded.append(h)
 
     def make_fragment_graph(self, mol):
-        self.mapping_mol_to_frag = {self.atomids[i]: i for i in range(self.n_atoms_without_cap)}
-        self.scanned_atomids = [self.mapping_mol_to_frag[a] for a in self.scanned_atomids]
+        self.map_mol_to_frag = {self.atomids[i]: i for i in range(self.n_atoms_without_cap)}
+        self.scanned_atomids = [self.map_mol_to_frag[a] for a in self.scanned_atomids]
         self.elements = [mol.elements[idx] for idx in self.atomids+[cap['idx'] for cap in
                                                                     self.caps]]
         self.graph = mol.topo.graph.subgraph(self.atomids)
-        self.graph = nx.relabel_nodes(self.graph, self.mapping_mol_to_frag)
+        self.graph = nx.relabel_nodes(self.graph, self.map_mol_to_frag)
 
         for atom in self.scanned_atomids:
             self.graph.nodes[atom]['scan'] = True
@@ -179,15 +193,15 @@ class Fragment():
 
         for cap in self.caps:
             self.atomids.append(cap['idx'])
-            self.mapping_mol_to_frag[cap['idx']] = self.n_atoms_without_cap + cap['n_cap']
+            self.map_mol_to_frag[cap['idx']] = self.n_atoms_without_cap + cap['n_cap']
             h_type = f'1(1.0){mol.topo.elements[cap["connected"]]}'
             self.graph.add_node(self.n_atoms_without_cap + cap['n_cap'], elem=1, n_bonds=1,
                                 lone_e=0, coords=cap['coord'], capping=True)
             self.graph.add_edge(self.n_atoms_without_cap + cap['n_cap'],
-                                self.mapping_mol_to_frag[cap["connected"]], type=h_type)
+                                self.map_mol_to_frag[cap["connected"]], type=h_type)
 
-            cap['idx'] = self.mapping_mol_to_frag[cap['idx']]
-            cap['connected'] = self.mapping_mol_to_frag[cap['connected']]
+            cap['idx'] = self.map_mol_to_frag[cap['idx']]
+            cap['connected'] = self.map_mol_to_frag[cap['connected']]
 
     def make_fragment_identifier(self, config, mol, qm):
         atom_ids = [[], []]
@@ -234,7 +248,7 @@ class Fragment():
         If not, check current fragment directory if new data is there
         """
         self.dir = f'{config.frag_lib}/{self.hash}'
-        self.mapping_frag_to_db = {i: i for i in range(self.n_atoms)}
+        self.map_frag_to_db = {i: i for i in range(self.n_atoms)}
         have_match = False
 
         nm = iso.categorical_node_match(['elem', 'n_bonds', 'lone_e', 'capping', 'scan'],
@@ -250,7 +264,7 @@ class Fragment():
             if self.graph.graph['qm_method'] == compared.graph['qm_method'] and GM.is_isomorphic():
                 if os.path.isfile(f'{self.dir}/scandata_{id_no}'):
                     self.has_data = True
-                    self.mapping_frag_to_db = GM.mapping
+                    self.map_frag_to_db = GM.mapping
                 have_match = True
                 self.hash_idx = id_no
                 break
@@ -259,14 +273,17 @@ class Fragment():
             self.hash_idx = len(identifiers)+1
         self.id = f'{self.hash}~{self.hash_idx}'
 
-    def check_new_scan_data(self, job, config, qm):
-        out = [f for f in os.listdir(job.frag_dir) if f.startswith(self.id) and
-               f.endswith(('log', 'out'))]
-        if out:
+    def check_new_scan_data(self, job, mol, config, qm):
+        files = [f for f in os.listdir(job.frag_dir) if f.startswith(self.id) and
+                 f.endswith(('log', 'out'))]
+
+        if files:
             self.has_data = True
-            qm_out = qm.read_scan(f'{job.frag_dir}/{out[0]}')
+            qm_out = qm.read_scan(files)
             self.qm_energies = qm_out.energies
-            self.coords = qm_out.coords
+            self.qm_coords = qm_out.coords
+            self.assign_frag_charge(mol, qm_out.charges)
+
             if qm_out.mismatch:
                 if config.avail_only:
                     print('"\navail_only" requested, attempting to continue with the missing '
@@ -277,7 +294,9 @@ class Fragment():
                 with open(f'{self.dir}/scandata_{self.hash_idx}', 'w') as data:
                     for angle, energy in zip(qm_out.angles, qm_out.energies):
                         data.write(f'{angle:>10.3f} {energy:>20.8f}\n')
-                    np.save(f'{self.dir}/scancoords_{self.hash_idx}.npy', qm_out.coords)
+                with open(f"{self.dir}/charges_{self.hash_idx}", 'w') as file:
+                    json.dump(qm_out.charges, file, sort_keys=True, indent=4)
+                np.save(f'{self.dir}/scancoords_{self.hash_idx}.npy', qm_out.coords)
 
     def write_xyz(self):
         atomids = [atomid+1 for atomid in self.scanned_atomids]
@@ -289,40 +308,55 @@ class Fragment():
                 xyz.write(f'{atom_name:>3s} {c1:>12.6f} {c2:>12.6f} {c3:>12.6f}\n')
 
     def make_fragment_terms(self, mol):
-        mapping_mol_to_db = {}
-        mapping_db_to_frag = {v: k for k, v in self.mapping_frag_to_db.items()}
+        map_mol_to_db = {}
+        map_db_to_frag = {v: k for k, v in self.map_frag_to_db.items()}
 
-        self.elements = [self.elements[mapping_db_to_frag[i]] for i in range(self.n_atoms)]
-        self.scanned_atomids = [self.mapping_frag_to_db[s] for s in self.scanned_atomids]
+        self.elements = [self.elements[map_db_to_frag[i]] for i in range(self.n_atoms)]
+        self.scanned_atomids = [self.map_frag_to_db[s] for s in self.scanned_atomids]
 
-        for id_mol, id_frag in self.mapping_mol_to_frag.items():
-            mapping_mol_to_db[id_mol] = self.mapping_frag_to_db[id_frag]
+        for id_mol, id_frag in self.map_mol_to_frag.items():
+            map_mol_to_db[id_mol] = self.map_frag_to_db[id_frag]
 
-        mapping_db_to_mol = {v: k for k, v in mapping_mol_to_db.items()}
-        self.terms = mol.terms.subset(self.atomids, mapping_mol_to_db,
+        map_db_to_mol = {v: k for k, v in map_mol_to_db.items()}
+        self.terms = mol.terms.subset(self.atomids, map_mol_to_db,
                                       remove_non_bonded=self.remove_non_bonded)
-        self.non_bonded = mol.non_bonded.subset(mol.non_bonded, mapping_mol_to_db)
-        self.remove_non_bonded = [mapping_mol_to_db[i] for i in self.remove_non_bonded]
+        self.non_bonded = mol.non_bonded.subset(mol.non_bonded, self.frag_charges, map_mol_to_db)
+        self.remove_non_bonded = [map_mol_to_db[i] for i in self.remove_non_bonded]
 
         for cap in self.caps:
-            cap['idx'] = self.mapping_frag_to_db[cap['idx']]
-            cap['connected'] = self.mapping_frag_to_db[cap['connected']]
+            cap['idx'] = self.map_frag_to_db[cap['idx']]
+            cap['connected'] = self.map_frag_to_db[cap['connected']]
+
+            # # TEMPORARY
+            self.non_bonded.lj_types[cap['idx']] = self.non_bonded.h_cap
+            for term in self.terms['bond']:
+                if cap['idx'] in term.atomids and cap['connected'] in term.atomids:
+                    term.equ = 1.1
+            # for term in self.terms['dihedral/flexible']:
+            #     if cap['idx'] in term.atomids:
+            #         self.terms.remove_terms_by_name(str(term), atomids=term.atomids)
 
         # Reorder neighbors
         self.neighbors = [[] for _ in range(3)]
         for n in range(3):
             for i in range(self.n_atoms):
-                neighs = mol.topo.neighbors[n][mapping_db_to_mol[i]]
-                self.neighbors[n].append([mapping_mol_to_db[neigh] for neigh in neighs
-                                          if neigh in mapping_mol_to_db.keys() and
-                                          mapping_mol_to_db[neigh] < self.n_atoms])
+                neighs = mol.topo.neighbors[n][map_db_to_mol[i]]
+                self.neighbors[n].append([map_mol_to_db[neigh] for neigh in neighs if neigh in
+                                          map_mol_to_db.keys() and
+                                          map_mol_to_db[neigh] < self.n_atoms])
 
-    def check_for_qm_data(self, job, config, qm):
+    def check_for_qm_data(self, job, config, mol, qm):
         if self.has_data:
             self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}', unpack=True)[1]
-            self.coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')
+            self.qm_coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')
+
+            if os.path.isfile(f'{self.dir}/charges_{self.hash_idx}'):
+                with open(f'{self.dir}/charges_{self.hash_idx}') as file:
+                    charges = json.load(file)
+                self.assign_frag_charge(mol, charges)
+
         else:
-            self.check_new_scan_data(job, config, qm)
+            self.check_new_scan_data(job, mol, config, qm)
             self.write_have_or_missing(job)
             nx.write_gpickle(self.graph, f"{self.dir}/identifier_{self.hash_idx}")
             self.write_xyz()
@@ -331,6 +365,12 @@ class Fragment():
 
             if not self.has_data:
                 self.make_qm_input(job, qm)
+
+    def assign_frag_charge(self, mol, charges):
+        if self.charge_method in charges.keys() and not self.ext_charges:
+            self.frag_charges = np.array(charges[self.charge_method])
+            if mol.charge == 0:
+                self.frag_charges *= self.charge_scaling
 
     def write_have_or_missing(self, job):
         if self.has_data:

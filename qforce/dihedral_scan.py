@@ -5,9 +5,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from ase.optimize import BFGS
+import scipy.optimize as optimize
 from ase import Atoms
+from ase.io import read
 from scipy.optimize import curve_fit
 from scipy.interpolate import interp1d as interpolate
+from numba import jit
 #
 from .forcefield import ForceField
 from .calculator import QForce
@@ -33,6 +36,9 @@ avail_only = no :: bool
 # Number of neighbors after bonds can be fragmented (0 or smaller means no fragmentation)
 frag_threshold = 3 :: int
 
+# Break C-O type of bonds while creating fragments (O-C is never broken)
+break_co_bond = no :: bool
+
 # Method for doing the MM relaxed dihedral scan
 method = qforce :: str :: [qforce, gromacs]
 
@@ -40,13 +46,16 @@ method = qforce :: str :: [qforce, gromacs]
 gromacs_exec = gmx :: str
 
 # Number of iterations of dihedral fitting
-n_dihed_scans = 3 :: int
+n_dihed_scans = 5 :: int
 
 # Symmetrize the dihedral profile of a specific dihedral by inputting the range
 # For symmetrizing the dihedral profile between atoms 77 and 80 where 0-180 is inversely
 # equivalent to 180-360:
 # 77 80 = 0 180 360 : +-
 symmetrize = :: literal
+
+# Save extra plots with fitting data
+plot_fit = no :: bool
 
 # Directory where the fragments are saved
 frag_lib = ~/qforce_fragments :: folder
@@ -58,43 +67,136 @@ frag_lib = ~/qforce_fragments :: folder
         self.mdp_file = f'{job.md_data}/default.mdp'
         self.config = all_config.scan
         self.symmetrize = self._set_symmetrize()
-        self.scan_method = getattr(self, f'scan_dihed_{self.config.method.lower()}')
+        self.scan = getattr(self, f'scan_dihed_{self.config.method.lower()}')
         self.move_capping_atoms(fragments)
-        self.scan_dihedrals(fragments, mol, all_config)
 
-    def scan_dihedrals(self, fragments, mol, all_config):
+        fragments, all_dih_terms, weights = self.arrange_data(mol, fragments)
+        final_energy, params = self.scan_dihedrals(fragments, mol, all_config, all_dih_terms,
+                                                   weights)
+        self.finalize_results(fragments, final_energy, all_dih_terms, params)
+
+    def arrange_data(self, mol, fragments):
+        all_dih_terms, weights = [], []
+
+        for term in mol.terms['dihedral/flexible']:
+            if str(term) not in all_dih_terms:
+                all_dih_terms.append(str(term))
+
+        for n_fit, frag in enumerate(fragments, start=1):
+            angles = []
+            for term in frag.terms['dihedral/flexible']:
+                if all([atom in [0, 1] for atom in term.atomids[1:3]]):
+                    frag.fit_terms.append({'name': str(term), 'atomids': term.atomids,
+                                           'params': np.zeros(6)})
+
+            for i, coord in enumerate(frag.qm_coords):
+                angle = get_dihed(coord[frag.scanned_atomids])[0]
+                angles.append(angle)
+
+            angles = np.array(angles)
+
+            angles[angles < 0] += 2*np.pi
+            order = np.argsort(angles)
+
+            if frag.central_atoms in self.symmetrize.keys():
+                angles, qm_energies = self.symmetrize_dihedral(angles, frag.qm_energies,
+                                                               self.symmetrize[frag.central_atoms])
+
+            frag.qm_angles = angles[order]
+            frag.qm_coords = frag.qm_coords[order]
+            frag.coords = frag.qm_coords.copy()
+            frag.qm_energies = frag.qm_energies[order]
+            frag.fit_weights = np.exp(-0.2 * np.sqrt(frag.qm_energies))  # for curve_fit 1/w
+            weights.extend(frag.fit_weights)
+
+        return fragments, all_dih_terms, np.array(weights)
+
+    def finalize_results(self, fragments, final_energy, all_dih_terms, params):
+        sum_scans = 0
         bad_fits = []
 
-        for n_run in range(self.config.n_dihed_scans):
-            for n_fit, frag in enumerate(fragments, start=1):
+        for frag in fragments:
+            n_scans = frag.qm_energies.size
+            final = final_energy[sum_scans:sum_scans+n_scans]
+            unfit_energy = final.copy()
+            fit_sum = np.zeros(n_scans)
 
-                print(f'Run {n_run+1}/{self.config.n_dihed_scans}, fitting dihedral '
-                      f'{n_fit}/{len(fragments)}: {frag.id}')
+            for term in frag.fit_terms:
+                if all(term['atomids'][1:3] == frag.scanned_atomids[1:3]):
+                    fit_sum += calc_rb_pot(term['params'], term['angles'])
 
-                scanned = list(frag.terms.get_terms_from_name(name=frag.name,
-                                                              atomids=frag.scanned_atomids))[0]
-                scanned.equ = np.zeros(6)
-                scan_dir = f'{self.frag_dir}/{frag.id}'
-                make_scan_dir(scan_dir)
+            unfit_energy -= fit_sum
+            r_squared = calc_r_squared(fit_sum, frag.qm_energies-unfit_energy)
 
-                md_energies, angles = self.scan_method(all_config, frag, scan_dir, mol, n_run)
-                params, bad_fits = self.fit_dihedrals(frag, angles, md_energies)
-
-                for frag2 in fragments:
-                    for term in frag2.terms.get_terms_from_name(frag.name):
-                        term.equ = params
-
-                for term in mol.terms.get_terms_from_name(frag.name):
-                    term.equ = params
-
-        print('Done!\n')
+            self.plot_results(frag, final, 'scan', r_squared=r_squared)
+            if self.config.plot_fit:
+                self.plot_fit(frag, frag.qm_energies-unfit_energy, fit_sum, r_squared)
+                unfit_energy -= unfit_energy.min()
+                self.plot_results(frag, unfit_energy, 'unfit')
+                np.save(f'{self.frag_dir}/scan_data_{frag.id}', np.vstack((frag.qm_angles,
+                                                                           frag.qm_energies,
+                                                                           unfit_energy,
+                                                                           fit_sum)))
+            energy_diff = frag.qm_energies - final
+            if np.any(energy_diff > 2.0) and r_squared < 0.9:
+                bad_fits.append(frag.id)
+            sum_scans += n_scans
 
         if bad_fits:
             print('WARNING: R-squared < 0.9 for the dihedral fit of the following fragment(s):')
             for bad_fit in bad_fits:
                 print(f'         - {bad_fit}')
-
             print('         Please check manually to see if you find the accuracy satisfactory.\n')
+
+    def scan_dihedrals(self, fragments, mol, all_config, all_dih_terms, weights):
+        for n_run in range(self.config.n_dihed_scans):
+            energy_diffs, md_energies = [], []
+            for n_fit, frag in enumerate(fragments, start=1):
+                print(f'Run {n_run+1}/{self.config.n_dihed_scans}, fitting dihedral '
+                      f'{n_fit}/{len(fragments)}: {frag.id}')
+
+                scan_dir = f'{self.frag_dir}/{frag.id}'
+                make_scan_dir(scan_dir)
+
+                for term in frag.fit_terms:
+                    term['angles'] = []
+
+                md_energy = self.scan(all_config, frag, scan_dir, mol, n_run)
+                md_energy -= md_energy.min()
+
+                if frag.central_atoms in self.symmetrize.keys():
+                    _, md_energy = self.symmetrize_dihedral(frag.angles, md_energy,
+                                                            self.symmetrize[frag.central_atoms])
+                frag.energy_diff = frag.qm_energies - md_energy
+                energy_diffs.extend(frag.energy_diff)
+                md_energies.extend(md_energy)
+
+                # if n_run < 2:
+                #     low_e_idx = []
+                #     for i, _ in enumerate(md_energy):
+                #         neigh_energies = [md_energy[(i+n) % md_energy.size] for n in range(-1, 2)]
+                #         low_e_idx.append((i+np.argmin(neigh_energies)-1) % md_energy.size)
+                #     frag.coords = frag.coords[low_e_idx]
+
+            params, matrix = self.fit_dihedrals(fragments, energy_diffs, weights, all_dih_terms)
+
+            for frag in fragments:
+                for term in frag.terms['dihedral/flexible']:
+                    term_idx = all_dih_terms.index(str(term))
+                    term.equ += params[6*term_idx:(6*term_idx)+6]
+
+                for term in frag.fit_terms:
+                    term_idx = all_dih_terms.index(term['name'])
+                    term['params'] += params[6*term_idx:(6*term_idx)+6]
+
+            for term in mol.terms['dihedral/flexible']:
+                term_idx = all_dih_terms.index(str(term))
+                term.equ += params[6*term_idx:(6*term_idx)+6]
+
+        print('Done!\n')
+        final_energy = np.array(md_energies) + np.sum(matrix * params, axis=1)
+
+        return final_energy, params
 
     @staticmethod
     def move_capping_atoms(fragments):
@@ -106,117 +208,77 @@ frag_lib = ~/qforce_fragments :: folder
                     coord[cap['idx']] = coord[cap['connected']] + new_vec
 
     def scan_dihed_qforce(self, all_config, frag, scan_dir, mol, n_run, nsteps=1000):
-        md_energies, angles = [], []
+        md_energies = []
 
-        for i, (qm_energy, coord) in enumerate(zip(frag.qm_energies, frag.coords)):
-            angle = get_dihed(coord[frag.scanned_atomids])[0]
-            angles.append(angle)
-
-            restraints = self.find_restraints(frag, coord, n_run)
-
+        for i, coord in enumerate(frag.coords):
+            restraints = self.find_restraints(frag, frag.qm_coords[i], n_run)
             atom = Atoms(frag.elements, positions=coord,
                          calculator=QForce(frag.terms, dihedral_restraints=restraints))
 
-            traj_name = f'{scan_dir}/{frag.id}_run{n_run+1}_{np.degrees(angle).round()}.traj'
+            traj_name = f'{scan_dir}/{frag.id}_run{n_run+1}_{i:02d}.traj'
             log_name = f'{scan_dir}/opt_{frag.id}_run{n_run+1}.log'
             e_minimiz = BFGS(atom, trajectory=traj_name, logfile=log_name)
             e_minimiz.run(fmax=0.01, steps=nsteps)
-            frag.coords[i] = atom.get_positions()
-
+            coords = atom.get_positions()
+            self.calc_fit_angles(frag, coords)
             md_energies.append(atom.get_potential_energy())
-
-        return np.array(md_energies), np.array(angles)
+            frag.coords[i] = coords
+        return np.array(md_energies)
 
     def scan_dihed_gromacs(self, all_config, frag, scan_dir, mol, n_run):
-        md_energies, angles = [], []
+        md_energies = []
 
         ff = ForceField(self.job_name, all_config, frag, frag.neighbors,
                         exclude_all=frag.remove_non_bonded)
 
-        for i, (qm_energy, coord) in enumerate(zip(frag.qm_energies, frag.coords)):
-
-            angles.append(get_dihed(coord[frag.scanned_atomids])[0])
-
-            step_dir = f"{scan_dir}/step{i}"
+        for i, coord in enumerate(frag.coords):
+            step_dir = f"{scan_dir}/step{i:02d}"
             make_scan_dir(step_dir)
 
             ff.write_gromacs(step_dir, frag, coord)
             shutil.copy2(self.mdp_file, step_dir)
 
-            restraints = self.find_restraints(frag, coord, n_run)
+            restraints = self.find_restraints(frag, frag.qm_coords[i], n_run)
             ff.add_restraints(restraints, step_dir)
 
             run_gromacs(step_dir, all_config.scan.gromacs_exec, ff.polar_title)
             md_energy = read_gromacs_energies(step_dir)
             md_energies.append(md_energy)
 
-        return np.array(md_energies), np.array(angles)
+            coords = read(f'{step_dir}/geom.gro').get_positions()
+            self.calc_fit_angles(frag, coords)
+            frag.coords[i] = coords
+        return np.array(md_energies)
+
+    @staticmethod
+    def calc_fit_angles(frag, coords):
+        for term in frag.fit_terms:
+            term['angles'].append(get_dihed(coords[term['atomids']])[0])
 
     @staticmethod
     def find_restraints(frag, coord, n_run):
         restraints = []
         for term in frag.terms['dihedral/flexible']:
             phi0 = get_dihed(coord[term.atomids])[0]
-            if (all([term.atomids[i] == frag.scanned_atomids[i] for i in range(3)])):
+            # if any([cap['idx'] in term.atomids for cap in frag.caps]):
+            # if not any([idx in term.atomids for idx in frag.scanned_atomids[1:3]]):
+            #     phi = get_dihed(frag.qm_coords[0][term.atomids])[0]
+            #     restraints.append([term.atomids, phi])
+            if (all([term.atomids[i] == frag.scanned_atomids[i] for i in range(3)])
                 # or not all([idx in term.atomids for idx in frag.scanned_atomids[1:3]])):
-                # n_run == 0 or
+                    or n_run == 0):
                 restraints.append([term.atomids, phi0])
+
         return restraints
 
-    def fit_dihedrals(self, frag, angles, md_energies):
-        bad_fits = []
-        angles[angles < 0] += 2*np.pi
-
-        order = np.argsort(angles)
-        angles = angles[order]
-        md_energies = md_energies[order]
-        qm_energies = frag.qm_energies[order]
-        md_energies -= md_energies.min()
-
-        if frag.central_atoms in self.symmetrize.keys():
-            _, qm_energies = self.symmetrize_dihedral(angles, qm_energies,
-                                                      self.symmetrize[frag.central_atoms])
-            angles, md_energies = self.symmetrize_dihedral(angles, md_energies,
-                                                           self.symmetrize[frag.central_atoms])
-
-        energy_diff = qm_energies - md_energies
-        weights = 1/np.exp(-0.2 * np.sqrt(qm_energies))
-        params = curve_fit(calc_rb, angles, energy_diff, absolute_sigma=False, sigma=weights)[0]
-        r_squared = calc_r_squared(calc_rb, angles, energy_diff, params)
-
-        if r_squared < 0.9 and np.any(energy_diff > 2.0):
-            bad_fits.append(frag.id)
-
-        # if r_squared < 0.85:
-        #     self.try_periodic(angles, energy_diff, weights, r_squared)
-
-        self.plot_results(frag, angles, qm_energies, md_energies, r_squared, 'unfit')
-        md_energies += calc_rb(angles, *params)
-        self.plot_fit(frag, angles, energy_diff, calc_rb(angles, *params))
-        self.plot_results(frag, angles, qm_energies, md_energies, r_squared, 'scan')
-
-        np.save(f'{self.frag_dir}/scan_data_{frag.id}', np.vstack((angles, qm_energies,
-                                                                   md_energies)))
-        return params, bad_fits
-
     @staticmethod
-    def try_periodic(angles, energy_diff, weights, r_squared):
-        """
-        Not implemented yet.
-        """
-        for n_perio in range(1, 7):
-            def calc_periodic(angles, k, ref, shift):
-                perio = shift + k*(1 + np.cos(n_perio*angles-ref))
-                return perio
-            params = curve_fit(calc_periodic, angles, energy_diff, absolute_sigma=False,
-                               sigma=weights, bounds=([0, 0, -np.inf],
-                                                      [np.inf, 2*np.pi, np.inf]))[0]
-            r_squared_try = calc_r_squared(calc_periodic, angles, energy_diff, params)
-
-            if r_squared_try > r_squared:
-                r_squared = r_squared_try
-                print(f'n_perio: {n_perio}, k: {params[0]}, ref: {np.degrees(params[1])}')
-                print(f'r-squared: {r_squared}')
+    def fit_dihedrals(fragments, energy_diffs, weights, all_dih_terms):
+        energy_diffs = np.array(energy_diffs)
+        n_total_scans = energy_diffs.size
+        matrix = calc_multi_rb_matrix(fragments, all_dih_terms, n_total_scans)
+        params = optimize.minimize(calc_multi_rb_obj, x0=np.zeros(len(all_dih_terms)*6),
+                                   args=(matrix, weights, energy_diffs)).x
+        return params, matrix
 
     @staticmethod
     def symmetrize_dihedral(angles, energies, regions):
@@ -255,25 +317,25 @@ frag_lib = ~/qforce_fragments :: folder
         sym_profile -= sym_profile.min()
         return sym_angle, sym_profile
 
-    def plot_results(self, frag, angles, qm_energies, md_energies, r_squared, title):
-        angles_deg = np.degrees(angles)
+    def plot_results(self, frag, md_energies, title, r_squared=None):
+        angles_deg = np.degrees(frag.qm_angles)
         width, height = plt.figaspect(0.6)
         f = plt.figure(figsize=(width, height), dpi=300)
         sns.set(font_scale=1.3)
         plt.xlabel('Angle')
         plt.ylabel('Energy (kJ/mol)')
-        plt.plot(angles_deg, qm_energies, linewidth=4, label='QM')
+        plt.plot(angles_deg, frag.qm_energies, linewidth=4, label='QM')
         plt.plot(angles_deg, md_energies, linewidth=4, label='Q-Force')
         plt.xticks(np.arange(0, 361, 60))
         plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
-        if title == 'scan':
+        if r_squared:
             plt.title(f'R-squared = {round(r_squared, 3)}', loc='left')
         plt.tight_layout()
         f.savefig(f"{self.frag_dir}/{title}_data_{frag.id}.pdf", bbox_inches='tight')
         plt.close()
 
-    def plot_fit(self, frag, angles, diff, fit):
-        angles_deg = np.degrees(angles)
+    def plot_fit(self, frag, diff, fit, r_squared):
+        angles_deg = np.degrees(frag.qm_angles)
         width, height = plt.figaspect(0.6)
         f = plt.figure(figsize=(width, height), dpi=300)
         sns.set(font_scale=1.3)
@@ -283,6 +345,7 @@ frag_lib = ~/qforce_fragments :: folder
         plt.plot(angles_deg, fit, linewidth=4, label='Fit')
         plt.xticks(np.arange(0, 361, 60))
         plt.tight_layout()
+        plt.title(f'R-squared = {round(r_squared, 3)}', loc='left')
         plt.legend(ncol=2, bbox_to_anchor=(1.03, 1.12), frameon=False)
         f.savefig(f"{self.frag_dir}/fit_data_{frag.id}.pdf", bbox_inches='tight')
         plt.close()
@@ -357,7 +420,7 @@ def run_gromacs(directory, gromacs_exec, polar_title):
 
     while returncode != 0 and attempt < 5:
         check_gromacs_termination(grompp)
-        mdrun = subprocess.Popen(['gmx_d', 'mdrun', '-deffnm', 'em'],
+        mdrun = subprocess.Popen([gromacs_exec, 'mdrun', '-deffnm', 'em'],
                                  cwd=directory, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT)
         mdrun.wait()
@@ -365,6 +428,12 @@ def run_gromacs(directory, gromacs_exec, polar_title):
         attempt += 1
 
     check_gromacs_termination(mdrun)
+
+    trjconv = subprocess.Popen([gromacs_exec, 'trjconv', '-f', 'em.gro', '-s', 'em.tpr', '-pbc',
+                                'whole', '-center', '-o', 'geom.gro'], cwd=directory,
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               stdin=subprocess.PIPE)
+    trjconv.communicate(input=b'0\n0\n')
 
 
 def check_gromacs_termination(process):
@@ -382,17 +451,49 @@ def read_gromacs_energies(directory):
     return md_energy
 
 
-def calc_r_squared(funct, x, y, params):
-    residuals = y - funct(x, *params)
+def calc_r_squared(rb, energy_diff):
+    residuals = rb - energy_diff
     ss_res = np.sum(residuals**2)
-    ss_tot = np.sum((y-np.mean(y))**2)
+    ss_tot = np.sum((energy_diff-np.mean(energy_diff))**2)
     return 1 - (ss_res / ss_tot)
 
 
-def calc_rb(angles, c0, c1, c2, c3, c4, c5):
-    params = [c0, c1, c2, c3, c4, c5]
+@jit(nopython=True)
+def calc_multi_rb_obj(params, matrix, weights, energy_diffs):
+    rb = np.sum(matrix * params, axis=1)
+    weighted_residuals = (rb - energy_diffs)*weights
+    return (weighted_residuals**2).sum() + (params**2).sum()*1e-2
 
-    rb = np.full(len(angles), c0)
+
+def calc_multi_rb_matrix(fragments, all_dih_terms, n_total_scans):
+    scan_sum = 0
+    n_dihs = len(all_dih_terms)
+    n_terms = n_dihs*6
+
+    matrix = np.zeros((n_total_scans, n_terms))
+    for frag in fragments:
+        n_scans = len(frag.qm_angles)
+        for term in frag.fit_terms:
+            term_idx = all_dih_terms.index(term['name'])
+            matrix[scan_sum:scan_sum+n_scans,
+                   term_idx*6:(term_idx*6)+6] += calc_rb(term['angles'])
+        scan_sum += n_scans
+    return matrix
+
+
+def calc_rb(angles):
+    rb = np.zeros((len(angles), 6))
+    rb[:, 0] = 1
+    cos_phi = np.cos(np.array(angles)-np.pi)
+    cos_factor = np.ones(len(angles))
     for i in range(1, 6):
-        rb += params[i] * np.cos(angles-np.pi)**i
+        cos_factor *= cos_phi
+        rb[:, i] = cos_factor
+    return rb
+
+
+def calc_rb_pot(params, angles):
+    rb = np.full(len(angles), params[0])
+    for i in range(1, 6):
+        rb += params[i]*np.cos(np.array(angles)-np.pi)**i
     return rb

@@ -19,8 +19,9 @@ class BondTerm(TermBase):
         for a1, a2 in topo.bonds:
             bond = topo.edge(a1, a2)
             dist = bond['length']
+            b_order_half_rounded = np.round(bond['order']*2)/2
             type1, type2 = sorted([topo.types[a1], topo.types[a2]])
-            bond['vers'] = f"{type1}({bond['order']}){type2}"
+            bond['vers'] = f"{type1}({b_order_half_rounded}){type2}"
             bond_terms.append(cls([a1, a2], dist, bond['vers']))
 
         return bond_terms

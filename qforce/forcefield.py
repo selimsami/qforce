@@ -22,7 +22,7 @@ class ForceField():
         self.atom_names = self.get_atom_names()
         self.masses = [round(ATOMMASS[i], 5) for i in self.elements]
         self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
-        self.pairs = self.make_pairs(neighbors, mol.non_bonded.alpha_map)
+        self.pairs = self.make_pairs(neighbors, mol.non_bonded)
 
         if self.polar:
             self.polar_title = '_polar'
@@ -91,8 +91,11 @@ class ForceField():
 
         for pair, val in non_bonded.lj_pairs.items():
             if non_bonded.comb_rule != 1:
-                a, b = calc_sigma_epsilon(val[0], val[1])
-                a *= 0.1
+                if val[0] == 0:
+                    a, b = 0, 0
+                else:
+                    a, b = calc_sigma_epsilon(val[0], val[1])
+                    a *= 0.1
             else:
                 a = val[0] * 1e-6
                 b = val[1] * 1e-12
@@ -299,23 +302,26 @@ class ForceField():
                 itp.write(("{} "*len(exclusion)).format(*exclusion))
                 itp.write("\n")
 
-    def make_pairs(self, neighbors, alpha_map):
+    def make_pairs(self, neighbors, non_bonded):
         pairs, polar_pairs = [], []
+
+        for pair in non_bonded.pairs:
+            pairs.append(sorted(pair))
 
         if self.n_excl == 2:
             for i in range(self.n_atoms):
                 for neigh in neighbors[2][i]:
-                    if i < neigh:
+                    if i < neigh and [i, neigh] not in pairs:
                         pairs.append([i, neigh])
 
             if self.polar:
                 for a1, a2 in pairs:
-                    if a2 in alpha_map.keys():
-                        polar_pairs.append([a1, alpha_map[a2]])
-                    if a1 in alpha_map.keys():
-                        polar_pairs.append([a2, alpha_map[a1]])
-                    if a1 in alpha_map.keys() and a2 in alpha_map.keys():
-                        polar_pairs.append([alpha_map[a1], alpha_map[a2]])
+                    if a2 in non_bonded.alpha_map.keys():
+                        polar_pairs.append([a1, non_bonded.alpha_map[a2]])
+                    if a1 in non_bonded.alpha_map.keys():
+                        polar_pairs.append([a2, non_bonded.alpha_map[a1]])
+                    if a1 in non_bonded.alpha_map.keys() and a2 in non_bonded.alpha_map.keys():
+                        polar_pairs.append([non_bonded.alpha_map[a1], non_bonded.alpha_map[a2]])
 
         return pairs+polar_pairs
 
@@ -325,6 +331,10 @@ class ForceField():
         # input exclusions
         for exclusion in non_bonded.exclusions:
             exclusions[exclusion[0]].append(exclusion[1]+1)
+
+        # exclusions for input pairs
+        for pair in non_bonded.pairs:
+            exclusions[pair[0]].append(pair[1]+1)
 
         # fragment capping atom exclusions
         for i in exclude_all:

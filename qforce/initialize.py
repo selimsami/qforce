@@ -20,7 +20,7 @@ n_equiv = 4 :: int
 n_excl = 2 :: int :: [2, 3]
 
 # Lennard jones method for the forcefield
-lennard_jones = gromos_auto :: str :: [gromos_auto, gromos, opls, gaff, ext]
+lennard_jones = opls_auto :: str :: [gromos_auto, gromos, opls_auto, opls, gaff, ext]
 
 # Use externally provided point charges in the file "ext_q" in the job directyory
 ext_charges = no :: bool
@@ -30,6 +30,10 @@ charge_scaling = 1.2 :: float
 
 # Additional exclusions (GROMACS format)
 exclusions = :: literal
+
+# Switch standard non-bonded interactions between two atoms to pair interactions
+# (provide atom pairs in each row)
+pairs = :: literal
 
 # Path for the external FF library for Lennard-Jones parameters (GROMACS format).
 ext_lj_lib = :: folder, optional
@@ -42,6 +46,9 @@ ext_q_fudge =  :: float, optional
 
 # Lennard-Jones combinations rules for when "lennard_jones" is set to "ext" (GROMACS numbering).
 ext_comb_rule =  :: int, optional :: [1, 2, 3]
+
+# Name of the atom type for capping hydrogens for when "lennard_jones" is set to "ext"
+ext_h_cap = :: str, optional
 
 # Set all dihedrals as rigid (no dihedral scans)
 all_rigid = no :: bool
