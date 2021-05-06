@@ -311,7 +311,8 @@ class ForceField():
         if self.n_excl == 2:
             for i in range(self.n_atoms):
                 for neigh in neighbors[2][i]:
-                    if i < neigh and [i, neigh] not in pairs:
+                    if (i < neigh and [i, neigh] not in pairs and (i, neigh)
+                            not in non_bonded.exclusions):
                         pairs.append([i, neigh])
 
             if self.polar:

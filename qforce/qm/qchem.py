@@ -67,7 +67,6 @@ class ReadQChem(ReadABC):
                     point_charges = self._read_cm5_charges(file, n_atoms)
                 elif "Merz-Kollman RESP Net Atomic" in line and config.charge_method == "resp":
                     point_charges = self._read_resp_charges(file, n_atoms)
-                self._check_point_charges(file, line, n_atoms, config.charge_method, point_charges)
                 if "N A T U R A L   B O N D   O R B I T A L" in line:
                     n_bonds, b_orders, lone_e = self._read_nbo_analysis(file, line, n_atoms)
 
@@ -111,12 +110,13 @@ class ReadQChem(ReadABC):
 
     @staticmethod
     def _read_cm5_charges(file, n_atoms):
-        point_charges = []  # reset here because gaussian prints it multiple times
+        point_charges = []
         for _ in range(3):
             file.readline()
         for i in range(n_atoms):
             line = file.readline().split()
             point_charges.append(float(line[2]))
+        return point_charges
 
     @staticmethod
     def _read_resp_charges(file, n_atoms):
@@ -126,6 +126,7 @@ class ReadQChem(ReadABC):
         for i in range(n_atoms):
             line = file.readline().split()
             point_charges.append(float(line[2]))
+        return point_charges
 
 
 class WriteQChem(WriteABC):

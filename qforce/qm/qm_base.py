@@ -196,7 +196,7 @@ class ScanOutput():
                 mismatched.append('charges')
 
         if mismatched:
-            print(f'WARNING: {mismatched} properties have missing data in the file:\n{file}')
+            print(f'WARNING: {mismatched} properties have missing/extra data in the file:\n{file}')
         return angles, energies, coords, charges, mismatched
 
     @staticmethod

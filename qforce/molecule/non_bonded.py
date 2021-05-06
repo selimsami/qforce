@@ -31,8 +31,8 @@ class NonBonded():
     @classmethod
     def from_topology(cls, config, job, qm_out, topo, ext_q, ext_lj):
         comb_rule, fudge_lj, fudge_q, h_cap = set_non_bonded_props(config)
-        exclusions = cls._set_exclusions(config.exclusions)
-        pairs = cls._set_pairs(config.pairs)
+        exclusions = cls._set_exclusions_and_pairs(config.exclusions)
+        pairs = cls._set_exclusions_and_pairs(config.pairs)
 
         # RUN D4 if necessary
         if config._d4:
@@ -110,8 +110,8 @@ class NonBonded():
                    non_bonded.fudge_q, non_bonded.h_cap, alpha)
 
     @staticmethod
-    def _set_exclusions(value):
-        exclusions = []
+    def _set_exclusions_and_pairs(value):
+        selection = []
         if value:
             for line in value.split('\n'):
                 line = [int(i) for i in line.strip().partition('#')[0].split()]
@@ -119,28 +119,13 @@ class NonBonded():
                     a1, a2s = line[0], line[1:]
                     for a2 in a2s:
                         pair = tuple(sorted([a1-1, a2-1]))
-                        if pair not in exclusions:
-                            exclusions.append(pair)
+                        if pair not in selection:
+                            selection.append(pair)
                 elif len(line) == 1:
-                    print('WARNING: Exclusion lines should contain at least two atom IDs:\n',
-                          'First entry is excluded from all the following entries.\n',
+                    print('WARNING: Exclusion/Pair lines should contain at least two atom IDs:\n',
+                          'First entry is excluded from / paired to all the following entries.\n',
                           f'Ignoring the line: {line[0]}\n')
-        return exclusions
-
-    @staticmethod
-    def _set_pairs(value):
-        pairs = []
-        if value:
-            for line in value.split('\n'):
-                line = [int(i) for i in line.strip().partition('#')[0].split()]
-                if len(line) == 2:
-                    pair = tuple(sorted([line[0]-1, line[1]-1]))
-                    if pair not in pairs:
-                        pairs.append(pair)
-                elif len(line) != 0:
-                    print('WARNING: [ pairs ] input lines should contain two atom IDs:\n',
-                          f'         Ignoring the line: {line}\n')
-        return pairs
+        return selection
 
 
 def get_external_lennard_jones(config, topo, q, job, ext_lj):

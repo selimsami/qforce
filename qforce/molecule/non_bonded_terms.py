@@ -16,7 +16,6 @@ class NonBondedTerms(TermBase):
         """get terms"""
 
         non_bonded_terms = cls.get_terms_container()
-
         eps0 = 1389.35458
         for i in range(topo.n_atoms):
             for j in range(i+1, topo.n_atoms):
@@ -26,7 +25,8 @@ class NonBondedTerms(TermBase):
                     pair_name = tuple(sorted([non_bonded.lj_types[i], non_bonded.lj_types[j]]))
                     term_type = '-'.join(pair_name)
 
-                    if ((non_bonded.n_excl == 2 and j in topo.neighbors[2][i]) or  # 1-4 inter.
+                    if ((non_bonded.n_excl == 2 and j in topo.neighbors[2][i]
+                         and (i, j) not in non_bonded.exclusions) or  # 1-4 inter.
                             (i, j) in non_bonded.pairs):  # extra pair interactions
                         if pair_name in non_bonded.lj_1_4.keys():
                             param = non_bonded.lj_1_4[pair_name][:]

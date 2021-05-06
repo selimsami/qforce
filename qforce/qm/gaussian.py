@@ -102,7 +102,7 @@ class ReadGaussian(ReadABC):
 
     @staticmethod
     def _read_cm5_charges(file, n_atoms):
-        point_charges = []  # reset here because gaussian prints it multiple times
+        point_charges = []
         line = file.readline()
         for i in range(n_atoms):
             line = file.readline().split()
