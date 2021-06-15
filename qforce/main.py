@@ -56,6 +56,7 @@ def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
 def print_outcome(job_dir):
     print(f'Output files can be found in the directory: {job_dir}.')
     print('- Q-Force force field parameters in GROMACS format (gas.gro, gas.itp, gas.top).')
-    print('- QM vs MM vibrational frequencies (frequencies.txt, frequencies.pdf).')
+    print('- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,'
+          ' frequencies.pdf).')
     print('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
     print('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.')

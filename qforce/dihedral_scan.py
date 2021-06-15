@@ -8,7 +8,6 @@ from ase.optimize import BFGS
 import scipy.optimize as optimize
 from ase import Atoms
 from ase.io import read
-from scipy.optimize import curve_fit
 from scipy.interpolate import interp1d as interpolate
 from numba import jit
 #

@@ -465,7 +465,7 @@ def set_external_lennard_jones(job, config, comb_rule, lj_types, ext_lj, h_cap):
             sys.exit(f'ERROR: The atom type you have entered ({lj_type}) is not in the FF library '
                      f'you have chosen ({config.lennard_jones}).\nPlease check your settings.\n')
 
-    for comb in combinations_with_replacement(set(lj_types + [h_cap]), 2):
+    for comb in combinations_with_replacement(set(list(lj_types) + [h_cap]), 2):
         comb = tuple(sorted(comb))
 
         if comb in nonbond_params.keys():
