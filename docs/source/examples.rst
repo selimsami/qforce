@@ -17,7 +17,8 @@ Default settings
 Creating the initial QM input
 ++++++++++++++++++++++++++++++++
 
-Find in *examples/default_settings* a coordinate file (propane.xyz) for the propane molecule.
+Find in *examples/gaussian/default_settings* a coordinate file (propane.xyz) for the propane
+molecule.
 
 Let's first create the QM input file:
 
@@ -51,9 +52,9 @@ You can now find the Q-Force force field files in the *propane_qforce* directory
 
 Custom settings
 ------------------
-Find in *examples/custom_settings* a coordinate file (benzene.pdb) for the benzene molecule.
-In this example, we look at some of the custom settings available with Q-Force and how they
-can be executed.
+Find in *examples/gaussian/custom_settings* a coordinate file (benzene.pdb) for the benzene
+molecule. In this example, we look at some of the custom settings available with Q-Force and how
+they can be executed.
 The custom settings are provided with an external file with:
 
 :code:`qforce benzene.pdb -o settings`
@@ -129,3 +130,21 @@ already create the force field with:
 
 You can now find the necessary force field files in the *benzene_qforce* directory.
 As you will notice, in this case GAFF atom types are used.
+
+|
+
+Choosing the QM software
+------------------------
+
+The default QM software is Gaussian. If the user wants to use another QM software
+(current alternative: Q-Chem), this can be indicated in the same **settings** file:
+
+.. code-block:: text
+
+    [qm]
+    software = qchem
+
+
+An example for running Q-Force with Q-Chem can be found in the *examples/qchem/default_settings*
+directory. This works in the same way as the first example, except the additional argument for
+choosing the QM software, as shown above.
