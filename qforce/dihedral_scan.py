@@ -2,7 +2,6 @@ import subprocess
 import os
 import shutil
 import numpy as np
-import matplotlib.pyplot as plt
 import seaborn as sns
 from ase.optimize import BFGS
 import scipy.optimize as optimize
@@ -10,6 +9,9 @@ from ase import Atoms
 from ase.io import read
 from scipy.interpolate import interp1d as interpolate
 from numba import jit
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 #
 from .forcefield import ForceField
 from .calculator import QForce

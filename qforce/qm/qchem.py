@@ -100,9 +100,9 @@ class ReadQChem(ReadABC):
                     energies.append(energy)
                     coords.append(coord)
 
-                elif "Charge Model 5" in line:
+                elif "Charge Model 5" in line and found_n_atoms:
                     point_charges['cm5'] = self._read_cm5_charges(file, n_atoms)
-                elif "Merz-Kollman RESP Net Atomic" in line:
+                elif "Merz-Kollman RESP Net Atomic" in line and found_n_atoms:
                     point_charges['resp'] = self._read_resp_charges(file, n_atoms)
 
         energies = np.array(energies) * Hartree * mol / kJ

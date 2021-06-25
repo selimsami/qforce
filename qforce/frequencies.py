@@ -1,7 +1,9 @@
 import numpy as np
 from scipy.linalg import eigh
-import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 #
 from .elements import ATOMMASS, ATOM_SYM
 
