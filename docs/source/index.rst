@@ -1,5 +1,5 @@
 
-.. figure:: https://i.imgur.com/jZG5MNO.jpg
+.. figure:: qforce_logo.png
   :width: 600
   :alt: Q-Force
   :align: center
@@ -8,19 +8,8 @@
 
 *Q-Force is a software package for deriving all-atom force fields from quantum mechanical calculations in an automated manner.*
 
-=============
-Documentation
-=============
-
-* :doc:`install`
-* :doc:`method`
-* :doc:`usage`
-* :doc:`examples`
-* :doc:`options`
-
 .. toctree::
-   :maxdepth: 1
-   :hidden:
+   :maxdepth: 2
    :caption: Documentation
 
    install.rst
