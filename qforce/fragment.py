@@ -329,9 +329,14 @@ class Fragment():
 
             # # TEMPORARY
             self.non_bonded.lj_types[cap['idx']] = self.non_bonded.h_cap
-            for term in self.terms['bond']:
-                if cap['idx'] in term.atomids and cap['connected'] in term.atomids:
-                    term.equ = 1.1
+            if 'bond' in self.terms:  # If bond is enabled
+                for term in self.terms['bond']:
+                    if cap['idx'] in term.atomids and cap['connected'] in term.atomids:
+                        term.equ = 1.1
+            else:  # If morse is enabled
+                for term in self.terms['morse']:
+                    if cap['idx'] in term.atomids and cap['connected'] in term.atomids:
+                        term.equ = 1.1
             # for term in self.terms['dihedral/flexible']:
             #     if cap['idx'] in term.atomids:
             #         self.terms.remove_terms_by_name(str(term), atomids=term.atomids)
