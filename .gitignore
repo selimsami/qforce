@@ -1,3 +1,6 @@
+# Own stuff
+molecules/
+
 # Q-Force related
 dftd4/
 examples/*/*_qforce
