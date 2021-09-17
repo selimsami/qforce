@@ -3,6 +3,7 @@ import numpy as np
 
 
 def fit_hessian(config, mol, qm):
+    print('Running fit_hessian')
     hessian, full_md_hessian_1d = [], []
     non_fit = []
     qm_hessian = np.copy(qm.hessian)
@@ -31,11 +32,13 @@ def fit_hessian(config, mol, qm):
 
     for term in mol.terms:
         if term.idx < len(fit):
+            print(f'Term {term} got fit and given constant {fit[term.idx]}')
             term.fconst = fit[term.idx]
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
     average_unique_minima(mol.terms, config)
 
+    print('Finished fit_hessian')
     return full_md_hessian_1d
 
 
@@ -78,8 +81,14 @@ def calc_forces(coords, mol):
 
 
 def average_unique_minima(terms, config):
+    print('Entering average_unique_minima')
+    # print('Terms:')
+    # print(terms)
     unique_terms = {}
-    averaged_terms = ['bond', 'angle', 'dihedral/inversion']
+    trms = terms.term_names
+    # averaged_terms = ['bond', 'angle', 'dihedral/inversion']
+    averaged_terms = [x for x in ['bond', 'angle', 'dihedral/inversion'] if config.__dict__[x]]
+    print(f'Averaged terms: {averaged_terms}')
     for name in [term_name for term_name in averaged_terms]:
         for term in terms[name]:
             if str(term) in unique_terms.keys():
@@ -104,3 +113,5 @@ def average_unique_minima(terms, config):
                 urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
                 term.equ = urey
                 unique_terms[str(term)] = urey
+
+    print('Leaving average_unique_minima')

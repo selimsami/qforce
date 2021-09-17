@@ -3,7 +3,7 @@ from copy import deepcopy
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm, CrossBondAngleTerm)
+from .non_dihedral_terms import (BondTerm, MorseTerm, AngleTerm, UreyAngleTerm, CrossBondBondTerm, CrossBondAngleTerm)
 from .non_bonded_terms import NonBondedTerms
 #
 from .base import MappingIterator
@@ -14,14 +14,17 @@ class Terms(MappingIterator):
 
     _term_factories = {
             'bond': BondTerm,
+            'morse': MorseTerm,
             'angle': AngleTerm,
             'urey': UreyAngleTerm,
             '_cross_bond_angle': CrossBondAngleTerm,
+            '_cross_bond_bond': CrossBondBondTerm,
             'dihedral': DihedralTerms,
             'non_bonded': NonBondedTerms,
     }
-    _always_on = ['bond', 'angle']
-    _default_off = ['_cross_bond_angle']
+    # _always_on = ['bond', 'angle']
+    _always_on = []
+    _default_off = ['morse', '_cross_bond_angle', '_cross_bond_bond']
 
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
@@ -31,10 +34,16 @@ class Terms(MappingIterator):
 
     @classmethod
     def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded']):
+        print('Running from_topology')
+        print('Passed config:')
+        print(config.__dict__.items())
         ignore = [name for name, term_enabled in config.__dict__.items() if not term_enabled]
+        print(f'Ignore: {ignore}')
         not_fit_terms = [term for term in not_fit if term not in ignore]
         terms = {name: factory.get_terms(topo, non_bonded)
                  for name, factory in cls._term_factories.items() if name not in ignore}
+        print(f'Terms: {terms}')
+        print('Finished from_topology')
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
@@ -65,6 +74,7 @@ class Terms(MappingIterator):
 
     @classmethod
     def get_questions(cls):
+        # print('Running Terms.get_questions')
         tpl = '# Turn {key} FF term on or off\n{key} = {default} :: bool\n\n'
         questions = ''
         for name, term in cls._term_factories.items():
@@ -75,6 +85,9 @@ class Terms(MappingIterator):
                                                 default=(sub_name not in term._default_off))
                 else:
                     questions += tpl.format(key=name, default=(name not in cls._default_off))
+
+        # print(f'Questions:\n{questions}')
+        # print('Finished Terms.get_questions')
         return questions
 
     @contextmanager

@@ -1,0 +1,7 @@
+To install via local files or repo:
+	- In setup.cfg change numpy>=1.20 to numpy==1.20
+
+
+Charge is by default 0 and can be changed via:
+[qm]
+charge = <int>

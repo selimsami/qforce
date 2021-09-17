@@ -19,6 +19,18 @@ def calc_bonds(coords, atoms, r0, fconst, force):
 
 
 @jit(nopython=True)
+def calc_morse(coords, atoms, r0, fconst, force, well_depth):
+    vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+    beta = math.sqrt(fconst/(2*well_depth))
+    exp_term = math.exp(-beta*(r12-r0))
+    energy = well_depth * (1-exp_term) * (1-exp_term)
+    f = -2 * well_depth * beta * exp_term * (1 - exp_term) * vec12 / r12
+    force[atoms[0]] += f
+    force[atoms[1]] -= f
+    return energy
+
+
+@jit(nopython=True)
 def calc_angles(coords, atoms, theta0, fconst, force):
     theta, vec12, vec32, r12, r32 = get_angle(coords[atoms])
     cos_theta = math.cos(theta)
@@ -39,6 +51,23 @@ def calc_angles(coords, atoms, theta0, fconst, force):
         force[atoms[1]] -= f1 + f3
     return energy
 
+def calc_cross_bond_bond(coords, atoms, r0s, fconst, force):
+    vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+    vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
+
+    s1 = r12 - r0s[0]
+    s2 = r32 - r0s[1]
+
+    energy = fconst * s1 * s2
+
+    f1 = - fconst * s2 * vec12 / r12
+    f3 = - fconst * s2 * vec32 / r32  # Verify this since the instructions on GROMACS are somewhat unclear
+
+    force[atoms[0]] += f1
+    force[atoms[2]] += f3
+    force[atoms[1]] -= f1 + f3
+
+    return energy
 
 def calc_cross_bond_angle(coords, atoms, r0s, fconst, force):
     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])

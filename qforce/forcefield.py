@@ -80,7 +80,8 @@ class ForceField():
             if self.polar:
                 self.write_itp_polarization(itp, mol.non_bonded)
             self.write_itp_bonds(itp, mol.terms, mol.non_bonded.alpha_map)
-            self.write_itp_angles(itp, mol.terms)
+            if 'angles' in mol.terms:  # Check if we are working with angles before writing
+                self.write_itp_angles(itp, mol.terms)
             self.write_itp_dihedrals(itp, mol.terms)
             self.write_itp_pairs(itp)
             self.write_itp_exclusions(itp)

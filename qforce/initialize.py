@@ -12,6 +12,12 @@ from qforce.misc import LOGO
 class Initialize(Colt):
     _questions = """
 [ff]
+# Debug Mode
+debug_mode = False :: bool
+
+# Whether to compute and write the force field files or not
+compute_ff = True :: bool
+
 # Number of n equivalent neighbors needed to consider two atoms equivalent
 # Negative values turns off equivalence, 0 makes same elements equivalent
 n_equiv = 4 :: int
