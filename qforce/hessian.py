@@ -87,7 +87,7 @@ def average_unique_minima(terms, config):
     unique_terms = {}
     trms = terms.term_names
     # averaged_terms = ['bond', 'angle', 'dihedral/inversion']
-    averaged_terms = [x for x in ['bond', 'angle', 'dihedral/inversion'] if config.__dict__[x]]
+    averaged_terms = [x for x in ['bond', 'morse', 'angle', 'dihedral/inversion'] if config.__dict__[x]]
     print(f'Averaged terms: {averaged_terms}')
     for name in [term_name for term_name in averaged_terms]:
         for term in terms[name]:
@@ -107,11 +107,19 @@ def average_unique_minima(terms, config):
             else:
                 bond1_atoms = sorted(term.atomids[:2])
                 bond2_atoms = sorted(term.atomids[1:])
-                bond1 = [bond.equ for bond in terms['bond'] if all(bond1_atoms == bond.atomids)][0]
-                bond2 = [bond.equ for bond in terms['bond'] if all(bond2_atoms == bond.atomids)][0]
-                angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
-                urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
-                term.equ = urey
-                unique_terms[str(term)] = urey
+                if config.morse:
+                    bond1 = [bond.equ for bond in terms['morse'] if all(bond1_atoms == bond.atomids)][0]
+                    bond2 = [bond.equ for bond in terms['morse'] if all(bond2_atoms == bond.atomids)][0]
+                    angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
+                    urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
+                    term.equ = urey
+                    unique_terms[str(term)] = urey
+                else:  # Regular bond
+                    bond1 = [bond.equ for bond in terms['bond'] if all(bond1_atoms == bond.atomids)][0]
+                    bond2 = [bond.equ for bond in terms['bond'] if all(bond2_atoms == bond.atomids)][0]
+                    angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
+                    urey = (bond1 ** 2 + bond2 ** 2 - 2 * bond1 * bond2 * np.cos(angle)) ** 0.5
+                    term.equ = urey
+                    unique_terms[str(term)] = urey
 
     print('Leaving average_unique_minima')
