@@ -34,6 +34,7 @@ class MorseTerm(TermBase):
     name = 'MorseTerm'
 
     def _calc_forces(self, crd, force, fconst):
+        # print(self.typename)
         info = self.typename.split('(')
         info = info[0:1] + info[1].split(')')
         info = (info[0].rstrip('0123456789'), int(float(info[1])), info[2].rstrip('0123456789'))
