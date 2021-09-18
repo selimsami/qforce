@@ -3,7 +3,7 @@ import numpy as np
 from .baseterms import TermBase
 #
 from ..forces import get_dist, get_angle
-from ..forces import calc_bonds, calc_morse, calc_angles, calc_cross_bond_bond, calc_cross_bond_angle
+from ..forces import calc_bonds, calc_morse, calc_morse_mp, calc_angles, calc_cross_bond_bond, calc_cross_bond_angle
 #
 from .energies import bd_energy
 
@@ -51,6 +51,27 @@ class MorseTerm(TermBase):
             type1, type2 = sorted([topo.types[a1], topo.types[a2]])
             bond['vers'] = f"{type1}({b_order_half_rounded}){type2}"
             bond_terms.append(cls([a1, a2], dist, bond['vers'], 1))
+
+        return bond_terms
+
+
+class MorseMPTerm(TermBase):
+    name = 'MorseMPTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_morse_mp(crd, self.atomids, self.equ, fconst, force)
+
+    @classmethod
+    def get_terms(cls, topo, non_bonded):
+        bond_terms = cls.get_terms_container()
+
+        for a1, a2 in topo.bonds:
+            bond = topo.edge(a1, a2)
+            dist = bond['length']
+            b_order_half_rounded = np.round(bond['order'] * 2) / 2
+            type1, type2 = sorted([topo.types[a1], topo.types[a2]])
+            bond['vers'] = f"{type1}({b_order_half_rounded}){type2}"
+            bond_terms.append(cls([a1, a2], dist, bond['vers'], 2))
 
         return bond_terms
 

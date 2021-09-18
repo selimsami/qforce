@@ -34,9 +34,13 @@ class TermABC(ABC):
         """force calculation with given geometry"""
         return self._calc_forces(crd, force, self.fconst)
 
-    def do_fitting(self, crd, forces):
+    def do_fitting(self, crd, forces, index):
         """compute fitting contributions"""
-        self._calc_forces(crd, forces[self.idx], np.ones(self.n_params))
+        # self._calc_forces(crd, forces[self.idx], np.ones(self.n_params))
+        for i in range(self.n_params):
+            fconst = 0.001*np.ones(self.n_params)
+            fconst[i] = 1.0
+            self._calc_forces(crd, forces[index+i], fconst)
 
     @abstractmethod
     def _calc_forces(self, crd, force, fconst):
