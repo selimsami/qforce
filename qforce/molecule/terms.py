@@ -29,6 +29,7 @@ class Terms(MappingIterator):
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
         self.n_fitted_terms = self._set_fit_term_idx(not_fit_terms)
+        print(f'n_fitted_terms = {self.n_fitted_terms}')
         self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
         self._term_paths = self._get_term_paths(terms)
 

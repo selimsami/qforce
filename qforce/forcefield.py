@@ -204,7 +204,8 @@ class ForceField():
         for bond in terms['bond']:
             ids = bond.atomids + 1
             equ = bond.equ * 0.1
-            fconst = bond.fconst * 100
+            fconst = bond.fconst[0] * 100  # Take the element in the 1-D vector
+            # fconst = bond.fconst * 100
             itp.write(f'{ids[0]:>6}{ids[1]:>6}{1:>6}{equ:>10.5f}{fconst:>10.0f}\n')
 
         if self.polar:
@@ -223,7 +224,7 @@ class ForceField():
         for angle in terms['angle']:
             ids = angle.atomids + 1
             equ = np.degrees(angle.equ)
-            fconst = angle.fconst
+            fconst = angle.fconst[0]  # Take the element in the 1-D vector
 
             if self.urey:
                 urey = [term for term in terms['urey'] if np.array_equal(term.atomids,
@@ -232,7 +233,7 @@ class ForceField():
                 itp.write(f'{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{1:>6}{equ:>11.3f}{fconst:>13.3f}\n')
             else:
                 urey_equ = urey[0].equ * 0.1
-                urey_fconst = urey[0].fconst * 100
+                urey_fconst = urey[0].fconst[0] * 100  # Take the element in the 1-D vector
                 itp.write(f'{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{5:>6}{equ:>11.3f}{fconst:>13.3f}'
                           f'{urey_equ:>10.5f}{urey_fconst:>13.3f}\n')
 
@@ -248,7 +249,7 @@ class ForceField():
         for dihed in terms['dihedral/rigid']:
             ids = dihed.atomids + 1
             equ = np.degrees(dihed.equ)
-            fconst = dihed.fconst
+            fconst = dihed.fconst[0]  # Take element in 1-D vector
 
             itp.write(f'{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{ids[3]:>6}{2:>6}{equ:>11.3f}')
             itp.write(f'{fconst:>13.3f}\n')
@@ -261,7 +262,7 @@ class ForceField():
         for dihed in terms['dihedral/improper']:
             ids = dihed.atomids + 1
             equ = np.degrees(dihed.equ)
-            fconst = dihed.fconst
+            fconst = dihed.fconst[0]  # Take element in 1-D vector
 
             itp.write(f'{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{ids[3]:>6}{2:>6}{equ:>11.3f}')
             itp.write(f'{fconst:>13.3f}\n')

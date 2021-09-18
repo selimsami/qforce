@@ -33,10 +33,18 @@ def fit_hessian(config, mol, qm):
     print('Assigning constants to terms...')
     print(f'len(fit) = {len(fit)}')
 
-    for term in mol.terms:
-        # print(term)
-        if term.idx < len(fit):
-            term.fconst = np.array([fit[term.idx]])
+    sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
+    seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
+    # for term in mol.terms:
+    index = 0
+    for i, term in enumerate(sorted_terms):
+        # if term.idx < len(fit):
+        if term.idx < mol.terms.n_fitted_terms:
+            # term.fconst = np.array([fit[term.idx]])
+            if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
+                index += sorted_terms[i-1].n_params  # Increase index by the number of parameters of the previous term
+                seen_idx.append(term.idx)
+            term.fconst = fit[index:index+term.n_params]
             print(f'Term {term} with idx {term.idx} has fconst {term.fconst}')
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
