@@ -2,7 +2,7 @@ import scipy.optimize as optimize
 import numpy as np
 
 
-def fit_hessian(config, mol, qm):
+def fit_hessian(config, mol, qm, n_iter):
     print('Running fit_hessian')
     hessian, full_md_hessian_1d = [], []
     non_fit = []
@@ -27,7 +27,10 @@ def fit_hessian(config, mol, qm):
 
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
-    fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
+    print(f'Running optimizer for up to {n_iter} iterations...')
+    result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf), max_iter=n_iter, verbose=1)
+    print(f'It ran for {result.nit} iterations')
+    fit = result.x
     print("Done!\n")
 
     print('Assigning constants to terms...')
