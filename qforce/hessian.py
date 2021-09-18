@@ -30,10 +30,14 @@ def fit_hessian(config, mol, qm):
     fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
     print("Done!\n")
 
+    print('Assigning constants to terms...')
+    print(f'len(fit) = {len(fit)}')
+
     for term in mol.terms:
+        # print(term)
         if term.idx < len(fit):
-            print(f'Term {term} got fit and given constant {fit[term.idx]}')
-            term.fconst = fit[term.idx]
+            term.fconst = np.array([fit[term.idx]])
+            print(f'Term {term} with idx {term.idx} has fconst {term.fconst}')
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
     average_unique_minima(mol.terms, config)

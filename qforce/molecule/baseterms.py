@@ -11,12 +11,13 @@ class TermABC(ABC):
 
     name = 'NOT_NAMED'
 
-    def __init__(self, atomids, equ, typename, fconst=None):
+    def __init__(self, atomids, equ, typename, n_params, fconst=None):
         """Initialization of a term"""
         self.atomids = np.array(atomids)
         self.equ = equ
         self.idx = 0
         self.fconst = fconst
+        self.n_params = n_params
         self.typename = typename
         self._name = f"{self.name}({typename})"
 
@@ -35,7 +36,7 @@ class TermABC(ABC):
 
     def do_fitting(self, crd, forces):
         """compute fitting contributions"""
-        self._calc_forces(crd, forces[self.idx], 1.0)
+        self._calc_forces(crd, forces[self.idx], np.ones(self.n_params))
 
     @abstractmethod
     def _calc_forces(self, crd, force, fconst):

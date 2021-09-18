@@ -36,5 +36,5 @@ class NonBondedTerms(TermBase):
                     else:
                         param = non_bonded.lj_pairs[pair_name][:]
                         param.append(non_bonded.q[i]*non_bonded.q[j]*eps0)
-                    non_bonded_terms.append(cls([i, j], np.array(param), term_type))
+                    non_bonded_terms.append(cls([i, j], np.array(param), term_type, 1))  # 1 for number of params per term
         return non_bonded_terms
