@@ -38,9 +38,10 @@ def fit_hessian_nl(config, mol, qm):  # Here we use optimize.least_squares()
     # call non-linear optimization routine
     print('Running non-linear optimizer')
     sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
-    x0 = 50*np.ones(mol.terms.n_fitted_params)  # Initial values for term params
+    x0 = np.ones(mol.terms.n_fitted_params)  # Initial values for term params
     result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
-                                    bounds=(0, np.inf), verbose=2)
+                                    bounds=(0, np.inf), verbose=1)
+    # result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms), verbose=1)
     fit = result.x
 
     print('Assigning constants to terms...')
