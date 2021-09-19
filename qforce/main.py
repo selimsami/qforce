@@ -53,12 +53,13 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     check_continue(config)
 
     #### Flexible dihedral scan phase ####
-    print('\n#### FLEXIBLE DIHEDRAL SCAN PHASE ####\n')
-    if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
-        fragments = fragment(mol, qm, job, config)
-        DihedralScan(fragments, mol, job, config)
+    if config.ff.scan_dihedrals:
+        print('\n#### FLEXIBLE DIHEDRAL SCAN PHASE ####\n')
+        if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
+            fragments = fragment(mol, qm, job, config)
+            DihedralScan(fragments, mol, job, config)
 
-    check_continue(config)
+        check_continue(config)
 
     #### Calculate frequencies phase ####
     print('\n#### CALCULATE FREQUENCIES PHASE ####\n')

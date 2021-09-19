@@ -15,6 +15,9 @@ class Initialize(Colt):
 # Debug Mode
 debug_mode = False :: bool
 
+# Whether to scan dihedrals
+scan_dihedrals = True :: bool
+
 # Optimization type
 opt_type = linear :: str :: [linear, non_linear]
 
