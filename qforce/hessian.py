@@ -2,6 +2,11 @@ import scipy.optimize as optimize
 import numpy as np
 
 
+def fit_hessian_nl(config, mol, qm):
+    print('Running fit_hessian_nl')
+    print('Finished fit_hessian_nl')
+    return None
+
 def fit_hessian(config, mol, qm, n_iter):
     print('Running fit_hessian')
     hessian, full_md_hessian_1d = [], []
@@ -30,7 +35,7 @@ def fit_hessian(config, mol, qm, n_iter):
     # la.lstsq or nnls could also be used:
     print(f'Running optimizer for up to {n_iter} iterations...')
     result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf), max_iter=n_iter, verbose=1)
-    print(f'It ran for {result.nit} iterations')
+    # print(f'It ran for {result.nit} iterations')
     fit = result.x
     print("Done!\n")
 

@@ -15,7 +15,10 @@ class Initialize(Colt):
 # Debug Mode
 debug_mode = False :: bool
 
-# Amount of iterations in lsq scipy optimizer
+# Optimization type
+opt_type = linear :: str :: [linear, non_linear]
+
+# Amount of iterations in linear lsq scipy optimizer
 opt_iter = 100 :: int
 
 # Whether to compute and write the force field files or not
