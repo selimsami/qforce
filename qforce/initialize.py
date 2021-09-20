@@ -15,6 +15,15 @@ class Initialize(Colt):
 # Debug Mode
 debug_mode = False :: bool
 
+# Whether to scan dihedrals
+scan_dihedrals = True :: bool
+
+# Optimization type
+opt_type = linear :: str :: [linear, non_linear]
+
+# Amount of iterations in linear lsq scipy optimizer
+opt_iter = 100 :: int
+
 # Whether to compute and write the force field files or not
 compute_ff = True :: bool
 

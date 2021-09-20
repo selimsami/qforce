@@ -9,7 +9,7 @@ from .molecule import Molecule
 from .fragment import fragment
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
-from .hessian import fit_hessian
+from .hessian import fit_hessian, fit_hessian_nl
 
 
 def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
@@ -45,17 +45,22 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
 
     #### Hessian fitting phase ####
     print('\n#### HESSIAN FITTING PHASE ####\n')
-    md_hessian = fit_hessian(config.terms, mol, qm_hessian_out)
+    md_hessian = None
+    if config.ff.opt_type == 'linear':
+        md_hessian = fit_hessian(config.terms, mol, qm_hessian_out, config.ff.opt_iter)
+    elif config.ff.opt_type == 'non_linear':
+        md_hessian = fit_hessian_nl(config.terms, mol, qm_hessian_out)
 
     check_continue(config)
 
     #### Flexible dihedral scan phase ####
-    print('\n#### FLEXIBLE DIHEDRAL SCAN PHASE ####\n')
-    if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
-        fragments = fragment(mol, qm, job, config)
-        DihedralScan(fragments, mol, job, config)
+    if config.ff.scan_dihedrals:
+        print('\n#### FLEXIBLE DIHEDRAL SCAN PHASE ####\n')
+        if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
+            fragments = fragment(mol, qm, job, config)
+            DihedralScan(fragments, mol, job, config)
 
-    check_continue(config)
+        check_continue(config)
 
     #### Calculate frequencies phase ####
     print('\n#### CALCULATE FREQUENCIES PHASE ####\n')

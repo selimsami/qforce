@@ -3,7 +3,7 @@ import numpy as np
 from .baseterms import TermBase
 #
 from ..forces import get_dist, get_angle
-from ..forces import calc_bonds, calc_morse, calc_angles, calc_cross_bond_bond, calc_cross_bond_angle
+from ..forces import calc_bonds, calc_morse, calc_morse_mp, calc_angles, calc_cross_bond_bond, calc_cross_bond_angle
 #
 from .energies import bd_energy
 
@@ -25,7 +25,7 @@ class BondTerm(TermBase):
             type1, type2 = sorted([topo.types[a1], topo.types[a2]])
             bond['vers'] = f"{type1}({b_order_half_rounded}){type2}"
             # print(bond['vers'])
-            bond_terms.append(cls([a1, a2], dist, bond['vers']))
+            bond_terms.append(cls([a1, a2], dist, bond['vers'], 1))
 
         return bond_terms
 
@@ -50,7 +50,28 @@ class MorseTerm(TermBase):
             b_order_half_rounded = np.round(bond['order'] * 2) / 2
             type1, type2 = sorted([topo.types[a1], topo.types[a2]])
             bond['vers'] = f"{type1}({b_order_half_rounded}){type2}"
-            bond_terms.append(cls([a1, a2], dist, bond['vers']))
+            bond_terms.append(cls([a1, a2], dist, bond['vers'], 1))
+
+        return bond_terms
+
+
+class MorseMPTerm(TermBase):
+    name = 'MorseMPTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_morse_mp(crd, self.atomids, self.equ, fconst, force)
+
+    @classmethod
+    def get_terms(cls, topo, non_bonded):
+        bond_terms = cls.get_terms_container()
+
+        for a1, a2 in topo.bonds:
+            bond = topo.edge(a1, a2)
+            dist = bond['length']
+            b_order_half_rounded = np.round(bond['order'] * 2) / 2
+            type1, type2 = sorted([topo.types[a1], topo.types[a2]])
+            bond['vers'] = f"{type1}({b_order_half_rounded}){type2}"
+            bond_terms.append(cls([a1, a2], dist, bond['vers'], 2))
 
         return bond_terms
 
@@ -77,7 +98,7 @@ class AngleTerm(TermBase):
                 a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
                                  f"{topo.types[a2]}({b23}){topo.types[a3]}"])
                 a_type = f"{a_type[0]}_{a_type[1]}"
-                angle_terms.append(cls([a1, a2, a3], theta, a_type))
+                angle_terms.append(cls([a1, a2, a3], theta, a_type, 1))
 
         return angle_terms
 
@@ -104,7 +125,7 @@ class UreyAngleTerm(TermBase):
                                  f"{topo.types[a2]}({b23}){topo.types[a3]}"])
                 a_type = f"{a_type[0]}_{a_type[1]}"
 
-                urey_terms.append(cls([a1, a2, a3], dist, a_type))
+                urey_terms.append(cls([a1, a2, a3], dist, a_type, 1))
 
         return urey_terms
 
@@ -134,7 +155,7 @@ class CrossBondBondTerm(TermBase):
                                  f"{topo.types[a2]}({b23}){topo.types[a3]}"])
                 a_type = f"{a_type[0]}_{a_type[1]}"
                 # Second argument in constructor of TermABC is the equilibrium data
-                cross_bond_bond_terms.append(cls([a1, a2, a3], dists, a_type))
+                cross_bond_bond_terms.append(cls([a1, a2, a3], dists, a_type, 1))
 
         return cross_bond_bond_terms
 
@@ -165,6 +186,6 @@ class CrossBondAngleTerm(TermBase):
                 a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
                                  f"{topo.types[a2]}({b23}){topo.types[a3]}"])
                 a_type = f"{a_type[0]}_{a_type[1]}"
-                cross_bond_angle_terms.append(cls([a1, a2, a3], dists, a_type))
+                cross_bond_angle_terms.append(cls([a1, a2, a3], dists, a_type, 1))
 
         return cross_bond_angle_terms

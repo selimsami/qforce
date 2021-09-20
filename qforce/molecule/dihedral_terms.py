@@ -57,7 +57,7 @@ class DihedralBaseTerm(TermABC):
     def get_term(cls, topo, atomids, d_type):
         phi = get_dihed(topo.coords[atomids])[0]
         phi = DihedralBaseTerm.check_angle(phi)
-        return cls(atomids, phi, d_type)
+        return cls(atomids, phi, d_type, 1)
 
 
 class RigidDihedralTerm(DihedralBaseTerm):
@@ -78,7 +78,7 @@ class ImproperDihedralTerm(DihedralBaseTerm):
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
         phi = DihedralBaseTerm.check_angle(phi)
-        return cls(atomids, phi, d_type)
+        return cls(atomids, phi, d_type, 1)
 
 
 class FlexibleDihedralTerm(DihedralBaseTerm):
@@ -90,7 +90,7 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
 
     @classmethod
     def get_term(cls, topo, atoms, d_type):
-        return cls(atoms, np.zeros(6), d_type)
+        return cls(atoms, np.zeros(6), d_type, 1)
 
 
 class InversionDihedralTerm(DihedralBaseTerm):
@@ -102,7 +102,7 @@ class InversionDihedralTerm(DihedralBaseTerm):
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
-        return cls(atomids, phi, d_type)
+        return cls(atomids, phi, d_type, 1)
 
 
 class DihedralTerms(TermFactory):

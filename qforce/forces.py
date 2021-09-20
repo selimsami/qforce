@@ -11,8 +11,8 @@ from numba import jit
 @jit(nopython=True)
 def calc_bonds(coords, atoms, r0, fconst, force):
     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
-    energy = 0.5 * fconst * (r12-r0)**2
-    f = - fconst * vec12 * (r12-r0) / r12
+    energy = 0.5 * fconst[0] * (r12-r0)**2
+    f = - fconst[0] * vec12 * (r12-r0) / r12
     force[atoms[0]] += f
     force[atoms[1]] -= f
     return energy
@@ -21,10 +21,22 @@ def calc_bonds(coords, atoms, r0, fconst, force):
 @jit(nopython=True)
 def calc_morse(coords, atoms, r0, fconst, force, well_depth):
     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
-    beta = math.sqrt(fconst/(2*well_depth))
+    beta = math.sqrt(fconst[0]/(2*well_depth))
     exp_term = math.exp(-beta*(r12-r0))
     energy = well_depth * (1-exp_term) * (1-exp_term)
     f = -2 * well_depth * beta * exp_term * (1 - exp_term) * vec12 / r12
+    force[atoms[0]] += f
+    force[atoms[1]] -= f
+    return energy
+
+@jit(nopython=True)
+def calc_morse_mp(coords, atoms, r0, fconst, force):
+    # fconst[0] -> well depth
+    # fconst[1] -> beta
+    vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+    exp_term = math.exp(-fconst[1]*(r12-r0))
+    energy = fconst[0] * (1-exp_term) * (1-exp_term)
+    f = -2 * fconst[0] * fconst[1] * exp_term * (1 - exp_term) * vec12 / r12
     force[atoms[0]] += f
     force[atoms[1]] -= f
     return energy
@@ -36,9 +48,9 @@ def calc_angles(coords, atoms, theta0, fconst, force):
     cos_theta = math.cos(theta)
     cos_theta_sq = cos_theta**2
     dtheta = theta - theta0
-    energy = 0.5 * fconst * dtheta**2
+    energy = 0.5 * fconst[0] * dtheta**2
     if cos_theta_sq < 1:
-        st = - fconst * dtheta / np.sqrt(1. - cos_theta_sq)
+        st = - fconst[0] * dtheta / np.sqrt(1. - cos_theta_sq)
         sth = st * cos_theta
         c13 = st / r12 / r32
         c11 = sth / r12 / r12
@@ -58,10 +70,10 @@ def calc_cross_bond_bond(coords, atoms, r0s, fconst, force):
     s1 = r12 - r0s[0]
     s2 = r32 - r0s[1]
 
-    energy = fconst * s1 * s2
+    energy = fconst[0] * s1 * s2
 
-    f1 = - fconst * s2 * vec12 / r12
-    f3 = - fconst * s2 * vec32 / r32  # Verify this since the instructions on GROMACS are somewhat unclear
+    f1 = - fconst[0] * s2 * vec12 / r12
+    f3 = - fconst[0] * s2 * vec32 / r32  # Verify this since the instructions on GROMACS are somewhat unclear
 
     force[atoms[0]] += f1
     force[atoms[2]] += f3
@@ -78,11 +90,11 @@ def calc_cross_bond_angle(coords, atoms, r0s, fconst, force):
     s2 = r32 - r0s[1]
     s3 = r13 - r0s[2]
 
-    energy = fconst * s3 * (s1+s2)
+    energy = fconst[0] * s3 * (s1+s2)
 
-    k1 = - fconst * s3/r12
-    k2 = - fconst * s3/r32
-    k3 = - fconst * (s1+s2)/r13
+    k1 = - fconst[0] * s3/r12
+    k2 = - fconst[0] * s3/r32
+    k3 = - fconst[0] * (s1+s2)/r13
 
     f1 = k1*vec12 + k3*vec13
     f3 = k2*vec32 + k3*vec13
@@ -97,8 +109,8 @@ def calc_imp_diheds(coords, atoms, phi0, fconst, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     dphi = phi - phi0
     dphi = np.pi - (dphi + np.pi) % (2 * np.pi)  # dphi between -pi to pi
-    energy = 0.5 * fconst * dphi**2
-    ddphi = - fconst * dphi
+    energy = 0.5 * fconst[0] * dphi**2
+    ddphi = - fconst[0] * dphi
     force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
     return energy
 
@@ -154,9 +166,9 @@ def calc_periodic_dihed(coords, atoms, phi0, fconst, force):
     phi0 = 0
 
     mdphi = mult * phi - phi0
-    ddphi = fconst * mult * np.sin(mdphi)
+    ddphi = fconst[0] * mult * np.sin(mdphi)
 
-    energy = fconst * (1 + np.cos(mdphi))
+    energy = fconst[0] * (1 + np.cos(mdphi))
 
     force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
     return energy
@@ -165,9 +177,9 @@ def calc_periodic_dihed(coords, atoms, phi0, fconst, force):
 @jit(nopython=True)
 def convert_to_inversion_rb(fconst, phi0):
     cos_phi0 = np.cos(phi0)
-    c0 = fconst * cos_phi0**2
-    c1 = 2 * fconst * cos_phi0
-    c2 = fconst
+    c0 = fconst[0] * cos_phi0**2
+    c1 = 2 * fconst[0] * cos_phi0
+    c2 = fconst[0]
     return c0, c1, c2
 
 

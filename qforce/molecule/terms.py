@@ -3,7 +3,7 @@ from copy import deepcopy
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import (BondTerm, MorseTerm, AngleTerm, UreyAngleTerm, CrossBondBondTerm, CrossBondAngleTerm)
+from .non_dihedral_terms import (BondTerm, MorseTerm, MorseMPTerm, AngleTerm, UreyAngleTerm, CrossBondBondTerm, CrossBondAngleTerm)
 from .non_bonded_terms import NonBondedTerms
 #
 from .base import MappingIterator
@@ -15,6 +15,7 @@ class Terms(MappingIterator):
     _term_factories = {
             'bond': BondTerm,
             'morse': MorseTerm,
+            'morse_mp': MorseMPTerm,
             'angle': AngleTerm,
             'urey': UreyAngleTerm,
             '_cross_bond_angle': CrossBondAngleTerm,
@@ -24,13 +25,28 @@ class Terms(MappingIterator):
     }
     # _always_on = ['bond', 'angle']
     _always_on = []
-    _default_off = ['morse', '_cross_bond_angle', '_cross_bond_bond']
+    _default_off = ['morse', 'morse_mp', '_cross_bond_angle', '_cross_bond_bond']
 
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
         self.n_fitted_terms = self._set_fit_term_idx(not_fit_terms)
+        print(f'n_fitted_terms = {self.n_fitted_terms}')
+        self.n_fitted_params = self._calculate_n_fitted_params()
+        print(f'n_fitted_params = {self.n_fitted_params}')
         self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
         self._term_paths = self._get_term_paths(terms)
+
+    def _calculate_n_fitted_params(self):
+        print('Running _calculate_n_fitted_params')
+        counter = 0
+        seen_idx = []
+        for term in self:
+            if term.idx not in seen_idx:
+                print(f'Term {term} with idx {term.idx} being accounted for with {term.n_params} parameter(s)')
+                seen_idx.append(term.idx)
+                counter += term.n_params
+        print('Finished _calculate_n_fitted_params')
+        return counter
 
     @classmethod
     def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded']):

@@ -25,4 +25,4 @@ class QForce(Calculator):
                 self.results['energy'] += term.do_force(coords, self.results['forces'])
 
             for atoms, phi0 in self.dihedral_restraints:
-                calc_imp_diheds(coords, atoms, phi0, 10000, self.results['forces'])
+                calc_imp_diheds(coords, atoms, phi0, np.array([10000.0]), self.results['forces'])
