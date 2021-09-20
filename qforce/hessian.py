@@ -55,7 +55,7 @@ def fit_hessian_nl(config, mol, qm):  # Here we use optimize.least_squares()
         if term.idx < mol.terms.n_fitted_terms:
             # term.fconst = np.array([fit[term.idx]])
             if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
-                index += sorted_terms[i - 1].n_params  # Increase index by the number of parameters of the previous term
+                index += sorted_terms[i-1].n_params  # Increase index by the number of parameters of the previous term
                 seen_idx.append(term.idx)
             term.fconst = fit[index:index + term.n_params]
             print(f'Term {term} with idx {term.idx} has fconst {term.fconst}')
@@ -104,8 +104,8 @@ def fit_hessian(config, mol, qm, n_iter):
             hes = (full_md_hessian[i, j] + full_md_hessian[j, i]) / 2
             if all([h == 0 for h in hes]) or np.abs(qm_hessian[count]) < 0.0001:
                 qm_hessian = np.delete(qm_hessian, count)
-                # full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_terms))
-                full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_params))
+                full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_terms))
+                # full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_params))
             else:
                 count += 1
                 hessian.append(hes[:-1])
@@ -123,18 +123,18 @@ def fit_hessian(config, mol, qm, n_iter):
     print('Assigning constants to terms...')
     print(f'len(fit) = {len(fit)}')
 
-    sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
-    seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
-    # for term in mol.terms:
-    index = 0
-    for i, term in enumerate(sorted_terms):
-        # if term.idx < len(fit):
-        if term.idx < mol.terms.n_fitted_terms:
-            # term.fconst = np.array([fit[term.idx]])
-            if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
-                index += sorted_terms[i-1].n_params  # Increase index by the number of parameters of the previous term
-                seen_idx.append(term.idx)
-            term.fconst = fit[index:index+term.n_params]
+    # sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
+    # seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
+    for term in mol.terms:
+    # index = 0
+    # for term in enumerate(sorted_terms):
+        if term.idx < len(fit):
+        # if term.idx < mol.terms.n_fitted_terms:
+            term.fconst = np.array([fit[term.idx]])
+            # if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
+            #     index += sorted_terms[i-1].n_params  # Increase index by the number of parameters of the previous term
+            #     seen_idx.append(term.idx)
+            # term.fconst = fit[index:index+term.n_params]
             print(f'Term {term} with idx {term.idx} has fconst {term.fconst}')
 
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
@@ -151,8 +151,8 @@ def calc_hessian(coords, mol):
     -----
     Perform displacements to calculate the MD hessian numerically.
     """
-    # full_hessian = np.zeros((3*mol.topo.n_atoms, 3*mol.topo.n_atoms, mol.terms.n_fitted_terms+1))
-    full_hessian = np.zeros((3*mol.topo.n_atoms, 3*mol.topo.n_atoms, mol.terms.n_fitted_params+1))
+    full_hessian = np.zeros((3*mol.topo.n_atoms, 3*mol.topo.n_atoms, mol.terms.n_fitted_terms+1))
+    # full_hessian = np.zeros((3*mol.topo.n_atoms, 3*mol.topo.n_atoms, mol.terms.n_fitted_params+1))
 
     for a in range(mol.topo.n_atoms):
         for xyz in range(3):
@@ -162,8 +162,8 @@ def calc_hessian(coords, mol):
             f_minus = calc_forces(coords, mol)
             coords[a][xyz] += 0.003
             diff = - (f_plus - f_minus) / 0.006
-            # full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1, 3*mol.topo.n_atoms).T
-            full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_params+1, 3*mol.topo.n_atoms).T
+            full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1, 3*mol.topo.n_atoms).T
+            # full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_params+1, 3*mol.topo.n_atoms).T
     return full_hessian
 
 
@@ -192,19 +192,19 @@ def calc_forces(coords, mol):
 
     """
 
-    # force = np.zeros((mol.terms.n_fitted_terms + 1, mol.topo.n_atoms, 3))
-    force = np.zeros((mol.terms.n_fitted_params+1, mol.topo.n_atoms, 3))
+    force = np.zeros((mol.terms.n_fitted_terms+1, mol.topo.n_atoms, 3))
+    # force = np.zeros((mol.terms.n_fitted_params+1, mol.topo.n_atoms, 3))
 
     with mol.terms.add_ignore(['dihedral/flexible']):
-        sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
-        seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
-        # for term in mol.terms:
-        index = 0
-        for i, term in enumerate(sorted_terms):
-            if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
-                index += sorted_terms[i-1].n_params  # Increase index by the number of parameters of the previous term
-                seen_idx.append(term.idx)
-            term.do_fitting(coords, force, index)
+        # sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
+        # seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
+        for term in mol.terms:
+        # index = 0
+        # for i, term in enumerate(sorted_terms):
+        #     if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
+        #         index += sorted_terms[i-1].n_params  # Increase index by the number of parameters of the previous term
+        #         seen_idx.append(term.idx)
+            term.do_fitting(coords, force)
 
     return force
 

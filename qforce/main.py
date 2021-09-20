@@ -45,6 +45,7 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
 
     #### Hessian fitting phase ####
     print('\n#### HESSIAN FITTING PHASE ####\n')
+    md_hessian = None
     if config.ff.opt_type == 'linear':
         md_hessian = fit_hessian(config.terms, mol, qm_hessian_out, config.ff.opt_iter)
     elif config.ff.opt_type == 'non_linear':
