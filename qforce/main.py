@@ -21,6 +21,8 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     print('Job:')
     print(job, '\n')
 
+    check_wellposedness(config)
+
     check_continue(config)
 
     #### Polarization phase ####
@@ -106,6 +108,13 @@ def print_outcome(job_dir):
           ' frequencies.pdf).')
     print('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
     print('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.')
+
+
+def check_wellposedness(config):
+    if config.ff.opt_type == 'linear' and (config.terms.morse or config.terms.morse_mp):
+        raise Exception('Linear optimization is not valid for Morse bond potential')
+    else:
+        print('Configuration is valid!')
 
 
 def check_continue(config):
