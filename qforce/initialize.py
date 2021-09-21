@@ -11,18 +11,22 @@ from qforce.misc import LOGO
 
 class Initialize(Colt):
     _questions = """
-[ff]
+[general]
 # Debug Mode
 debug_mode = False :: bool
 
-# Whether to scan dihedrals
-scan_dihedrals = True :: bool
+# Verbose settings for optimizer
+opt_verbose = 1 :: int :: [0, 1, 2]
 
 # Optimization type
 opt_type = linear :: str :: [linear, non_linear]
 
 # Amount of iterations in linear lsq scipy optimizer
 opt_iter = 100 :: int
+
+[ff]
+# Whether to scan dihedrals
+scan_dihedrals = True :: bool
 
 # Whether to compute and write the force field files or not
 compute_ff = True :: bool

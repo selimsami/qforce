@@ -48,10 +48,10 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     #### Hessian fitting phase ####
     print('\n#### HESSIAN FITTING PHASE ####\n')
     md_hessian = None
-    if config.ff.opt_type == 'linear':
-        md_hessian = fit_hessian(config.terms, mol, qm_hessian_out, config.ff.opt_iter)
-    elif config.ff.opt_type == 'non_linear':
-        md_hessian = fit_hessian_nl(config.terms, mol, qm_hessian_out)
+    if config.general.opt_type == 'linear':
+        md_hessian = fit_hessian(config.terms, mol, qm_hessian_out, config.general.opt_iter, config.general.opt_verbose)
+    elif config.general.opt_type == 'non_linear':
+        md_hessian = fit_hessian_nl(config.terms, mol, qm_hessian_out, config.general.opt_verbose)
 
     check_continue(config)
 
@@ -111,14 +111,14 @@ def print_outcome(job_dir):
 
 
 def check_wellposedness(config):
-    if config.ff.opt_type == 'linear' and (config.terms.morse or config.terms.morse_mp):
+    if config.general.opt_type == 'linear' and (config.terms.morse or config.terms.morse_mp):
         raise Exception('Linear optimization is not valid for Morse bond potential')
     else:
         print('Configuration is valid!')
 
 
 def check_continue(config):
-    if config.ff.debug_mode:
+    if config.general.debug_mode:
         x = input('\nDo you want to continue y/n? ')
         if x not in ['yes', 'y']:
             print()

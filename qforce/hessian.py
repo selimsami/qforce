@@ -37,7 +37,7 @@ def nllsqfunc(params, qm, qm_hessian, mol, sorted_terms):  # Residual function t
 
     return agg_hessian - difference
 
-def fit_hessian_nl(config, mol, qm):  # Here we use optimize.least_squares()
+def fit_hessian_nl(config, mol, qm, opt_verbose):  # Here we use optimize.least_squares()
     print('Running fit_hessian_nl')
 
     qm_hessian = np.copy(qm.hessian)
@@ -48,7 +48,7 @@ def fit_hessian_nl(config, mol, qm):  # Here we use optimize.least_squares()
     sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
     x0 = np.ones(mol.terms.n_fitted_params)  # Initial values for term params
     result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
-                                    bounds=(0, np.inf), verbose=1)
+                                    bounds=(0, np.inf), verbose=opt_verbose)
     # result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms), verbose=1)
     fit = result.x
 
@@ -101,7 +101,7 @@ def fit_hessian_nl(config, mol, qm):  # Here we use optimize.least_squares()
     return full_md_hessian_1d
 
 
-def fit_hessian(config, mol, qm, n_iter):
+def fit_hessian(config, mol, qm, n_iter, opt_verbose):
     print('Running fit_hessian')
     hessian, full_md_hessian_1d = [], []
     non_fit = []
@@ -128,7 +128,7 @@ def fit_hessian(config, mol, qm, n_iter):
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
     print(f'Running optimizer for up to {n_iter} iterations...')
-    result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf), max_iter=n_iter, verbose=1)
+    result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf), max_iter=n_iter, verbose=opt_verbose)
     # print(f'It ran for {result.nit} iterations')
     fit = result.x
     print("Done!\n")
