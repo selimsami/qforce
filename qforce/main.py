@@ -113,6 +113,8 @@ def print_outcome(job_dir):
 def check_wellposedness(config):
     if config.general.opt_type == 'linear' and (config.terms.morse or config.terms.morse_mp):
         raise Exception('Linear optimization is not valid for Morse bond potential')
+    elif config.terms.morse and config.terms.morse_mp:
+        raise Exception('Morse and Morse MP bonds cannot be used at the same time')
     else:
         print('Configuration is valid!')
 
