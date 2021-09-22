@@ -19,6 +19,9 @@ debug_mode = False :: bool
 # Verbose settings for optimizer
 opt_verbose = 1 :: int :: [0, 1, 2]
 
+# Noise for initial conditions
+noise = 0.0 :: float :: >0
+
 # Optimization type
 opt_type = linear :: str :: [linear, non_linear]
 

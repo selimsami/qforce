@@ -40,7 +40,7 @@ def nllsqfunc(params, qm, qm_hessian, mol, sorted_terms):  # Residual function t
     return agg_hessian - difference
 
 
-def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave):
+def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave, noise):
     print('Running fit_hessian_nl')
 
     qm_hessian = np.copy(qm.hessian)
@@ -52,6 +52,7 @@ def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave):
 
     # Create initial conditions for optimization
     x0 = np.ones(mol.terms.n_fitted_params)  # Initial values for term params
+    # Read them from pinput if given
     if pinput is not None:
         in_file = open(pinput)
         dct = json.load(in_file)
@@ -67,10 +68,16 @@ def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave):
                     index += sorted_terms[i - 1].n_params  # Increase index by the number of parameters of the previous term
                     seen_idx.append(term.idx)
                 x0[index:index + term.n_params] = np.array(dct[str(term)])
+    # Add noise if necessary
+    # np.random.seed(0)
+    print(f'Adding up to {noise*100}% noise to the initial conditions')
+    for i, ele in enumerate(x0):
+        x0[i] += noise*ele*(2*np.random.random() - 1)
     print(f'x0: {x0}')
 
     # Optimize
     result = None
+    print(f'verbose = {opt_settings.opt_verbose}')
     if opt_settings.opt_nonlin_alg == 'trf':
         result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
                                         bounds=(0, np.inf), method='trf', verbose=opt_settings.opt_verbose)

@@ -57,7 +57,7 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, pinput=None, psa
     if config.opt.opt_type == 'linear':
         md_hessian = fit_hessian(config.terms, mol, qm_hessian_out, config.opt)
     elif config.opt.opt_type == 'non_linear':
-        md_hessian = fit_hessian_nl(config.terms, mol, qm_hessian_out, config.opt, pinput, psave)
+        md_hessian = fit_hessian_nl(config.terms, mol, qm_hessian_out, config.opt, pinput, psave, config.opt.noise)
 
     check_continue(config)
 
@@ -121,6 +121,8 @@ def check_wellposedness(config):
         raise Exception('Linear optimization is not valid for Morse bond potential')
     elif config.terms.morse and config.terms.morse_mp:
         raise Exception('Morse and Morse MP bonds cannot be used at the same time')
+    elif config.opt.noise < 0 or config.opt.noise > 1:
+        raise Exception('Noise must be in range [0, 1]')
     else:
         print('Configuration is valid!')
 
