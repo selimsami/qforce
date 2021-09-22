@@ -1,3 +1,5 @@
+import json
+
 import scipy.optimize as optimize
 import numpy as np
 
@@ -37,19 +39,46 @@ def nllsqfunc(params, qm, qm_hessian, mol, sorted_terms):  # Residual function t
 
     return agg_hessian - difference
 
-def fit_hessian_nl(config, mol, qm, opt_verbose):  # Here we use optimize.least_squares()
+
+def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave):
     print('Running fit_hessian_nl')
 
     qm_hessian = np.copy(qm.hessian)
     # print(f'qm_hessian shape: {qm_hessian.shape}')
 
-    # call non-linear optimization routine
     print('Running non-linear optimizer')
+    # Sort mol terms
     sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
+
+    # Create initial conditions for optimization
     x0 = np.ones(mol.terms.n_fitted_params)  # Initial values for term params
-    result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
-                                    bounds=(0, np.inf), verbose=opt_verbose)
-    # result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms), verbose=1)
+    if pinput is not None:
+        in_file = open(pinput)
+        dct = json.load(in_file)
+        in_file.close()
+        seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
+        # for term in mol.terms:
+        index = 0
+        for i, term in enumerate(sorted_terms):
+            # if term.idx < len(fit):
+            if term.idx < mol.terms.n_fitted_terms:
+                # term.fconst = np.array([fit[term.idx]])
+                if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
+                    index += sorted_terms[i - 1].n_params  # Increase index by the number of parameters of the previous term
+                    seen_idx.append(term.idx)
+                x0[index:index + term.n_params] = np.array(dct[str(term)])
+    print(f'x0: {x0}')
+
+    # Optimize
+    result = None
+    if opt_settings.opt_nonlin_alg == 'trf':
+        result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
+                                        bounds=(0, np.inf), method='trf', verbose=opt_settings.opt_verbose)
+    elif opt_settings.opt_nonlin_alg == 'lm':
+        result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
+                                        method='lm', verbose=opt_settings.opt_verbose)
+        # result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
+        #                                 method='lm', ftol=1e-12, xtol=1e-12, gtol=1e-12, verbose=opt_settings.opt_verbose)
     fit = result.x
 
     print('Assigning constants to terms...')
@@ -67,6 +96,16 @@ def fit_hessian_nl(config, mol, qm, opt_verbose):  # Here we use optimize.least_
                 seen_idx.append(term.idx)
             term.fconst = fit[index:index + term.n_params]
             print(f'Term {term} with idx {term.idx} has fconst {term.fconst}')
+
+    # If psave, write fit to .json
+    if psave is not None:
+        print(f'Writing fit to {psave}...')
+        with open(psave, 'w') as f:
+            dct = {}
+            for term in sorted_terms:
+                if term.idx < mol.terms.n_fitted_terms:
+                    dct[str(term)] = term.fconst.tolist()
+            json.dump(dct, f, indent=4)
 
     average_unique_minima(mol.terms, config)
 
@@ -101,7 +140,7 @@ def fit_hessian_nl(config, mol, qm, opt_verbose):  # Here we use optimize.least_
     return full_md_hessian_1d
 
 
-def fit_hessian(config, mol, qm, n_iter, opt_verbose):
+def fit_hessian(config, mol, qm, n_iter, opt_settings):
     print('Running fit_hessian')
     hessian, full_md_hessian_1d = [], []
     non_fit = []
@@ -128,7 +167,8 @@ def fit_hessian(config, mol, qm, n_iter, opt_verbose):
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
     print(f'Running optimizer for up to {n_iter} iterations...')
-    result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf), max_iter=n_iter, verbose=opt_verbose)
+    result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf),
+                                 max_iter=n_iter, verbose=opt_settings.opt_verbose)
     # print(f'It ran for {result.nit} iterations')
     fit = result.x
     print("Done!\n")

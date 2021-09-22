@@ -37,16 +37,17 @@ class Terms(MappingIterator):
         self._term_paths = self._get_term_paths(terms)
 
     def _calculate_n_fitted_params(self):
-        print('Running _calculate_n_fitted_params')
-        counter = 0
-        seen_idx = []
-        for term in self:
-            if term.idx not in seen_idx:
-                print(f'Term {term} with idx {term.idx} being accounted for with {term.n_params} parameter(s)')
-                seen_idx.append(term.idx)
-                counter += term.n_params
-        print('Finished _calculate_n_fitted_params')
-        return counter
+        with self.add_ignore(['dihedral/flexible']):
+            print('Running _calculate_n_fitted_params')
+            counter = 0
+            seen_idx = []
+            for term in self:
+                if term.idx not in seen_idx:
+                    print(f'Term {term} with idx {term.idx} being accounted for with {term.n_params} parameter(s)')
+                    seen_idx.append(term.idx)
+                    counter += term.n_params
+            print('Finished _calculate_n_fitted_params')
+            return counter
 
     @classmethod
     def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded']):

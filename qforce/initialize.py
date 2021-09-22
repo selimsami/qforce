@@ -15,6 +15,7 @@ class Initialize(Colt):
 # Debug Mode
 debug_mode = False :: bool
 
+[opt]
 # Verbose settings for optimizer
 opt_verbose = 1 :: int :: [0, 1, 2]
 
@@ -23,6 +24,9 @@ opt_type = linear :: str :: [linear, non_linear]
 
 # Amount of iterations in linear lsq scipy optimizer
 opt_iter = 100 :: int
+
+# Non-linear optimization method
+opt_nonlin_alg = lm :: str :: [trf, lm]
 
 [ff]
 # Whether to scan dihedrals

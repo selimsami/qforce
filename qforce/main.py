@@ -12,7 +12,7 @@ from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian, fit_hessian_nl
 
 
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
+def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, pinput=None, psave=None, presets=None):
     #### Initialization phase ####
     print('\n#### INITIALIZATION PHASE ####\n')
     config, job = initialize(input_arg, config, presets)
@@ -20,6 +20,12 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     print(config, '\n')
     print('Job:')
     print(job, '\n')
+    if pinput is not None:
+        pinput = job.dir + '/' + pinput + '.json'
+        print(f'pinput path: {pinput}')
+    if psave is not None:
+        psave = job.dir + '/' + psave + '.json'
+        print(f'psave path: {psave}')
 
     check_wellposedness(config)
 
@@ -48,10 +54,10 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     #### Hessian fitting phase ####
     print('\n#### HESSIAN FITTING PHASE ####\n')
     md_hessian = None
-    if config.general.opt_type == 'linear':
-        md_hessian = fit_hessian(config.terms, mol, qm_hessian_out, config.general.opt_iter, config.general.opt_verbose)
-    elif config.general.opt_type == 'non_linear':
-        md_hessian = fit_hessian_nl(config.terms, mol, qm_hessian_out, config.general.opt_verbose)
+    if config.opt.opt_type == 'linear':
+        md_hessian = fit_hessian(config.terms, mol, qm_hessian_out, config.opt)
+    elif config.opt.opt_type == 'non_linear':
+        md_hessian = fit_hessian_nl(config.terms, mol, qm_hessian_out, config.opt, pinput, psave)
 
     check_continue(config)
 
@@ -111,7 +117,7 @@ def print_outcome(job_dir):
 
 
 def check_wellposedness(config):
-    if config.general.opt_type == 'linear' and (config.terms.morse or config.terms.morse_mp):
+    if config.opt.opt_type == 'linear' and (config.terms.morse or config.terms.morse_mp):
         raise Exception('Linear optimization is not valid for Morse bond potential')
     elif config.terms.morse and config.terms.morse_mp:
         raise Exception('Morse and Morse MP bonds cannot be used at the same time')

@@ -13,12 +13,21 @@ def parse_command_line():
                               'or directory (mol or mol_qforce) name.'))
     parser.add_argument('-o', type=check_if_file_exists, metavar='options',
                         help='File name for the optional options.')
+    parser.add_argument('-i', type=str, metavar='input_params',
+                        help='File name for optional parameter input file.')
+    parser.add_argument('-s', type=str, metavar='save_params',
+                        help='File name for optional parameter saving file.')
     args = parser.parse_args()
 
-    return args.f, args.o
+    print(f'\nargs.f = {args.f}')
+    print(f'args.o = {args.o}')
+    print(f'args.i = {args.i}')
+    print(f'args.s = {args.s}\n')
+
+    return args.f, args.o, args.i, args.s
 
 
 if __name__ == '__main__':
-    input_arg, config_file = parse_command_line()
-    run_qforce(input_arg=input_arg, config=config_file)
+    input_arg, config_file, pinput_file, psave_file = parse_command_line()
+    run_qforce(input_arg=input_arg, config=config_file, pinput=pinput_file, psave=psave_file)
     print("\n")
