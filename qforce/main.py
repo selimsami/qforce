@@ -10,6 +10,7 @@ from .fragment import fragment
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian, fit_hessian_nl
+from .misc import check_continue
 
 
 def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, pinput=None, psave=None, presets=None):
@@ -55,9 +56,9 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, pinput=None, psa
     print('\n#### HESSIAN FITTING PHASE ####\n')
     md_hessian = None
     if config.opt.opt_type == 'linear':
-        md_hessian = fit_hessian(config.terms, mol, qm_hessian_out, config.opt)
+        md_hessian = fit_hessian(config, mol, qm_hessian_out)
     elif config.opt.opt_type == 'non_linear':
-        md_hessian = fit_hessian_nl(config.terms, mol, qm_hessian_out, config.opt, pinput, psave, config.opt.noise)
+        md_hessian = fit_hessian_nl(config, mol, qm_hessian_out, pinput, psave)
 
     check_continue(config)
 
@@ -119,17 +120,11 @@ def print_outcome(job_dir):
 def check_wellposedness(config):
     if config.opt.opt_type == 'linear' and (config.terms.morse or config.terms.morse_mp):
         raise Exception('Linear optimization is not valid for Morse bond potential')
-    elif config.terms.morse and config.terms.morse_mp:
+    elif (config.terms.morse and config.terms.morse_mp) or (config.terms.morse and config.terms.morse_mp2):
         raise Exception('Morse and Morse MP bonds cannot be used at the same time')
+    elif config.terms.morse_mp and config.terms.morse_mp2:
+        raise Exception('Cannot run two versions of Morse MP at the same time')
     elif config.opt.noise < 0 or config.opt.noise > 1:
         raise Exception('Noise must be in range [0, 1]')
     else:
         print('Configuration is valid!')
-
-
-def check_continue(config):
-    if config.general.debug_mode:
-        x = input('\nDo you want to continue y/n? ')
-        if x not in ['yes', 'y']:
-            print()
-            sys.exit(0)

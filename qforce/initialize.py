@@ -29,7 +29,7 @@ opt_type = linear :: str :: [linear, non_linear]
 opt_iter = 100 :: int
 
 # Non-linear optimization method
-opt_nonlin_alg = lm :: str :: [trf, lm]
+opt_nonlin_alg = lm :: str :: [trf, lm, compass]
 
 [ff]
 # Whether to scan dihedrals

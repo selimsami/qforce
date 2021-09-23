@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import math
+
+from qforce.misc import check_if_file_exists
+from qforce.molecule.energies import bd_energy
+
+
+def parse_command_line():
+    formatter = argparse.RawTextHelpFormatter
+    parser = argparse.ArgumentParser(formatter_class=formatter)
+    parser.add_argument('-i', type=check_if_file_exists, metavar='input', required=True,
+                        help='Input params file.')
+    parser.add_argument('-o', type=str, metavar='output', required=True,
+                        help='Output params file.')
+    args = parser.parse_args()
+
+    print(f'\nargs.i = {args.i}, type = {type(args.i)}')
+    print(f'args.o = {args.o}, type = {type(args.o)}\n')
+
+    return args.i, args.o
+
+
+if __name__ == '__main__':
+    input_path, output_path = parse_command_line()
+
+    in_file = open(input_path)
+    dct = json.load(in_file)
+    in_file.close()
+
+    new_dct = {}
+    for k, v in dct.items():
+        if k.split('(')[0] == 'MorseMP2Term':
+            new_dct[k.replace('MorseMP2Term', 'MorseMPTerm')] = [v[0], math.sqrt(v[1]/(2*v[0]))]
+        else:
+            new_dct[k] = v
+
+    with open(output_path, 'w') as out_file:
+        json.dump(new_dct, out_file, indent=4)
+
+    print("\n")

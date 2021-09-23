@@ -43,6 +43,20 @@ def calc_morse_mp(coords, atoms, r0, fconst, force):
 
 
 @jit(nopython=True)
+def calc_morse_mp2(coords, atoms, r0, fconst, force):
+    # fconst[0] -> well depth
+    # fconst[1] -> k_ij
+    vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+    beta = math.sqrt(fconst[1]/(2*fconst[0]))
+    exp_term = math.exp(-beta*(r12-r0))
+    energy = fconst[0] * (1-exp_term) * (1-exp_term)
+    f = -2 * fconst[0] * beta * exp_term * (1 - exp_term) * vec12 / r12
+    force[atoms[0]] += f
+    force[atoms[1]] -= f
+    return energy
+
+
+@jit(nopython=True)
 def calc_angles(coords, atoms, theta0, fconst, force):
     theta, vec12, vec32, r12, r32 = get_angle(coords[atoms])
     cos_theta = math.cos(theta)

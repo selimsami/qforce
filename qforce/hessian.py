@@ -2,7 +2,13 @@ import json
 
 import scipy.optimize as optimize
 import numpy as np
+import noisyopt as nopt
 
+from .misc import check_continue
+
+
+def compassfunc(params, qm, qm_hessian, mol, sorted_terms):
+    return 0.5 * np.sum(nllsqfunc(params, qm, qm_hessian, mol, sorted_terms)**2)
 
 def nllsqfunc(params, qm, qm_hessian, mol, sorted_terms):  # Residual function to minimize
     # hessian, full_md_hessian_1d = [], []
@@ -40,7 +46,7 @@ def nllsqfunc(params, qm, qm_hessian, mol, sorted_terms):  # Residual function t
     return agg_hessian - difference
 
 
-def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave, noise):
+def fit_hessian_nl(config, mol, qm, pinput, psave):
     print('Running fit_hessian_nl')
 
     qm_hessian = np.copy(qm.hessian)
@@ -51,7 +57,7 @@ def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave, noise):
     sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
 
     # Create initial conditions for optimization
-    x0 = np.ones(mol.terms.n_fitted_params)  # Initial values for term params
+    x0 = 400 * np.ones(mol.terms.n_fitted_params)  # Initial values for term params
     # Read them from pinput if given
     if pinput is not None:
         in_file = open(pinput)
@@ -70,22 +76,33 @@ def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave, noise):
                 x0[index:index + term.n_params] = np.array(dct[str(term)])
     # Add noise if necessary
     # np.random.seed(0)
-    print(f'Adding up to {noise*100}% noise to the initial conditions')
+    print(f'Adding up to {config.opt.noise*100}% noise to the initial conditions')
     for i, ele in enumerate(x0):
-        x0[i] += noise*ele*(2*np.random.random() - 1)
+        x0[i] += config.opt.noise * ele * (2 * np.random.random() - 1)
     print(f'x0: {x0}')
+
+    # Get function value for x0 and ask the user if continue
+    value = 0.5 * np.sum(nllsqfunc(x0, qm, qm_hessian, mol, sorted_terms)**2)
+    print(f'Initial loss: {value}')
+    check_continue(config)
 
     # Optimize
     result = None
-    print(f'verbose = {opt_settings.opt_verbose}')
-    if opt_settings.opt_nonlin_alg == 'trf':
-        result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
-                                        bounds=(0, np.inf), method='trf', verbose=opt_settings.opt_verbose)
-    elif opt_settings.opt_nonlin_alg == 'lm':
-        result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
-                                        method='lm', verbose=opt_settings.opt_verbose)
-        # result = optimize.least_squares(nllsqfunc, x0, args=(qm, qm_hessian, mol, sorted_terms),
-        #                                 method='lm', ftol=1e-12, xtol=1e-12, gtol=1e-12, verbose=opt_settings.opt_verbose)
+    print(f'verbose = {config.opt.opt_verbose}')
+    args = (qm, qm_hessian, mol, sorted_terms)
+    if config.opt.opt_nonlin_alg == 'trf':
+        print('Running trf optimizer...')
+        result = optimize.least_squares(nllsqfunc, x0, args=args, bounds=(0, np.inf), method='trf',
+                                        verbose=config.opt.opt_verbose)
+    elif config.opt.opt_nonlin_alg == 'lm':
+        print('Running lm optimizer...')
+        result = optimize.least_squares(nllsqfunc, x0, args=args, method='lm',
+                                        verbose=config.opt.opt_verbose)
+    elif config.opt.opt_nonlin_alg == 'compass':
+        print('Running compass optimizer...')
+        disp = False if config.opt.opt_verbose == 0 else True
+        result = nopt.minimizeCompass(compassfunc, x0, args=args, disp=disp, paired=False)
+
     fit = result.x
 
     print('Assigning constants to terms...')
@@ -114,8 +131,6 @@ def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave, noise):
                     dct[str(term)] = term.fconst.tolist()
             json.dump(dct, f, indent=4)
 
-    average_unique_minima(mol.terms, config)
-
     # Calculate final full_md_hessian_1d
     full_md_hessian = calc_hessian_nl(qm.coords, mol, fit)
     # hessian, full_md_hessian_1d = [], []
@@ -143,11 +158,13 @@ def fit_hessian_nl(config, mol, qm, opt_settings, pinput, psave, noise):
     full_md_hessian_1d = np.array(full_md_hessian_1d)
     full_md_hessian_1d = np.sum(full_md_hessian_1d, 1)  # Aggregate contribution of terms
 
+    average_unique_minima(mol.terms, config)
+
     print('Finished fit_hessian_nl')
     return full_md_hessian_1d
 
 
-def fit_hessian(config, mol, qm, n_iter, opt_settings):
+def fit_hessian(config, mol, qm, n_iter):
     print('Running fit_hessian')
     hessian, full_md_hessian_1d = [], []
     non_fit = []
@@ -175,7 +192,7 @@ def fit_hessian(config, mol, qm, n_iter, opt_settings):
     # la.lstsq or nnls could also be used:
     print(f'Running optimizer for up to {n_iter} iterations...')
     result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf),
-                                 max_iter=n_iter, verbose=opt_settings.opt_verbose)
+                                 max_iter=n_iter, verbose=config.opt.opt_verbose)
     # print(f'It ran for {result.nit} iterations')
     fit = result.x
     print("Done!\n")
@@ -299,9 +316,11 @@ def average_unique_minima(terms, config):
     # print('Terms:')
     # print(terms)
     unique_terms = {}
-    trms = terms.term_names
+    # trms = ['bond', 'morse', 'morse_mp', 'morse_mp2', 'angle', 'dihedral/inversion']
+    # trms = ['bond', 'morse', 'angle', 'dihedral/inversion']
+    trms = ['bond', 'angle', 'dihedral/inversion']
     # averaged_terms = ['bond', 'angle', 'dihedral/inversion']
-    averaged_terms = [x for x in ['bond', 'morse', 'morse_mp', 'angle', 'dihedral/inversion'] if config.__dict__[x]]
+    averaged_terms = [x for x in trms if config.terms.__dict__[x]]
     print(f'Averaged terms: {averaged_terms}')
     for name in [term_name for term_name in averaged_terms]:
         for term in terms[name]:
@@ -314,23 +333,30 @@ def average_unique_minima(terms, config):
                 unique_terms[str(term)] = minimum
 
     # For Urey, recalculate length based on the averaged bonds/angles
-    if config.urey:
+    if config.terms.urey:
         for term in terms['urey']:
             if str(term) in unique_terms.keys():
                 term.equ = unique_terms[str(term)]
             else:
                 bond1_atoms = sorted(term.atomids[:2])
                 bond2_atoms = sorted(term.atomids[1:])
-                if config.morse:  # Morse bond
+                if config.terms.morse:  # Morse bond
                     bond1 = [bond.equ for bond in terms['morse'] if all(bond1_atoms == bond.atomids)][0]
                     bond2 = [bond.equ for bond in terms['morse'] if all(bond2_atoms == bond.atomids)][0]
                     angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
                     urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
                     term.equ = urey
                     unique_terms[str(term)] = urey
-                elif config.morse_mp:  # Morse multi-parameter bond
+                elif config.terms.morse_mp:  # Morse multi-parameter bond
                     bond1 = [bond.equ for bond in terms['morse_mp'] if all(bond1_atoms == bond.atomids)][0]
                     bond2 = [bond.equ for bond in terms['morse_mp'] if all(bond2_atoms == bond.atomids)][0]
+                    angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
+                    urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
+                    term.equ = urey
+                    unique_terms[str(term)] = urey
+                elif config.terms.morse_mp2:  # Morse multi-parameter bond
+                    bond1 = [bond.equ for bond in terms['morse_mp2'] if all(bond1_atoms == bond.atomids)][0]
+                    bond2 = [bond.equ for bond in terms['morse_mp2'] if all(bond2_atoms == bond.atomids)][0]
                     angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
                     urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
                     term.equ = urey

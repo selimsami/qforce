@@ -32,3 +32,10 @@ def check_if_file_exists(file):
     if not os.path.exists(file) and not os.path.exists(f'{file}_qforce'):
         sys.exit(f'ERROR: "{file}" does not exist.\n')
     return file
+
+def check_continue(config):
+    if config.general.debug_mode:
+        x = input('\nDo you want to continue y/n? ')
+        if x not in ['yes', 'y']:
+            print()
+            sys.exit(0)
