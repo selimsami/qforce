@@ -164,7 +164,7 @@ def fit_hessian_nl(config, mol, qm, pinput, psave):
     return full_md_hessian_1d
 
 
-def fit_hessian(config, mol, qm, n_iter):
+def fit_hessian(config, mol, qm):
     print('Running fit_hessian')
     hessian, full_md_hessian_1d = [], []
     non_fit = []
@@ -190,9 +190,9 @@ def fit_hessian(config, mol, qm, n_iter):
 
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
-    print(f'Running optimizer for up to {n_iter} iterations...')
+    print(f'Running optimizer for up to {config.opt.opt_iter} iterations...')
     result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf),
-                                 max_iter=n_iter, verbose=config.opt.opt_verbose)
+                                 max_iter=config.opt.opt_iter, verbose=config.opt.opt_verbose)
     # print(f'It ran for {result.nit} iterations')
     fit = result.x
     print("Done!\n")
@@ -322,7 +322,7 @@ def average_unique_minima(terms, config):
     # averaged_terms = ['bond', 'angle', 'dihedral/inversion']
     averaged_terms = [x for x in trms if config.terms.__dict__[x]]
     print(f'Averaged terms: {averaged_terms}')
-    for name in [term_name for term_name in averaged_terms]:
+    for name in averaged_terms:
         for term in terms[name]:
             if str(term) in unique_terms.keys():
                 term.equ = unique_terms[str(term)]
@@ -356,7 +356,9 @@ def average_unique_minima(terms, config):
                     unique_terms[str(term)] = urey
                 elif config.terms.morse_mp2:  # Morse multi-parameter bond
                     bond1 = [bond.equ for bond in terms['morse_mp2'] if all(bond1_atoms == bond.atomids)][0]
+                    # print(f'bond1: {bond1}')
                     bond2 = [bond.equ for bond in terms['morse_mp2'] if all(bond2_atoms == bond.atomids)][0]
+                    # print(f'bond2: {bond2}')
                     angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
                     urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
                     term.equ = urey
