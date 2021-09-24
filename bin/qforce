@@ -17,17 +17,20 @@ def parse_command_line():
                         help='File name for optional parameter input file.')
     parser.add_argument('-s', type=str, metavar='save_params',
                         help='File name for optional parameter saving file.')
+    parser.add_argument('-p', type=str, metavar='process_file',
+                        help='File name for optional process file.')
     args = parser.parse_args()
 
     print(f'\nargs.f = {args.f}')
     print(f'args.o = {args.o}')
     print(f'args.i = {args.i}')
-    print(f'args.s = {args.s}\n')
+    print(f'args.s = {args.s}')
+    print(f'args.p = {args.p}\n')
 
-    return args.f, args.o, args.i, args.s
+    return args.f, args.o, args.i, args.s, args.p
 
 
 if __name__ == '__main__':
-    input_arg, config_file, pinput_file, psave_file = parse_command_line()
-    run_qforce(input_arg=input_arg, config=config_file, pinput=pinput_file, psave=psave_file)
+    input_arg, config_file, pinput_file, psave_file, process_file = parse_command_line()
+    run_qforce(input_arg=input_arg, config=config_file, pinput=pinput_file, psave=psave_file, process_file=process_file)
     print("\n")

@@ -36,6 +36,6 @@ def check_if_file_exists(file):
 def check_continue(config):
     if config.general.debug_mode:
         x = input('\nDo you want to continue y/n? ')
-        if x not in ['yes', 'y']:
+        if x not in ['yes', 'y', '']:
             print()
             sys.exit(0)

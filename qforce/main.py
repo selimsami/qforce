@@ -13,7 +13,8 @@ from .hessian import fit_hessian, fit_hessian_nl
 from .misc import check_continue
 
 
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, pinput=None, psave=None, presets=None):
+def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, pinput=None, psave=None,
+               process_file=None, presets=None):
     #### Initialization phase ####
     print('\n#### INITIALIZATION PHASE ####\n')
     config, job = initialize(input_arg, config, presets)
@@ -27,6 +28,9 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, pinput=None, psa
     if psave is not None:
         psave = job.dir + '/' + psave + '.json'
         print(f'psave path: {psave}')
+    if process_file is not None:
+        process_file = job.dir + '/' + process_file + '.txt'
+        print(f'process_file path: {process_file}')
 
     check_wellposedness(config)
 
@@ -58,7 +62,7 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, pinput=None, psa
     if config.opt.opt_type == 'linear':
         md_hessian = fit_hessian(config, mol, qm_hessian_out)
     elif config.opt.opt_type == 'non_linear':
-        md_hessian = fit_hessian_nl(config, mol, qm_hessian_out, pinput, psave)
+        md_hessian = fit_hessian_nl(config, mol, qm_hessian_out, pinput, psave, process_file)
 
     check_continue(config)
 
