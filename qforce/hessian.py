@@ -26,7 +26,7 @@ def nllsqfunc(params, qm, qm_hessian, mol, sorted_terms, loss=None):  # Residual
             non_fit.append(hes[-1])
 
     hessian = np.array(hessian)
-    agg_hessian = np.sum(hessian, 1)  # Aggregate contribution of terms
+    agg_hessian = np.sum(hessian, axis=1)  # Aggregate contribution of terms
     difference = qm_hessian - np.array(non_fit)
 
     # Compute residual vector
@@ -162,7 +162,7 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
             full_md_hessian_1d.append(hes[:-1])
 
     full_md_hessian_1d = np.array(full_md_hessian_1d)
-    full_md_hessian_1d = np.sum(full_md_hessian_1d, 1)  # Aggregate contribution of terms
+    full_md_hessian_1d = np.sum(full_md_hessian_1d, axis=1)  # Aggregate contribution of terms
 
     if config.opt.average == 'last':
         print('Running average_unique_minima after optimization and hessian computation...')
@@ -213,23 +213,27 @@ def fit_hessian(config, mol, qm):
     print('Assigning constants to terms...')
     print(f'len(fit) = {len(fit)}')
 
-    # sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
-    # seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
     for term in mol.terms:
-    # index = 0
-    # for term in enumerate(sorted_terms):
         if term.idx < len(fit):
-        # if term.idx < mol.terms.n_fitted_terms:
             term.fconst = np.array([fit[term.idx]])
-            # if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
-            #     index += sorted_terms[i-1].n_params  # Increase index by the number of parameters of the previous term
-            #     seen_idx.append(term.idx)
-            # term.fconst = fit[index:index+term.n_params]
             print(f'Term {term} with idx {term.idx} has fconst {term.fconst}')
 
     if config.opt.average == 'after':
         print('Running average_unique_minima after optimization but before hessian computation...')
         average_unique_minima(mol.terms, config)
+        # Recalculate full_md_hessian_1d
+        qm_hessian = np.copy(qm.hessian)
+        full_md_hessian_1d = []
+        count = 0
+        for i in range(mol.topo.n_atoms * 3):
+            for j in range(i + 1):
+                hes = (full_md_hessian[i, j] + full_md_hessian[j, i]) / 2
+                if all([h == 0 for h in hes]) or np.abs(qm_hessian[count]) < 0.0001:
+                    qm_hessian = np.delete(qm_hessian, count)
+                    full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_terms))
+                else:
+                    count += 1
+                    full_md_hessian_1d.append(hes[:-1])
 
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
