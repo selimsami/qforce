@@ -17,19 +17,22 @@ debug_mode = False :: bool
 
 [opt]
 # Verbose settings for optimizer
-opt_verbose = 1 :: int :: [0, 1, 2]
+verbose = 1 :: int :: [0, 1, 2]
 
 # Noise for initial conditions
 noise = 0.0 :: float :: >0
 
 # Optimization type
-opt_type = linear :: str :: [linear, non_linear]
+fit_type = linear :: str :: [linear, non_linear]
 
 # Amount of iterations in linear lsq scipy optimizer
-opt_iter = 100 :: int
+iter = 100 :: int :: >0
 
 # Non-linear optimization method
-opt_nonlin_alg = lm :: str :: [trf, lm, compass, bh]
+nonlin_alg = lm :: str :: [trf, lm, compass, bh]
+
+# Averaging before or after fit
+average = after :: str :: [before, after]
 
 [ff]
 # Whether to scan dihedrals

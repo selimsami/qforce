@@ -74,6 +74,10 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
     qm_hessian = np.copy(qm.hessian)
     # print(f'qm_hessian shape: {qm_hessian.shape}')
 
+    if config.opt.average == 'before':
+        print('Running average_unique_minima before optimization...')
+        average_unique_minima(mol.terms, config)
+
     print('Running non-linear optimizer')
     # Sort mol terms
     sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
@@ -100,25 +104,25 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
     # Optimize
     result = None
     loss = []
-    print(f'verbose = {config.opt.opt_verbose}')
+    print(f'verbose = {config.opt.verbose}')
     args = (qm, qm_hessian, mol, sorted_terms, loss)
-    if config.opt.opt_nonlin_alg == 'trf':
+    if config.opt.nonlin_alg == 'trf':
         print('Running trf optimizer...')
         result = optimize.least_squares(nllsqfunc, x0, args=args, bounds=(0, np.inf), method='trf',
-                                        verbose=config.opt.opt_verbose)
-    elif config.opt.opt_nonlin_alg == 'lm':
+                                        verbose=config.opt.verbose)
+    elif config.opt.nonlin_alg == 'lm':
         print('Running lm optimizer...')
         result = optimize.least_squares(nllsqfunc, x0, args=args, method='lm',
-                                        verbose=config.opt.opt_verbose)
-    elif config.opt.opt_nonlin_alg == 'compass':
+                                        verbose=config.opt.verbose)
+    elif config.opt.nonlin_alg == 'compass':
         print('Running compass optimizer...')
-        disp = False if config.opt.opt_verbose == 0 else True
+        disp = False if config.opt.verbose == 0 else True
         result = nopt.minimizeCompass(nllsqfuncfloat, x0, args=args, disp=disp, paired=False)
-    elif config.opt.opt_nonlin_alg == 'bh':
+    elif config.opt.nonlin_alg == 'bh':
         print('Running bh optimizer...')
-        disp = False if config.opt.opt_verbose == 0 else True
+        disp = False if config.opt.verbose == 0 else True
         result = optimize.basinhopping(nllsqfuncfloat, x0, minimizer_kwargs={'args': args},
-                                       niter=config.opt.opt_iter, disp=disp)
+                                       niter=config.opt.iter, disp=disp)
 
     fit = result.x
     if process_file is not None:
@@ -156,7 +160,9 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
     full_md_hessian_1d = np.array(full_md_hessian_1d)
     full_md_hessian_1d = np.sum(full_md_hessian_1d, 1)  # Aggregate contribution of terms
 
-    average_unique_minima(mol.terms, config)
+    if config.opt.average == 'after':
+        print('Running average_unique_minima after optimization...')
+        average_unique_minima(mol.terms, config)
 
     print('Finished fit_hessian_nl')
     return full_md_hessian_1d
@@ -164,6 +170,11 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
 
 def fit_hessian(config, mol, qm):
     print('Running fit_hessian')
+
+    if config.opt.average == 'before':
+        print('Running average_unique_minima before optimization...')
+        average_unique_minima(mol.terms, config)
+
     hessian, full_md_hessian_1d = [], []
     non_fit = []
     qm_hessian = np.copy(qm.hessian)
@@ -188,9 +199,9 @@ def fit_hessian(config, mol, qm):
 
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
-    print(f'Running optimizer for up to {config.opt.opt_iter} iterations...')
+    print(f'Running optimizer for up to {config.opt.iter} iterations...')
     result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf),
-                                 max_iter=config.opt.opt_iter, verbose=config.opt.opt_verbose)
+                                 max_iter=config.opt.iter, verbose=config.opt.verbose)
     # print(f'It ran for {result.nit} iterations')
     fit = result.x
     print("Done!\n")
@@ -214,7 +225,9 @@ def fit_hessian(config, mol, qm):
 
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
-    average_unique_minima(mol.terms, config)
+    if config.opt.average == 'after':
+        print('Running average_unique_minima after optimization...')
+        average_unique_minima(mol.terms, config)
 
     print('Finished fit_hessian')
     return full_md_hessian_1d
