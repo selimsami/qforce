@@ -32,7 +32,7 @@ iter = 100 :: int :: >0
 nonlin_alg = lm :: str :: [trf, lm, compass, bh]
 
 # Averaging before or after fit
-average = after :: str :: [before, after]
+average = last :: str :: [before, after, last]
 
 [ff]
 # Whether to scan dihedrals
