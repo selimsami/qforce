@@ -222,6 +222,7 @@ def fit_hessian(config, mol, qm):
         print('Running average_unique_minima after optimization but before hessian computation...')
         average_unique_minima(mol.terms, config)
         # Recalculate full_md_hessian_1d
+        full_md_hessian = calc_hessian(qm.coords, mol)
         qm_hessian = np.copy(qm.hessian)
         full_md_hessian_1d = []
         count = 0
