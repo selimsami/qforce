@@ -149,6 +149,10 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
         print(f'Writing fit to {psave}...')
         write_opt_params(psave, sorted_terms, mol)
 
+    if config.opt.average == 'after':
+        print('Running average_unique_minima after optimization but before hessian computation...')
+        average_unique_minima(mol.terms, config)
+
     # Calculate final full_md_hessian_1d
     full_md_hessian = calc_hessian_nl(qm.coords, mol, fit)
     full_md_hessian_1d = []
@@ -160,8 +164,8 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
     full_md_hessian_1d = np.array(full_md_hessian_1d)
     full_md_hessian_1d = np.sum(full_md_hessian_1d, 1)  # Aggregate contribution of terms
 
-    if config.opt.average == 'after':
-        print('Running average_unique_minima after optimization...')
+    if config.opt.average == 'last':
+        print('Running average_unique_minima after optimization and hessian computation...')
         average_unique_minima(mol.terms, config)
 
     print('Finished fit_hessian_nl')
@@ -223,10 +227,14 @@ def fit_hessian(config, mol, qm):
             # term.fconst = fit[index:index+term.n_params]
             print(f'Term {term} with idx {term.idx} has fconst {term.fconst}')
 
+    if config.opt.average == 'after':
+        print('Running average_unique_minima after optimization but before hessian computation...')
+        average_unique_minima(mol.terms, config)
+
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
-    if config.opt.average == 'after':
-        print('Running average_unique_minima after optimization...')
+    if config.opt.average == 'last':
+        print('Running average_unique_minima after optimization and hessian computation...')
         average_unique_minima(mol.terms, config)
 
     print('Finished fit_hessian')
