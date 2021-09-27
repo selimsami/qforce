@@ -12,7 +12,6 @@ def nllsqfuncfloat(params, qm, qm_hessian, mol, sorted_terms, loss=None):
 
 
 def nllsqfunc(params, qm, qm_hessian, mol, sorted_terms, loss=None):  # Residual function to minimize
-    # hessian, full_md_hessian_1d = [], []
     hessian = []
     non_fit = []
     # print("Calculating the MD hessian matrix elements...")
@@ -36,9 +35,6 @@ def nllsqfunc(params, qm, qm_hessian, mol, sorted_terms, loss=None):  # Residual
     if loss is not None:
         loss.append(0.5 * np.sum(residual**2))
 
-    # print(f'MD hessian shape: {hessian.shape}')
-    # print(f'QM hessian shape: {difference.shape}')
-
     return residual
 
 
@@ -50,9 +46,7 @@ def read_input_params(pinput, sorted_terms, mol):
     # for term in mol.terms:
     index = 0
     for i, term in enumerate(sorted_terms):
-        # if term.idx < len(fit):
         if term.idx < mol.terms.n_fitted_terms:
-            # term.fconst = np.array([fit[term.idx]])
             if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
                 index += sorted_terms[i - 1].n_params  # Increase index by the number of parameters of the previous term
                 seen_idx.append(term.idx)
@@ -72,7 +66,6 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
     print('Running fit_hessian_nl')
 
     qm_hessian = np.copy(qm.hessian)
-    # print(f'qm_hessian shape: {qm_hessian.shape}')
 
     if config.opt.average == 'before':
         print('Running average_unique_minima before optimization...')
@@ -132,12 +125,10 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
     print(f'len(fit) = {len(fit)}')
 
     seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
-    # for term in mol.terms:
     index = 0
     for i, term in enumerate(sorted_terms):
         # if term.idx < len(fit):
         if term.idx < mol.terms.n_fitted_terms:
-            # term.fconst = np.array([fit[term.idx]])
             if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
                 index += sorted_terms[i-1].n_params  # Increase index by the number of parameters of the previous term
                 seen_idx.append(term.idx)
@@ -194,7 +185,6 @@ def fit_hessian(config, mol, qm):
             if all([h == 0 for h in hes]) or np.abs(qm_hessian[count]) < 0.0001:
                 qm_hessian = np.delete(qm_hessian, count)
                 full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_terms))
-                # full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_params))
             else:
                 count += 1
                 hessian.append(hes[:-1])
@@ -206,7 +196,6 @@ def fit_hessian(config, mol, qm):
     print(f'Running optimizer for up to {config.opt.iter} iterations...')
     result = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf),
                                  max_iter=config.opt.iter, verbose=config.opt.verbose)
-    # print(f'It ran for {result.nit} iterations')
     fit = result.x
     print("Done!\n")
 
@@ -253,7 +242,6 @@ def calc_hessian(coords, mol):
     Perform displacements to calculate the MD hessian numerically.
     """
     full_hessian = np.zeros((3*mol.topo.n_atoms, 3*mol.topo.n_atoms, mol.terms.n_fitted_terms+1))
-    # full_hessian = np.zeros((3*mol.topo.n_atoms, 3*mol.topo.n_atoms, mol.terms.n_fitted_params+1))
 
     for a in range(mol.topo.n_atoms):
         for xyz in range(3):
@@ -264,13 +252,11 @@ def calc_hessian(coords, mol):
             coords[a][xyz] += 0.003
             diff = - (f_plus - f_minus) / 0.006
             full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1, 3*mol.topo.n_atoms).T
-            # full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_params+1, 3*mol.topo.n_atoms).T
     return full_hessian
 
 
 def calc_hessian_nl(coords, mol, params):
     full_hessian = np.zeros((3*mol.topo.n_atoms, 3*mol.topo.n_atoms, mol.terms.n_fitted_terms+1))
-    # full_hessian = np.zeros((3 * mol.topo.n_atoms, 3 * mol.topo.n_atoms, mol.terms.n_fitted_params + 1))
 
     for a in range(mol.topo.n_atoms):
         for xyz in range(3):
@@ -281,7 +267,6 @@ def calc_hessian_nl(coords, mol, params):
             coords[a][xyz] += 0.003
             diff = - (f_plus - f_minus) / 0.006
             full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1, 3*mol.topo.n_atoms).T
-            # full_hessian[a * 3 + xyz] = diff.reshape(mol.terms.n_fitted_params + 1, 3 * mol.topo.n_atoms).T
     return full_hessian
 
 
@@ -294,17 +279,9 @@ def calc_forces(coords, mol):
     """
 
     force = np.zeros((mol.terms.n_fitted_terms+1, mol.topo.n_atoms, 3))
-    # force = np.zeros((mol.terms.n_fitted_params+1, mol.topo.n_atoms, 3))
 
     with mol.terms.add_ignore(['dihedral/flexible']):
-        # sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
-        # seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
         for term in mol.terms:
-        # index = 0
-        # for i, term in enumerate(sorted_terms):
-        #     if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
-        #         index += sorted_terms[i-1].n_params  # Increase index by the number of parameters of the previous term
-        #         seen_idx.append(term.idx)
             term.do_fitting(coords, force)
 
     return force
@@ -319,12 +296,10 @@ def calc_forces_nl(coords, mol, params):
     """
 
     force = np.zeros((mol.terms.n_fitted_terms+1, mol.topo.n_atoms, 3))
-    # force = np.zeros((mol.terms.n_fitted_params+1, mol.topo.n_atoms, 3))
 
     with mol.terms.add_ignore(['dihedral/flexible']):
         sorted_terms = sorted(mol.terms, key=lambda trm: trm.idx)
         seen_idx = [0]  # Have 0 as seen to avoid unnecessary shifting
-        # for term in mol.terms:
         index = 0
         for i, term in enumerate(sorted_terms):
             if term.idx not in seen_idx:  # Since 0 is seen by default, this won't be True in the first iteration
@@ -337,13 +312,8 @@ def calc_forces_nl(coords, mol, params):
 
 def average_unique_minima(terms, config):
     print('Entering average_unique_minima')
-    # print('Terms:')
-    # print(terms)
     unique_terms = {}
-    # trms = ['bond', 'morse', 'morse_mp', 'morse_mp2', 'angle', 'dihedral/inversion']
-    # trms = ['bond', 'morse', 'angle', 'dihedral/inversion']
     trms = ['bond', 'angle', 'morse', 'morse_mp', 'morse_mp2', 'dihedral/inversion']
-    # averaged_terms = ['bond', 'angle', 'dihedral/inversion']
     averaged_terms = [x for x in trms if config.terms.__dict__[x]]
     print(f'Averaged terms: {averaged_terms}')
     for name in averaged_terms:
