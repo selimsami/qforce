@@ -342,7 +342,7 @@ def average_unique_minima(terms, config):
     unique_terms = {}
     # trms = ['bond', 'morse', 'morse_mp', 'morse_mp2', 'angle', 'dihedral/inversion']
     # trms = ['bond', 'morse', 'angle', 'dihedral/inversion']
-    trms = ['bond', 'angle', 'dihedral/inversion']
+    trms = ['bond', 'angle', 'morse', 'morse_mp', 'morse_mp2', 'dihedral/inversion']
     # averaged_terms = ['bond', 'angle', 'dihedral/inversion']
     averaged_terms = [x for x in trms if config.terms.__dict__[x]]
     print(f'Averaged terms: {averaged_terms}')
