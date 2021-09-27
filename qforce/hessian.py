@@ -334,35 +334,24 @@ def average_unique_minima(terms, config):
             else:
                 bond1_atoms = sorted(term.atomids[:2])
                 bond2_atoms = sorted(term.atomids[1:])
-                if config.terms.morse:  # Morse bond
-                    bond1 = [bond.equ for bond in terms['morse'] if all(bond1_atoms == bond.atomids)][0]
-                    bond2 = [bond.equ for bond in terms['morse'] if all(bond2_atoms == bond.atomids)][0]
-                    angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
-                    urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
-                    term.equ = urey
-                    unique_terms[str(term)] = urey
-                elif config.terms.morse_mp:  # Morse multi-parameter bond
-                    bond1 = [bond.equ for bond in terms['morse_mp'] if all(bond1_atoms == bond.atomids)][0]
-                    bond2 = [bond.equ for bond in terms['morse_mp'] if all(bond2_atoms == bond.atomids)][0]
-                    angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
-                    urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
-                    term.equ = urey
-                    unique_terms[str(term)] = urey
-                elif config.terms.morse_mp2:  # Morse multi-parameter bond
-                    bond1 = [bond.equ for bond in terms['morse_mp2'] if all(bond1_atoms == bond.atomids)][0]
-                    # print(f'bond1: {bond1}')
-                    bond2 = [bond.equ for bond in terms['morse_mp2'] if all(bond2_atoms == bond.atomids)][0]
-                    # print(f'bond2: {bond2}')
-                    angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
-                    urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
-                    term.equ = urey
-                    unique_terms[str(term)] = urey
-                else:  # Regular bond
-                    bond1 = [bond.equ for bond in terms['bond'] if all(bond1_atoms == bond.atomids)][0]
-                    bond2 = [bond.equ for bond in terms['bond'] if all(bond2_atoms == bond.atomids)][0]
-                    angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
-                    urey = (bond1 ** 2 + bond2 ** 2 - 2 * bond1 * bond2 * np.cos(angle)) ** 0.5
-                    term.equ = urey
-                    unique_terms[str(term)] = urey
+                terms_bond_str = _get_terms_bond_str(config)
+                bond1 = [bond.equ for bond in terms[terms_bond_str] if all(bond1_atoms == bond.atomids)][0]
+                bond2 = [bond.equ for bond in terms[terms_bond_str] if all(bond2_atoms == bond.atomids)][0]
+                angle = [ang.equ for ang in terms['angle'] if all(term.atomids == ang.atomids)][0]
+                # urey = (bond1**2 + bond2**2 - 2*bond1*bond2*np.cos(angle))**0.5
+                urey = np.sqrt(bond1 ** 2 + bond2 ** 2 - 2 * bond1 * bond2 * np.cos(angle))
+                term.equ = urey
+                unique_terms[str(term)] = urey
 
     print('Leaving average_unique_minima')
+
+
+def _get_terms_bond_str(config) -> str:
+    if config.terms.morse:
+        return 'morse'
+    elif config.terms.morse_mp:
+        return 'morse_mp'
+    elif config.terms.morse_mp2:
+        return 'morse_mp2'
+    else:  # regular bond
+        return 'bond'
