@@ -29,7 +29,7 @@ fit_type = linear :: str :: [linear, non_linear]
 iter = 100 :: int :: >0
 
 # Non-linear optimization method
-nonlin_alg = lm :: str :: [trf, lm, compass, bh]
+nonlin_alg = trf :: str :: [trf, lm, compass, bh]
 
 # Averaging before or after fit
 average = last :: str :: [before, after, last]
