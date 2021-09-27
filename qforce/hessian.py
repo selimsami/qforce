@@ -103,18 +103,22 @@ def fit_hessian_nl(config, mol, qm, pinput, psave, process_file):
         print('Running trf optimizer...')
         result = optimize.least_squares(nllsqfunc, x0, args=args, bounds=(0, np.inf), method='trf',
                                         ftol=1e-12, xtol=1e-12, gtol=1e-12, verbose=config.opt.verbose)
-    elif config.opt.nonlin_alg == 'lm':
+    elif config.opt.nonlin_alg == 'lm':  # VERY CAREFUL WITH THIS ONE, SINCE NO BOUNDS ARE SUPPORTED
         print('Running lm optimizer...')
         result = optimize.least_squares(nllsqfunc, x0, args=args, method='lm',
                                         ftol=1e-12, xtol=1e-12, gtol=1e-12, verbose=config.opt.verbose)
     elif config.opt.nonlin_alg == 'compass':
         print('Running compass optimizer...')
         disp = False if config.opt.verbose == 0 else True
-        result = nopt.minimizeCompass(nllsqfuncfloat, x0, args=args, disp=disp, paired=False)
+        bounds = [(0, np.inf)] * x0.shape[0]
+        result = nopt.minimizeCompass(nllsqfuncfloat, x0, args=args, bounds=bounds, disp=disp,
+                                      paired=False)
     elif config.opt.nonlin_alg == 'bh':
         print('Running bh optimizer...')
         disp = False if config.opt.verbose == 0 else True
-        result = optimize.basinhopping(nllsqfuncfloat, x0, minimizer_kwargs={'args': args},
+        bounds = [(0, np.inf)] * x0.shape[0]
+        min_kwargs = {'args': args, 'bounds': bounds}
+        result = optimize.basinhopping(nllsqfuncfloat, x0, minimizer_kwargs=min_kwargs,
                                        niter=config.opt.iter, disp=disp)
 
     fit = result.x
