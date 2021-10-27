@@ -5,6 +5,7 @@ import numpy as np
 #
 from .gaussian import Gaussian
 from .qchem import QChem
+# from .orca import Orca
 from .qm_base import scriptify, HessianOutput, ScanOutput
 
 
