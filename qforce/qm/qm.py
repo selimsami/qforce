@@ -2,6 +2,7 @@ import os
 import sys
 from ase.io import read, write
 import numpy as np
+from colt import Colt
 #
 from .gaussian import Gaussian
 from .qchem import QChem
@@ -12,8 +13,8 @@ implemented_qm_software = {'gaussian': Gaussian,
                            'qchem': QChem}
 
 
-class QM():
-    _questions = """
+class QM(Colt):
+    _user_input = """
 # QM software to use
 software = gaussian :: str
 
@@ -151,10 +152,6 @@ vib_scaling = 1.0 :: float
         for req, ext in required_hessian_files.items():
             print(f'- {req}: {ext}')
         print()
-
-    @classmethod
-    def get_questions(cls):
-        return cls._questions
 
     def _register_method(self):
         method_list = self._method + self.software._method

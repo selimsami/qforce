@@ -1,6 +1,6 @@
 import subprocess
 import numpy as np
-import pulp
+#import pulp
 import sys
 import os
 from scipy.optimize import curve_fit

@@ -9,8 +9,30 @@ from .dihedral_scan import DihedralScan
 from qforce.misc import LOGO
 
 
+def _get_job_info(filename):
+    job = {}
+    filename = filename.rstrip('/')
+    base = os.path.basename(filename)
+    path = os.path.dirname(filename)
+    if path != '':
+        path = f'{path}/'
+    
+    if os.path.isfile(filename):
+        job['coord_file'] = filename
+        job['name'] = base.split('.')[0]
+    else:
+        job['coord_file'] = False
+        job['name'] = base.split('_qforce')[0]
+    
+    job['dir'] = f'{path}{job["name"]}_qforce'
+    job['frag_dir'] = f'{job["dir"]}/fragments'
+    job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
+    os.makedirs(job['dir'], exist_ok=True)
+    return SimpleNamespace(**job)
+
+
 class Initialize(Colt):
-    _questions = """
+    _user_input = """
 [ff]
 # Number of n equivalent neighbors needed to consider two atoms equivalent
 # Negative values turns off equivalence, 0 makes same elements equivalent
@@ -79,71 +101,52 @@ _ext_alpha = no :: bool
 
 """
 
-    def __init__(self, config, input_arg):
-        self.config = self._set_config(config)
-        self.job = self._get_job_info(input_arg)
-
-    def _set_config(self, config):
+    @staticmethod
+    def _set_config(config):
         config['qm'].update(config['qm']['software'])
         config['qm'].update({'software': config['qm']['software'].value})
         config.update({key: SimpleNamespace(**val) for key, val in config.items()})
-        config = SimpleNamespace(**config)
-        return config
+        return SimpleNamespace(**config)
 
     @classmethod
-    def _extend_questions(cls, questions):
-        questions.generate_block("qm", QM.get_questions())
-        questions.generate_block("scan", DihedralScan.get_questions())
-        questions.generate_cases("software", {key: software.questions for key, software in
+    def _extend_user_input(cls, questions):
+        questions.generate_block("qm", QM.colt_user_input)
+        questions.generate_block("scan", DihedralScan.colt_user_input)
+        questions.generate_cases("software", {key: software.colt_user_input for key, software in
                                               implemented_qm_software.items()}, block='qm')
         questions.generate_block("terms", Terms.get_questions())
 
     @classmethod
-    def from_config(cls, config, input_arg):
-        return cls(config, input_arg)
-
-    def _get_job_info(self, input_arg):
-        job = {}
-        input_arg = input_arg.rstrip('/')
-        base = os.path.basename(input_arg)
-        path = os.path.dirname(input_arg)
-        if path != '':
-            path = f'{path}/'
-
-        if os.path.isfile(input_arg):
-            job['coord_file'] = input_arg
-            job['name'] = base.split('.')[0]
-        else:
-            job['coord_file'] = False
-            job['name'] = base.split('_qforce')[0]
-
-        job['dir'] = f'{path}{job["name"]}_qforce'
-        job['frag_dir'] = f'{job["dir"]}/fragments'
-        job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
-        os.makedirs(job['dir'], exist_ok=True)
-        return SimpleNamespace(**job)
+    def from_config(cls, config):
+        return cls._set_config(config)
 
     @staticmethod
     def set_basis(value):
         if value.endswith('**'):
-            basis = f'{value[:-2]}(D,P)'
-        elif value.endswith('*'):
-            basis = f'{value[:-1]}(D)'
-        else:
-            basis = value
-        return basis.upper()
+            return f'{value[:-2]}(D,P)'.upper()
+        if value.endswith('*'):
+            return f'{value[:-1]}(D)'.upper()
+        return value.upper()
 
     @staticmethod
     def set_dispersion(value):
         if value.lower() in ["no", "false", "n", "f"]:
-            disp = False
-        else:
-            disp = value.upper()
-        return disp
+            return False
+        return value.upper()
 
 
-def initialize(input_arg, config, presets=None):
+def initialize(filename, config, presets=None):
     print(LOGO)
-    init = Initialize.from_questions(input_arg=input_arg, config=config, presets=presets,
-                                     check_only=True)
-    return init.config, init.job
+    job_info = _get_job_info(filename)
+    settingsfile = os.path.join(job_info.dir, 'settings.ini')
+    if os.path.exists(settingsfile):
+        if config is None:
+            config = Initialize.from_questions(config=settingsfile, presets=presets,
+                                               check_only=True)
+        else:
+            config = Initialize.from_questions(config=[config, settingsfile], presets=presets,
+                                               check_only=True, compare_inputs=True)
+    else:
+        config = Initialize.from_questions(config=config, presets=presets,
+                                           check_only=True, colt_output_file=settingsfile)
+    return config, job_info

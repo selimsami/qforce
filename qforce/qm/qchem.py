@@ -8,7 +8,7 @@ from ..elements import ATOM_SYM
 
 
 class QChem(Colt):
-    _questions = """
+    _user_input = """
 
     charge_method = cm5 :: str :: [cm5, resp]
 
