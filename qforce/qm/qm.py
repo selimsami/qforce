@@ -5,12 +5,13 @@ import numpy as np
 #
 from .gaussian import Gaussian
 from .qchem import QChem
-# from .orca import Orca
+from .orca import Orca
 from .qm_base import scriptify, HessianOutput, ScanOutput
 
 
 implemented_qm_software = {'gaussian': Gaussian,
-                           'qchem': QChem}
+                           'qchem': QChem,
+                           'orca': Orca}
 
 
 class QM():
