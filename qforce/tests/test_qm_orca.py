@@ -42,12 +42,14 @@ def test_read_orca_nbo_analysis():
     assert np.isclose(b_orders[0][1], 1.2984, rtol=0.01)
     assert lone_e[7] == 2
 
+
 def test_read_orca_dat():
     dat = resource_filename(__name__, 'orca_data/relaxscanact.dat')
     parameter, energy = ReadORCA._read_orca_dat(dat)
     assert np.isclose(parameter[0], -179.62000000, rtol=0.01)
     assert np.isclose(parameter[1], -164.62000000, rtol=0.01)
     assert np.isclose(energy[0], -44.58283483 , rtol=0.01)
+
 
 def test_read_orca_allxyz():
     xyz_file = resource_filename(__name__, 'orca_data/scan.allxyz')
