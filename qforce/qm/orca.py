@@ -593,15 +593,20 @@ class ReadORCA(ReadABC):
             A list (length: steps) of the angles that is being scanned.
         energies : list
             A list (length: steps) of the energy.
-        point_charges : float
-            A list of float of the size of n_atoms.
+        point_charges : dict
+            A dictionary with key in charge_method and the value to be a
+            list of float of the size of n_atoms.
         """
-        base, ext = os.path.split(file_name)
+        base, ext = os.path.splitext(file_name)
+        print(base)
+        point_charges = {}
         if config.charge_method == "cm5":
-            n_atoms, point_charges = self._read_orca_cm5(file_name)
-        elif config.charge_method == "esp":
-            n_atoms, point_charges = self._read_orca_esp(
+            n_atoms, charges = self._read_orca_cm5(file_name)
+            point_charges["cm5"] = charges
+        if config.charge_method == "esp":
+            n_atoms, charges = self._read_orca_esp(
                 '{}_charge.pc_chelpg'.format(base))
+            point_charges["esp"] = charges
         n_atoms, elements, coords = self._read_orca_allxyz(
             '{}_scan.allxyz'.format(base))
         angles, _ = self._read_orca_dat('{}_scan.relaxscanact.dat'.format(base))
