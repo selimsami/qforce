@@ -363,8 +363,8 @@ class ReadORCA(ReadABC):
         -------
         n_atoms : int
             The number of atoms in the molecule.
-        elements : list
-            A list of integer of the atomic number of the atoms.
+        elements : array
+            A np.array of integer of the atomic number of the atoms.
         coords : array
             An array of float of the shape (n_atoms, 3).
         """
@@ -376,7 +376,7 @@ class ReadORCA(ReadABC):
             element, x, y, z = line.split()
             elements.append(ATOM_SYM.index(element))
             coords[i, :] = (x, y, z)
-        return n_atoms, elements, coords
+        return n_atoms, np.array(elements), coords
 
     @staticmethod
     def _read_orca_xyz(coord_file):
@@ -394,8 +394,8 @@ class ReadORCA(ReadABC):
         -------
         n_atoms : int
             The number of atoms in the molecule.
-        elements : list
-            A list of integer of the atomic number of the atoms.
+        elements : array
+            A np.array of integer of the atomic number of the atoms.
         coords : array
             An array of float of the shape (n_atoms, 3).
         """
@@ -419,8 +419,8 @@ class ReadORCA(ReadABC):
         -------
         n_atoms : int
             The number of atoms in the molecule.
-        elements : list
-            A list of integer of the atomic number of the atoms.
+        elements : array
+            A np.array of integer of the atomic number of the atoms.
         coords : list
             A list of array of float. The list has the length of the number
             of steps and the array has the shape of (n_atoms, 3).
@@ -489,6 +489,10 @@ class ReadORCA(ReadABC):
                         occ = int(round(float(line[32:39]), 0))
                         if occ > 0:
                             lone_e[atom-1] += occ
+            # Check if the NBO analysis has been done
+            if "Environment variable NBOEXE for nbo6.exe or nbo5.exe not set! Skipping NBO-Analysis" in line:
+                raise ValueError('NBO Analysis has not been found. Check if '
+                                 'NBOEXE has been set correctly.')
         file.close()
         return n_bonds, b_orders, lone_e
 
@@ -542,8 +546,8 @@ class ReadORCA(ReadABC):
             The total charge of the molecule.
         multiplicity : int
             The multiplicity of the molecule.
-        elements : list
-            A list of integer of the atomic number of the atoms.
+        elements : array
+            A np.array of integer of the atomic number of the atoms.
         coords : array
             An array of float of the shape (n_atoms, 3).
         hessian : list
@@ -598,7 +602,6 @@ class ReadORCA(ReadABC):
             list of float of the size of n_atoms.
         """
         base, ext = os.path.splitext(file_name)
-        print(base)
         point_charges = {}
         if config.charge_method == "cm5":
             n_atoms, charges = self._read_orca_cm5(file_name)
