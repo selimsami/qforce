@@ -2,7 +2,7 @@ import os.path
 
 from colt import Colt
 import numpy as np
-from ase.units import Hartree, mol, kJ
+from ase.units import Hartree, mol, kJ, Bohr
 #
 from .qm_base import WriteABC, ReadABC
 from ..elements import ATOM_SYM
@@ -252,9 +252,9 @@ class ReadORCA(ReadABC):
 
         Returns
         -------
-        out_hessian : list
-            A list of float of the size of ((n_atoms*3)**2+n_atoms*3)/2),
-            which is the lower triangle of the hessian matrix.
+        out_hessian : array
+            An array of float of the size of ((n_atoms*3)**2+n_atoms*3)/2),
+            which is the lower triangle of the hessian matrix. Unit： kJ/mol
         """
         with open(hess_file, 'r') as f:
             text = f.read()
@@ -283,7 +283,7 @@ class ReadORCA(ReadABC):
             for j in range(i + 1):
                 hes = (hessian[i, j] + hessian[j, i]) / 2
                 out_hessian.append(hes)
-        return out_hessian
+        return np.array(out_hessian) * Hartree * mol / kJ / Bohr**2
 
     @staticmethod
     def _read_orca_esp(pc_file):
@@ -550,9 +550,9 @@ class ReadORCA(ReadABC):
             A np.array of integer of the atomic number of the atoms.
         coords : array
             An array of float of the shape (n_atoms, 3).
-        hessian : list
-            A list of float of the size of ((n_atoms*3)**2+n_atoms*3)/2),
-            which is the lower triangle of the hessian matrix.
+        out_hessian : array
+            An array of float of the size of ((n_atoms*3)**2+n_atoms*3)/2),
+            which is the lower triangle of the hessian matrix. Unit： kJ/mol
         n_bonds : list
             A list of integer of length n_atoms of the total number of bonds.
         b_orders : list
