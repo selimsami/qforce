@@ -20,9 +20,6 @@ project = 'Q-Force'
 copyright = '2020, Selim Sami'
 author = 'Selim Sami'
 
-# The full version, including alpha/beta/rc tags
-release = '0.1'
-
 # -- General configuration ---------------------------------------------------
 
 # master doc
