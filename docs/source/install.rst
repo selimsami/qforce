@@ -1,7 +1,7 @@
 Installation
 ====================
 
-Make sure you have Python 3.6 or newer (:code:`python --version`).
+Make sure you have Python 3.7 or newer (:code:`python --version`).
 
 If you can't call the qforce executable afterwards, make sure you have the python bin in your PATH.
 
