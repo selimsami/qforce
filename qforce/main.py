@@ -27,6 +27,7 @@ file = :: file
 options = :: file, optional, alias=o
 """, description={
     'logo': LOGO,
+    'alias': 'qforce',
     'arg_format': {
         'name': 12,
         'comment': 60,
