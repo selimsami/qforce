@@ -42,7 +42,7 @@ class ReadGaussian(ReadABC):
                 if "Hirshfeld charges, spin densities" in line and config.charge_method == "cm5":
                     point_charges = self._read_cm5_charges(file, n_atoms)
                 elif " ESP charges:" in line and config.charge_method == "esp":
-                    point_charges = self._read_cm5_charges(file, n_atoms)
+                    point_charges = self._read_esp_charges(file, n_atoms)
                 elif "N A T U R A L   B O N D   O R B I T A L" in line:
                     n_bonds, b_orders, lone_e = self._read_nbo_analysis(file, line, n_atoms)
 

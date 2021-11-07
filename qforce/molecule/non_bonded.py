@@ -189,6 +189,10 @@ def set_non_bonded_props(config):
         comb_rule = 2
         fudge_lj, fudge_q = 0.5, 0.8333
         h_cap = 'hc'
+    elif config.lennard_jones == 'gaff2':
+        comb_rule = 2
+        fudge_lj, fudge_q = 0.5, 0.8333
+        h_cap = 'hc'
     return comb_rule, fudge_lj, fudge_q, h_cap
 
 
