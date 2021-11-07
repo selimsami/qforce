@@ -1,12 +1,14 @@
 import os
+import shutil
 from types import SimpleNamespace
 import pkg_resources
+#
 from colt import Colt
-
+#
 from .qm.qm import QM, implemented_qm_software
 from .molecule.terms import Terms
 from .dihedral_scan import DihedralScan
-from qforce.misc import LOGO
+from .misc import LOGO
 
 
 def _get_job_info(filename):
@@ -135,18 +137,16 @@ _ext_alpha = no :: bool
         return value.upper()
 
 
-def initialize(filename, config, presets=None):
+def initialize(filename, configfile, presets=None):
     print(LOGO)
     job_info = _get_job_info(filename)
     settingsfile = os.path.join(job_info.dir, 'settings.ini')
-    if os.path.exists(settingsfile):
-        if config is None:
-            config = Initialize.from_questions(config=settingsfile, presets=presets,
-                                               check_only=True)
-        else:
-            config = Initialize.from_questions(config=[config, settingsfile], presets=presets,
-                                               check_only=True, compare_inputs=True)
-    else:
-        config = Initialize.from_questions(config=config, presets=presets,
-                                           check_only=True, colt_output_file=settingsfile)
+    #
+    if configfile is None:
+        config = Initialize.from_questions(config=settingsfile, presets=presets,
+                                           check_only=True)
+        return config, job_info
+    #
+    config = Initialize.from_questions(config=configfile, presets=presets, check_only=True)
+    shutil.copy2(configfile, settingsfile)
     return config, job_info
