@@ -6,4 +6,5 @@ seaborn
 networkx
 pulp < 2.2
 numba 
-pycolt 
+pycolt
+docutils<0.18 
