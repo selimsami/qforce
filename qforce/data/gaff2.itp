@@ -1,5 +1,6 @@
 [ atomtypes ]
 ; name    mass    charge ptype  sigma      epsilon
+; The file is generated with parmed from amber tools, where sigma is scaled by 0.1 and epsilon by 4.184
 c               12.01    0.000000  A     0.331521 0.413379
 cs              12.01    0.000000  A     0.331521 0.413379
 c1              12.01    0.000000  A     0.347896 0.667766
