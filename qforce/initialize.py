@@ -18,14 +18,14 @@ def _get_job_info(filename):
     path = os.path.dirname(filename)
     if path != '':
         path = f'{path}/'
-    
+
     if os.path.isfile(filename):
         job['coord_file'] = filename
         job['name'] = base.split('.')[0]
     else:
         job['coord_file'] = False
         job['name'] = base.split('_qforce')[0]
-    
+
     job['dir'] = f'{path}{job["name"]}_qforce'
     job['frag_dir'] = f'{job["dir"]}/fragments'
     job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
@@ -142,11 +142,9 @@ def initialize(filename, configfile, presets=None):
     job_info = _get_job_info(filename)
     settingsfile = os.path.join(job_info.dir, 'settings.ini')
     #
-    if configfile is None:
-        config = Initialize.from_questions(config=settingsfile, presets=presets,
-                                           check_only=True)
-        return config, job_info
+    if configfile is not None:
+        shutil.copy2(configfile, settingsfile)
     #
-    config = Initialize.from_questions(config=configfile, presets=presets, check_only=True)
-    shutil.copy2(configfile, settingsfile)
+    config = Initialize.from_questions(config=settingsfile, presets=presets,
+                                       check_only=True)
     return config, job_info
