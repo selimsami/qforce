@@ -70,7 +70,10 @@ class WriteORCA(WriteABC):
         file.write(' *\n\n')
 
         file.write(f"%pal nprocs  {config.n_proc} end\n")
-        file.write(f"%maxcore  {config.memory}\n\n")
+        # ORCA uses MPI parallelization and a factor of 0.75 is used to
+        # avoid ORCA using more than it is available.
+        file.write('%maxcore  {}\n\n'.format(int(
+            config.memory / config.n_proc * 0.75)))
 
         # Start compound job
         file.write('%Compound\n\n')
