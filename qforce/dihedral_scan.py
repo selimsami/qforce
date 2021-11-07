@@ -13,6 +13,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 #
+from colt import Colt
+#
 from .forcefield import ForceField
 from .calculator import QForce
 from .forces import get_dihed, get_dist
@@ -25,8 +27,8 @@ If dihedrals are not relaxed it is possible with 1 iteration - can do more also
 """
 
 
-class DihedralScan():
-    _questions = """
+class DihedralScan(Colt):
+    _user_input = """
 # Perform dihedral scan for flexible dihedrals
 do_scan = yes :: bool
 
@@ -369,10 +371,6 @@ frag_lib = ~/qforce_fragments :: folder
                                                 'end': get_periodic_angle(angles[i+1]),
                                                 'direct': direct[i] == '+'})
         return sym_dict
-
-    @classmethod
-    def get_questions(cls):
-        return cls._questions
 
 
 def get_periodic_angle(angle):
