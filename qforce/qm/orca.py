@@ -9,7 +9,7 @@ from ..elements import ATOM_SYM
 
 
 class Orca(Colt):
-    _questions = """
+    _user_input = """
 
     charge_method = esp :: str :: [cm5, esp]
     
