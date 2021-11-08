@@ -1,5 +1,6 @@
 import os
 import shutil
+from io import StringIO
 from types import SimpleNamespace
 import pkg_resources
 #
@@ -141,11 +142,15 @@ def initialize(filename, configfile, presets=None):
     print(LOGO)
     job_info = _get_job_info(filename)
     #
-    if configfile is not None and not isinstance(configfile, StringIO):
-        settingsfile = os.path.join(job_info.dir, 'settings.ini')
-        shutil.copy2(configfile, settingsfile)
-        configfile =  settingsfile
+    settingsfile = os.path.join(job_info.dir, 'settings.ini')
     #
-    config = Initialize.from_questions(config=configfile, presets=presets,
+    if configfile is not None:
+        if isinstance(configfile, StringIO):
+            with open(settingsfile, 'w') as fh:
+                fh.write(configfile.read())
+        else:
+            shutil.copy2(configfile, settingsfile)
+    #
+    config = Initialize.from_questions(config=settingsfile, presets=presets,
                                        check_only=True)
     return config, job_info
