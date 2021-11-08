@@ -2,5 +2,4 @@ Options
 ======================
 
 
-.. colt:: qforce.initialize
-    :class: Initialize
+.. colt:: qforce.initialize Initialize

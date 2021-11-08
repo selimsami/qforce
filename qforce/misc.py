@@ -28,7 +28,7 @@ LOGO_SEMICOL = """
 """
 
 
-def check_if_file_exists(file):
-    if not os.path.exists(file) and not os.path.exists(f'{file}_qforce'):
-        sys.exit(f'ERROR: "{file}" does not exist.\n')
-    return file
+def check_if_file_exists(filename):
+    if not os.path.exists(filename) and not os.path.exists(f'{filename}_qforce'):
+        raise ValueError('"{filename}" does not exist.\n')
+    return filename

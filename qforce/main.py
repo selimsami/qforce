@@ -9,6 +9,33 @@ from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian
 
+from .misc import check_if_file_exists, LOGO
+from colt import from_commandline
+from colt.validator import Validator
+
+
+# define new validator
+Validator.overwrite_validator("file", check_if_file_exists)
+
+
+@from_commandline("""
+# Input coordinate file mol.ext (ext: pdb, xyz, gro, ...)
+# or directory (mol or mol_qforce) name.
+file = :: file
+
+# File name for the optional options.
+options = :: file, optional, alias=o
+""", description={
+    'logo': LOGO,
+    'alias': 'qforce',
+    'arg_format': {
+        'name': 12,
+        'comment': 60,
+        },
+})
+def run(file, options):
+    run_qforce(input_arg=file, config=options)
+
 
 def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     config, job = initialize(input_arg, config, presets)

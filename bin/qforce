@@ -1,24 +1,7 @@
 #!/usr/bin/env python3
 
-import argparse
-from qforce.main import run_qforce
-from qforce.misc import check_if_file_exists
-
-
-def parse_command_line():
-    formatter = argparse.RawTextHelpFormatter
-    parser = argparse.ArgumentParser(formatter_class=formatter)
-    parser.add_argument('f', type=check_if_file_exists, metavar='file',
-                        help=('Input coordinate file mol.ext (ext: pdb, xyz, gro, ...)\n'
-                              'or directory (mol or mol_qforce) name.'))
-    parser.add_argument('-o', type=check_if_file_exists, metavar='options',
-                        help='File name for the optional options.')
-    args = parser.parse_args()
-
-    return args.f, args.o
+from qforce.main import run
 
 
 if __name__ == '__main__':
-    input_arg, config_file = parse_command_line()
-    run_qforce(input_arg=input_arg, config=config_file)
-    print("\n")
+    run()
