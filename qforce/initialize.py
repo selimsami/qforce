@@ -12,28 +12,6 @@ from .dihedral_scan import DihedralScan
 from .misc import LOGO
 
 
-def _get_job_info(filename):
-    job = {}
-    filename = filename.rstrip('/')
-    base = os.path.basename(filename)
-    path = os.path.dirname(filename)
-    if path != '':
-        path = f'{path}/'
-
-    if os.path.isfile(filename):
-        job['coord_file'] = filename
-        job['name'] = base.split('.')[0]
-    else:
-        job['coord_file'] = False
-        job['name'] = base.split('_qforce')[0]
-
-    job['dir'] = f'{path}{job["name"]}_qforce'
-    job['frag_dir'] = f'{job["dir"]}/fragments'
-    job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
-    os.makedirs(job['dir'], exist_ok=True)
-    return SimpleNamespace(**job)
-
-
 class Initialize(Colt):
     _user_input = """
 [ff]
@@ -138,20 +116,53 @@ _ext_alpha = no :: bool
         return value.upper()
 
 
-def initialize(filename, configfile, presets=None):
-    print(LOGO)
-    job_info = _get_job_info(filename)
-    #
-    settingsfile = os.path.join(job_info.dir, 'settings.ini')
-    #
-    if configfile is not None:
-        if isinstance(configfile, StringIO):
-            with open(settingsfile, 'w') as fh:
-                configfile.seek(0)
-                fh.write(configfile.read())
+def _get_job_info(filename):
+    job = {}
+    filename = filename.rstrip('/')
+    base = os.path.basename(filename)
+    path = os.path.dirname(filename)
+    if path != '':
+        path = f'{path}/'
+
+    if os.path.isfile(filename):
+        job['coord_file'] = filename
+        job['name'] = base.split('.')[0]
+    else:
+        job['coord_file'] = False
+        job['name'] = base.split('_qforce')[0]
+
+    job['dir'] = f'{path}{job["name"]}_qforce'
+    job['frag_dir'] = f'{job["dir"]}/fragments'
+    job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
+    os.makedirs(job['dir'], exist_ok=True)
+    return SimpleNamespace(**job)
+
+
+def _check_and_copy_settings_file(job_dir, config_file):
+    """
+    If options are provided as a file, copy that to job directory.
+    If options are provided as StringIO, write that to job directory.
+    """
+
+    settings_file = os.path.join(job_dir, 'settings.ini')
+
+    if config_file is not None:
+        if isinstance(config_file, StringIO):
+            with open(settings_file, 'w') as fh:
+                config_file.seek(0)
+                fh.write(config_file.read())
         else:
-            shutil.copy2(configfile, settingsfile)
-    #
-    config = Initialize.from_questions(config=settingsfile, presets=presets,
-                                       check_only=True)
+            shutil.copy2(config_file, settings_file)
+
+    return settings_file
+
+
+def initialize(filename, config_file, presets=None):
+    print(LOGO)
+
+    job_info = _get_job_info(filename)
+    settings_file = _check_and_copy_settings_file(job_info.dir, config_file)
+
+    config = Initialize.from_questions(config=settings_file, presets=presets, check_only=True)
+
     return config, job_info
