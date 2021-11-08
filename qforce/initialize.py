@@ -147,6 +147,7 @@ def initialize(filename, configfile, presets=None):
     if configfile is not None:
         if isinstance(configfile, StringIO):
             with open(settingsfile, 'w') as fh:
+                configfile.seek(0)
                 fh.write(configfile.read())
         else:
             shutil.copy2(configfile, settingsfile)
