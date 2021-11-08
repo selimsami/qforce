@@ -140,11 +140,12 @@ _ext_alpha = no :: bool
 def initialize(filename, configfile, presets=None):
     print(LOGO)
     job_info = _get_job_info(filename)
-    settingsfile = os.path.join(job_info.dir, 'settings.ini')
     #
-    if configfile is not None:
+    if configfile is not None and not isinstance(configfile, StringIO):
+        settingsfile = os.path.join(job_info.dir, 'settings.ini')
         shutil.copy2(configfile, settingsfile)
+        configfile =  settingsfile
     #
-    config = Initialize.from_questions(config=settingsfile, presets=presets,
+    config = Initialize.from_questions(config=configfile, presets=presets,
                                        check_only=True)
     return config, job_info
