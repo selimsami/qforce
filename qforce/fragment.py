@@ -32,13 +32,16 @@ def fragment(mol, qm, job, config):
 
         if name not in unique_dihedrals:
             unique_dihedrals[name] = term.atomids
-
+    generated = [] # Number of fragments generated but not computed
     for name, atomids in unique_dihedrals.items():
         frag = Fragment(job, config, mol, qm, atomids, name)
         if frag.has_data:
             fragments.append(frag)
+        if frag.has_inp:
+            generated.append(frag)
 
-    check_and_notify(job, config.scan, len(unique_dihedrals), len(fragments))
+    check_and_notify(job, config.scan, len(unique_dihedrals), len(fragments),
+                     len(generated))
 
     return fragments
 
@@ -50,7 +53,7 @@ def reset_data_files(frag_dir):
             os.remove(data_path)
 
 
-def check_and_notify(job, config, n_unique, n_have):
+def check_and_notify(job, config, n_unique, n_have, n_generated):
     n_missing = n_unique - n_have
     if n_unique == 0:
         print('There are no flexible dihedrals.')
@@ -60,6 +63,8 @@ def check_and_notify(job, config, n_unique, n_have):
             print("All scan data is available. Fitting the dihedrals...\n")
         else:
             print(f"{n_missing} of them are missing the scan data.")
+            if config.batch_run:
+                print(f"{n_generated} of them generated previously.")
             print(f"QM input files for them are created in: {job.frag_dir}")
 
             if config.avail_only:
@@ -87,6 +92,7 @@ class Fragment():
         self.hash_idx = 0
         self.id = ''
         self.has_data = False
+        self.has_inp = False
         self.map_frag_to_db = {}
         self.map_mol_to_frag = {}
         self.elements = []
@@ -265,6 +271,12 @@ class Fragment():
                 if os.path.isfile(f'{self.dir}/scandata_{id_no}'):
                     self.has_data = True
                     self.map_frag_to_db = GM.mapping
+                else:
+                    # has_inp to mean that the input file has been generated
+                    # But the scan data has not been collected yet.
+                    # This variable is set such that the same input file will
+                    # not be generated twice when batch_run = True
+                    self.has_inp = True
                 have_match = True
                 self.hash_idx = id_no
                 break
@@ -357,14 +369,15 @@ class Fragment():
 
         else:
             self.check_new_scan_data(job, mol, config, qm)
-            self.write_have_or_missing(job)
+            self.write_have_or_missing(job, config)
             nx.write_gpickle(self.graph, f"{self.dir}/identifier_{self.hash_idx}")
             self.write_xyz()
             with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
                 json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)
 
             if not self.has_data:
-                self.make_qm_input(job, qm)
+                if not (config.batch_run and self.has_inp):
+                    self.make_qm_input(job, qm)
 
     def assign_frag_charge(self, mol, charges):
         if self.charge_method in charges.keys() and not self.ext_charges:
@@ -372,11 +385,15 @@ class Fragment():
             if mol.charge == 0:
                 self.frag_charges *= self.charge_scaling
 
-    def write_have_or_missing(self, job):
+    def write_have_or_missing(self, job, config):
         if self.has_data:
             status = 'have'
         else:
             status = 'missing'
+
+        if config.batch_run and self.has_inp:
+            status = 'generated'
+
         data_path = f'{job.frag_dir}/{status}'
         with open(data_path, 'a+') as data_file:
             data_file.write(f'{self.id}\n')
