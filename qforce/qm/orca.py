@@ -14,9 +14,7 @@ class Orca(Colt):
     charge_method = esp :: str :: [cm5, esp]
     
     # QM method to be used for geometry optimisation
-    opt_method = XTB2 :: str
-    # For high-throughput use XTB2
-    # For accuracy use r2SCAN-3c
+    opt_method = r2SCAN-3c :: str
     
     # QM method to be used for hessian calculation
     # Note: The accuracy of this method determines the accuracy of bond, 
@@ -30,9 +28,7 @@ class Orca(Colt):
     # QM method to be used for dihedral scan energy calculation.
     # Note: The accuracy of this method determines the accuracy of 
     # flexible dihedral.
-    sp_method = PWPB95 D4 def2-TZVPP def2/J def2-TZVPP/C RIJCOSX tightSCF :: str
-    # For high-throughput use r2SCAN-3c
-    # For accuracy use PWPB95 D4 def2-TZVPP def2/J def2-TZVPP/C RIJCOSX tightSCF
+    sp_method = PWPB95 D4 def2-TZVPP def2/J def2-TZVPP/C notrah RIJCOSX tightSCF :: str
 
     """
 
@@ -293,7 +289,7 @@ class ReadORCA(ReadABC):
 
     @staticmethod
     def _read_orca_esp(pc_file):
-        """ Write the point charge file.
+        """ Read the point charge file.
 
         For ORCA jobs, the point charge computed by chelpg method will
         yield a file contain the charge information stored with the extension
@@ -321,7 +317,7 @@ class ReadORCA(ReadABC):
 
     @staticmethod
     def _read_orca_cm5(out_file):
-        """ Write the HIRSHFELD charge file.
+        """ Read the HIRSHFELD charge file.
 
         Parameters
         ----------
