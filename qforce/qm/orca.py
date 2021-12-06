@@ -14,9 +14,7 @@ class Orca(Colt):
     charge_method = esp :: str :: [cm5, esp]
     
     # QM method to be used for geometry optimisation
-    opt_method = XTB2 :: str
-    # For high-throughput use XTB2
-    # For accuracy use r2SCAN-3c
+    opt_method = r2SCAN-3c :: str
     
     # QM method to be used for hessian calculation
     # Note: The accuracy of this method determines the accuracy of bond, 
@@ -25,18 +23,16 @@ class Orca(Colt):
     
     # QM method to be used for charge derivation
     # Note: Method chosen according to the standard RESP procedure.
-    c_method = HF 6-31G* :: str
+    charge_method = HF 6-31G* :: str
     
     # QM method to be used for dihedral scan energy calculation.
     # Note: The accuracy of this method determines the accuracy of 
     # flexible dihedral.
-    sp_method = PWPB95 D4 def2-TZVPP def2/J def2-TZVPP/C RIJCOSX tightSCF :: str
-    # For high-throughput use r2SCAN-3c
-    # For accuracy use PWPB95 D4 def2-TZVPP def2/J def2-TZVPP/C RIJCOSX tightSCF
+    sp_method = PWPB95 D4 def2-TZVPP def2/J def2-TZVPP/C RIJCOSX tightSCF notrah:: str
 
     """
 
-    _method = ['hess_method', 'opt_method', 'c_method', 'sp_method']
+    _method = ['hess_method', 'opt_method', 'charge_method', 'sp_method']
 
     def __init__(self):
         self.required_hessian_files = {'out_file': ['out', 'log'],
@@ -98,7 +94,7 @@ class WriteORCA(WriteABC):
 
         # Write the charge calculation input
         file.write('New_Step\n')
-        file.write(f"! {config.c_method} chelpg Hirshfeld nopop\n")
+        file.write(f"! {config.charge_method} chelpg Hirshfeld nopop\n")
         file.write(f'%base "{job_name}_charge"\n')
         file.write('STEP_END\n\n')
         file.write('\nEND\n')
@@ -153,7 +149,7 @@ class WriteORCA(WriteABC):
         file.write('New_Step\n')
         # PModel used for initial guess such that using XTB would not pose a
         # problem.
-        file.write(f"! {config.c_method} chelpg Hirshfeld PModel nopop\n")
+        file.write(f"! {config.charge_method} chelpg Hirshfeld PModel nopop\n")
         file.write(f'%base "{job_name}_charge"\n')
         file.write('STEP_END\n\n')
 
@@ -293,7 +289,7 @@ class ReadORCA(ReadABC):
 
     @staticmethod
     def _read_orca_esp(pc_file):
-        """ Write the point charge file.
+        """ Read the point charge file.
 
         For ORCA jobs, the point charge computed by chelpg method will
         yield a file contain the charge information stored with the extension
@@ -321,7 +317,7 @@ class ReadORCA(ReadABC):
 
     @staticmethod
     def _read_orca_cm5(out_file):
-        """ Write the HIRSHFELD charge file.
+        """ Read the HIRSHFELD charge file.
 
         Parameters
         ----------
