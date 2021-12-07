@@ -37,11 +37,18 @@ class TestReadHessian(Gaussian_hessian):
     def test_point_charges(self, hessian):
         (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
          b_orders, lone_e, point_charges) = hessian
-        assert all(np.isclose(point_charges, [-0.080974, -0.041775,
-                                              0.026889, 0.025293, 0.025293,
-                                              -0.080972, 0.024433, 0.024433,
-                                              0.026858, 0.025277, 0.025277],
-                              atol=0.00001))
+        assert all(np.isclose(point_charges, [-0.052487, -0.017287, 0.017356,
+                                              0.015348, 0.015348, -0.05249,
+                                              0.013127, 0.013127, 0.017322,
+                                              0.01534, 0.01534],
+                              atol=0.0001))
+
+    def test_hessian(self, hessian):
+        (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
+         b_orders, lone_e, point_charges) = hessian
+        assert np.isclose(hessian[0], 4336.9313407, rtol=0.1)
+        assert np.isclose(hessian[1], -35.78124679, rtol=0.1)
+        assert np.isclose(hessian[2], 5317.32106175, rtol=0.1)
 
 class TestReadScan(Gaussian_scan):
     @staticmethod
@@ -51,7 +58,7 @@ class TestReadScan(Gaussian_scan):
             charge_method = "cm5"
 
         (n_atoms, coords, angles, energies, point_charges) = ReadORCA().scan(Config(),
-                                                                   Orca_default['fragments'])
+                                                                   Orca_default['fragments_out'])
 
         return n_atoms, coords, angles, energies, point_charges
 
@@ -69,14 +76,15 @@ class TestReadScan(Gaussian_scan):
 
     def test_energies(self, scan):
         (n_atoms, coords, angles, energies, point_charges) = scan
-        energy = ['-118.99155758', '-118.99088404', '-118.98920342',
-                  '-118.98742741', '-118.98664049', '-118.98736535',
-                  '-118.98914027', '-118.99085467', '-118.99156414',
-                  '-118.99089879', '-118.98920912', '-118.98741123',
-                  '-118.98663730', '-118.98741272', '-118.98920222',
-                  '-118.99090278', '-118.99156663', '-118.99085654',
-                  '-118.98914716', '-118.98737038', '-118.98663578',
-                  '-118.98742144', '-118.98919569', '-118.99088786']
+        energy = ['-119.07752449', '-119.07687528', '-119.07524691',
+                  '-119.07350525', '-119.07272311', '-119.07344151',
+                  '-119.07517421', '-119.07683536', '-119.07752403',
+                  '-119.07688738', '-119.07524888', '-119.07348511',
+                  '-119.07272154', '-119.07349001', '-119.07524223',
+                  '-119.07689394', '-119.07752531', '-119.07683264',
+                  '-119.07517599', '-119.07344223', '-119.07271719',
+                  '-119.07349512', '-119.07524031', '-119.07688126']
+
         energy = np.array([float(point) for point in energy])
         energies = energies * kJ / Hartree / mol
         assert all(np.isclose(energies, energy, atol=0.01))

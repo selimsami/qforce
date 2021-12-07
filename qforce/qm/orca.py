@@ -7,6 +7,12 @@ from ase.units import Hartree, mol, kJ, Bohr
 from .qm_base import WriteABC, ReadABC
 from ..elements import ATOM_SYM
 
+from colt.validator import Validator
+
+def normalize_qm_method(method):
+    return ' '.join(sorted(method.split()))
+
+Validator.add_validator("qm_method_opt", normalize_qm_method)
 
 class Orca(Colt):
     _user_input = """
@@ -14,25 +20,25 @@ class Orca(Colt):
     charge_method = esp :: str :: [cm5, esp]
     
     # QM method to be used for geometry optimisation
-    opt_method = r2SCAN-3c :: str
+    qm_method_opt = r2SCAN-3c :: str
     
     # QM method to be used for hessian calculation
     # Note: The accuracy of this method determines the accuracy of bond, 
     # angle and improper dihedral.
-    hess_method = B3LYP D4 def2-TZVP def2/J RIJCOSX
+    qm_method_hessian = B3LYP D4 def2-TZVP def2/J RIJCOSX
     
     # QM method to be used for charge derivation
     # Note: Method chosen according to the standard RESP procedure.
-    c_method = HF 6-31G* :: str
+    qm_method_charge = HF 6-31G* :: str
     
     # QM method to be used for dihedral scan energy calculation.
     # Note: The accuracy of this method determines the accuracy of 
     # flexible dihedral.
-    sp_method = PWPB95 D4 def2-TZVPP def2/J def2-TZVPP/C notrah RIJCOSX tightSCF :: str
+    qm_method_sp = PWPB95 D4 def2-TZVPP def2/J def2-TZVPP/C notrah RIJCOSX tightSCF :: str
 
     """
 
-    _method = ['hess_method', 'opt_method', 'c_method', 'sp_method']
+    _method = ['qm_method_hessian', 'qm_method_opt', 'qm_method_charge', 'qm_method_sp']
 
     def __init__(self):
         self.required_hessian_files = {'out_file': ['out', 'log'],
@@ -75,26 +81,26 @@ class WriteORCA(WriteABC):
         file.write('%Compound\n\n')
         # Do the initial optimisation
         file.write('New_Step\n')
-        file.write(f"! opt {config.opt_method} nopop\n")
+        file.write(f"! opt {config.qm_method_opt} nopop\n")
         file.write(f'%base "{job_name}_initial"\n')
         file.write('STEP_END\n\n')
 
         # Do the hessian calculation
         file.write('New_Step\n')
-        file.write(f"! opt freq {config.hess_method} PModel nopop\n")
+        file.write(f"! opt freq {config.qm_method_hessian} PModel nopop\n")
         file.write(f'%base "{job_name}_opt"\n')
         file.write('STEP_END\n\n')
 
         # Do the nbo calculation
         file.write('New_Step\n')
-        file.write(f"! {config.hess_method} nbo nopop\n")
+        file.write(f"! {config.qm_method_hessian} nbo nopop\n")
         file.write(f'%base "{job_name}_nbo"\n')
         file.write(f'%nbo NBOKEYLIST = "$nbo BNDIDX $end" end\n')
         file.write('STEP_END\n\n')
 
         # Write the charge calculation input
         file.write('New_Step\n')
-        file.write(f"! {config.c_method} chelpg Hirshfeld nopop\n")
+        file.write(f"! {config.qm_method_charge} chelpg Hirshfeld nopop\n")
         file.write(f'%base "{job_name}_charge"\n')
         file.write('STEP_END\n\n')
         file.write('\nEND\n')
@@ -140,7 +146,7 @@ class WriteORCA(WriteABC):
         file.write('%Compound\n\n')
         # Do the initial optimisation
         file.write('New_Step\n')
-        file.write(f"! opt {config.opt_method} nopop\n")
+        file.write(f"! opt {config.qm_method_opt} nopop\n")
         file.write(f'%base "{job_name}_opt"\n')
         self._write_constrained_atoms(file, scanned_atoms)
         file.write('STEP_END\n\n')
@@ -149,13 +155,13 @@ class WriteORCA(WriteABC):
         file.write('New_Step\n')
         # PModel used for initial guess such that using XTB would not pose a
         # problem.
-        file.write(f"! {config.c_method} chelpg Hirshfeld PModel nopop\n")
+        file.write(f"! {config.qm_method_charge} chelpg Hirshfeld PModel nopop\n")
         file.write(f'%base "{job_name}_charge"\n')
         file.write('STEP_END\n\n')
 
         # Do the scan
         file.write('New_Step\n')
-        file.write(f"! opt {config.opt_method} nopop\n")
+        file.write(f"! opt {config.qm_method_opt} nopop\n")
         file.write(f'%base "{job_name}_scan"\n')
         self._write_scanned_atoms(file, scanned_atoms, start_angle, config.scan_step_size)
         file.write(f"*xyzfile {config.charge} {config.multiplicity} {job_name}_opt.xyz\n")
@@ -165,7 +171,7 @@ class WriteORCA(WriteABC):
         file.write('New_Step\n')
         # PModel used for initial guess such that using XTB would not pose a
         # problem.
-        file.write(f"! {config.sp_method} PModel nopop\n")
+        file.write(f"! {config.qm_method_sp} PModel nopop\n")
         file.write(f'%base "{job_name}_sp"\n')
         file.write(
             f"*xyzfile {config.charge} {config.multiplicity} "

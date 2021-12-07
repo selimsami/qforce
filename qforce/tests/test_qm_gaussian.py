@@ -50,9 +50,9 @@ class TestReadHessian():
     def test_hessian(self, hessian):
         (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
          b_orders, lone_e, point_charges) = hessian
-        assert np.isclose(hessian[0], 4561.082672635644, atol=100)
-        assert np.isclose(hessian[1], -419.45253955313194, atol=400)
-        assert np.isclose(hessian[2], 4823.0334552113545, atol=700)
+        assert np.isclose(hessian[0], 4561.082672635644, rtol=0.1)
+        assert np.isclose(hessian[1], -419.45253955313194, rtol=0.1)
+        assert np.isclose(hessian[2], 4823.0334552113545, rtol=0.1)
 
     def test_n_bonds(self, hessian):
         (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
@@ -67,7 +67,7 @@ class TestReadHessian():
         assert all(np.isclose(b_orders[0],
                               [0.0000, 1.0313, 0.9237, 0.9234, 0.9234,
                                0.0091, 0.0024, 0.0024, 0.0102, 0.0009,
-                               0.0009], atol=0.01))
+                               0.0009], atol=0.1))
 
     def test_lone_e(self, hessian):
         (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
@@ -77,10 +77,10 @@ class TestReadHessian():
     def test_point_charges(self, hessian):
         (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
          b_orders, lone_e, point_charges) = hessian
-        assert all(np.isclose(point_charges, [-0.240820, -0.164064,
-                                              0.080893, 0.079872, 0.079872,
-                                              -0.240819, 0.082214, 0.082215,
-                                              0.080891, 0.079873, 0.079873],
+        assert all(np.isclose(point_charges, [-0.241874, -0.165764, 0.081536,
+                                              0.080396, 0.080395, -0.241873,
+                                              0.08243, 0.08243, 0.081533,
+                                              0.080396, 0.080396],
                               atol=0.00001))
 
 class TestReadScan():
@@ -102,7 +102,7 @@ class TestReadScan():
     def test_coords(self, scan):
         (n_atoms, coords, angles, energies, point_charges) = scan
         assert all(np.isclose(coords[0][0],
-                              [1.277008, -0.260352, -0.000062], rtol=0.01))
+                              [1.277261, -0.260282, -6.9e-05], rtol=0.01))
         assert len(coords) == 24
 
     def test_angles(self, scan):
