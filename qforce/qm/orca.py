@@ -7,12 +7,6 @@ from ase.units import Hartree, mol, kJ, Bohr
 from .qm_base import WriteABC, ReadABC
 from ..elements import ATOM_SYM
 
-from colt.validator import Validator
-
-def normalize_qm_method(method):
-    return ' '.join(sorted(method.split()))
-
-Validator.add_validator("qm_method_opt", normalize_qm_method)
 
 class Orca(Colt):
     _user_input = """
@@ -41,7 +35,7 @@ class Orca(Colt):
     _method = ['qm_method_hessian', 'qm_method_opt', 'qm_method_charge', 'qm_method_sp']
 
     def __init__(self):
-        self.required_hessian_files = {'out_file': ['out', 'log'],
+        self.required_hessian_files = {'out_file': ['.out', '.log'],
                                        'hess_file': ['_opt.hess'],
                                        'pc_file': ['_charge.pc_chelpg'],
                                        'coord_file': ['_opt.xyz'],}
