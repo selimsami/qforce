@@ -40,8 +40,7 @@ def fragment(mol, qm, job, config):
         if frag.has_inp:
             generated.append(frag)
 
-    check_and_notify(job, config.scan, len(unique_dihedrals), len(fragments),
-                     len(generated))
+    check_and_notify(job, config.scan, len(unique_dihedrals), len(fragments), len(generated))
 
     return fragments
 
@@ -63,9 +62,11 @@ def check_and_notify(job, config, n_unique, n_have, n_generated):
             print("All scan data is available. Fitting the dihedrals...\n")
         else:
             print(f"{n_missing} of them are missing the scan data.")
-            if config.batch_run:
-                print(f"{n_generated} of them generated previously.")
-            print(f"QM input files for them are created in: {job.frag_dir}")
+            if n_generated > 0:
+                print(
+                    f"{n_generated} of them generated previously (Batch run enabled).")
+            if n_missing - n_generated > 0:
+                print(f"QM input files for them are created in: {job.frag_dir}")
 
             if config.avail_only:
                 print('Continuing without the missing dihedrals...\n')
@@ -388,11 +389,10 @@ class Fragment():
     def write_have_or_missing(self, job, config):
         if self.has_data:
             status = 'have'
+        elif config.batch_run and self.has_inp:
+            status = 'generated'
         else:
             status = 'missing'
-
-        if config.batch_run and self.has_inp:
-            status = 'generated'
 
         data_path = f'{job.frag_dir}/{status}'
         with open(data_path, 'a+') as data_file:
