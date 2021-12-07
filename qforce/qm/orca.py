@@ -97,7 +97,7 @@ class WriteORCA(WriteABC):
         file.write(f"! {config.qm_method_charge} chelpg Hirshfeld nopop\n")
         file.write(f'%base "{job_name}_charge"\n')
         file.write('STEP_END\n\n')
-        file.write('\nEND\n')
+        file.write('END\n')
 
     def scan(self, file, job_name, config, coords, atnums, scanned_atoms, start_angle, charge,
              multiplicity):
@@ -170,10 +170,10 @@ class WriteORCA(WriteABC):
         file.write(
             f"*xyzfile {config.charge} {config.multiplicity} "
             f"{job_name}_scan.allxyz\n")
-        file.write('STEP_END\n\n')
+        file.write('STEP_END\n')
 
         # Close compound block
-        file.write('\nEND\n')
+        file.write('END\n')
 
     @staticmethod
     def _write_scanned_atoms(file, scanned_atoms, start_angle, step_size):
