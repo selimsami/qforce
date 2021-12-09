@@ -51,7 +51,8 @@ class QChem(Colt):
                'cis_state_deriv', 'solvent_method']
 
     def __init__(self):
-        self.required_hessian_files = {'out_file': ['out', 'log'], 'fchk_file': ['fchk', 'fck']}
+        self.required_hessian_files = {'out_file': ['.out', '.log'],
+                                       'fchk_file': ['.fchk', '.fck']}
         self.read = ReadQChem
         self.write = WriteQChem
 
