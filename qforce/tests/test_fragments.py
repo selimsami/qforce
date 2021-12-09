@@ -37,6 +37,6 @@ frag_lib = {}/qforce_fragments
     except SystemExit:
         pass
     # Fragment file generated again if batch_run is False
-    # Fragment file not generated again if batch_run is True 
+    # Fragment file not generated again if batch_run is True
     assert tmpdir.join('propane_qforce').join('fragments').join(
         'CC_H8C3_d91b46644317dee9c2b868166c66a18c~1.inp').isfile() is exist
