@@ -37,7 +37,7 @@ def fragment(mol, qm, job, config):
         frag = Fragment(job, config, mol, qm, atomids, name)
         if frag.has_data:
             fragments.append(frag)
-        if frag.has_inp:
+        elif config.scan.batch_run and frag.has_inp:
             generated.append(frag)
 
     check_and_notify(job, config.scan, len(unique_dihedrals), len(fragments), len(generated))
