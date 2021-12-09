@@ -62,6 +62,9 @@ plot_fit = no :: bool
 
 # Directory where the fragments are saved
 frag_lib = ~/qforce_fragments :: folder
+
+# Skip the dihedrals that are generated but not computed
+batch_run = False :: bool
 """
 
     def __init__(self, fragments, mol, job, all_config):
