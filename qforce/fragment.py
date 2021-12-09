@@ -376,9 +376,8 @@ class Fragment():
             with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
                 json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)
 
-            if not self.has_data:
-                if not (config.batch_run and self.has_inp):
-                    self.make_qm_input(job, qm)
+            if not (self.has_data or (config.batch_run and self.has_inp)):
+                self.make_qm_input(job, qm)
 
     def assign_frag_charge(self, mol, charges):
         if self.charge_method in charges.keys() and not self.ext_charges:
