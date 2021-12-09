@@ -25,7 +25,8 @@ class Gaussian(Colt):
     _method = ['method', 'dispersion', 'basis']
 
     def __init__(self):
-        self.required_hessian_files = {'out_file': ['out', 'log'], 'fchk_file': ['fchk', 'fck']}
+        self.required_hessian_files = {'out_file': ['.out', '.log'],
+                                       'fchk_file': ['.fchk', '.fck']}
         self.read = ReadGaussian
         self.write = WriteGaussian
 

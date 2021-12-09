@@ -6,11 +6,13 @@ from colt import Colt
 #
 from .gaussian import Gaussian
 from .qchem import QChem
+from .orca import Orca
 from .qm_base import scriptify, HessianOutput, ScanOutput
 
 
 implemented_qm_software = {'gaussian': Gaussian,
-                           'qchem': QChem}
+                           'qchem': QChem,
+                           'orca': Orca}
 
 
 class QM(Colt):
@@ -104,8 +106,8 @@ vib_scaling = 1.0 :: float
         hessian_files = {}
         all_files = os.listdir(self.job.dir)
 
-        for req, exts in self.software.required_hessian_files.items():
-            files = [file for file in all_files if any(file.endswith(f'.{ext}') for ext in exts)]
+        for req, tails in self.software.required_hessian_files.items():
+            files = [file for file in all_files if any(file.endswith(f'{tail}') for tail in tails)]
             n_files = len(files)
 
             if n_files == 0 and self.job.coord_file:
