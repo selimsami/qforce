@@ -1,8 +1,8 @@
 [run]
 branch = True
-#omit =
+omit =
     # omit all tests
-#    qforce/tests/*.py
+    qforce/tests/*.py
 
 [report]
 exclude_lines =
