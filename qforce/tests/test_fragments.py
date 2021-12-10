@@ -36,7 +36,6 @@ frag_lib = {}/qforce_fragments
                    config=tmpdir.join('settings').strpath)
     except SystemExit:
         pass
-    print('test')
     # Fragment file generated again if batch_run is False
     # Fragment file not generated again if batch_run is True
     assert tmpdir.join('propane_qforce').join('fragments').join(
