@@ -1,6 +1,3 @@
-ignore:
-  - "qforce/tests/**/*"  # ignore folders and all its contents
-
 coverage:
   status:
     patch: true

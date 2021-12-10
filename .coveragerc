@@ -1,3 +1,9 @@
+[run]
+branch = True
+omit =
+    # omit all tests
+#    qforce/tests/*
+
 [report]
 exclude_lines =
     # omit lines marked with: # pragma: no cover
