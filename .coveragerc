@@ -1,5 +1,0 @@
-[run]
-branch = True
-omit =
-    # omit all tests
-    qforce/tests/*
