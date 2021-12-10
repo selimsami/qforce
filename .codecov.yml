@@ -1,7 +1,0 @@
-# Codecov configuration to make it a bit less noisy
-coverage:
-  status:
-    patch: true
-    project:
-      default:
-        threshold: 80%
