@@ -6,4 +6,5 @@ setup(
       entry_points = {
         'console_scripts': ['qforce=qforce.main:run',]
       },
+      tests_require = ['pytest'],
      )
