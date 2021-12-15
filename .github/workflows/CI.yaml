@@ -48,4 +48,6 @@ jobs:
       run: |
         coverage run --source=qforce $(which pytest) -vv qforce
         coverage xml
-        codecov
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
