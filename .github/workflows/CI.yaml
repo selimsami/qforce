@@ -38,7 +38,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade setuptools pip
-        pip install --upgrade .
+        pip install --upgrade -e .
 
         # Test
         pip install pytest pytest-cov pytest-pep8 codecov coverage
