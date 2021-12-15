@@ -5,8 +5,9 @@ from qforce_examples import Orca_default
 from ase.units import Hartree, mol, kJ
 
 from qforce.qm.orca import ReadORCA
-from test_qm_gaussian import TestReadHessian as Gaussian_hessian
-from test_qm_gaussian import TestReadScan as Gaussian_scan
+from .test_qm_gaussian import TestReadHessian as Gaussian_hessian
+from .test_qm_gaussian import TestReadScan as Gaussian_scan
+
 
 class TestReadHessian(Gaussian_hessian):
     @staticmethod
