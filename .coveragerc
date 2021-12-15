@@ -3,16 +3,3 @@ branch = True
 source = qforce
 omit =
     qforce/tests/*
-
-#[report]
-#exclude_lines =
-#   # omit lines marked with: # pragma: no cover
-#   pragma: no cover
-
-#   # Don't complain about missing debug-only code:
-#   def __unicode__
-#   def __repr__
-
-#   # Don't complain if tests don't hit defensive assertion code:
-#   raise AssertionError
-#   raise NotImplementedError

@@ -7,10 +7,6 @@ on:
   push:
   pull_request:
 
-concurrency:
-  group: "${{ github.ref }}-${{ github.head_ref }}"
-  cancel-in-progress: true
-
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -28,9 +24,6 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Display Python version
-      run: python -c "import sys; print(sys.version)"
-
     - name: Install dependencies
       run: |
         pip install --upgrade setuptools pip
@@ -42,7 +35,7 @@ jobs:
 
     - name: Run test
       run: |
-        coverage run --source=qforce $(which pytest) -vv qforce
+        coverage run $(which pytest) -v
         coverage xml
 
     - name: Upload coverage to Codecov
