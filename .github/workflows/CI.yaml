@@ -5,11 +5,7 @@ on:
   schedule:
     - cron: "0 12 * * *"
   push:
-    # branches:
-    #   - "master"
   pull_request:
-    # branches:
-    #   - "master"
 
 concurrency:
   group: "${{ github.ref }}-${{ github.head_ref }}"
@@ -41,7 +37,7 @@ jobs:
         pip install --upgrade .
 
         # Test
-        pip install pytest pytest-cov pytest-pep8 codecov coverage
+        pip install pytest pytest-cov pytest-pep8 coverage
         pip install https://github.com/selimsami/qforce_examples/archive/master.zip
 
     - name: Run test
@@ -51,3 +47,5 @@ jobs:
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
+      with:
+        name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
