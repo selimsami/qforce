@@ -5,11 +5,11 @@ on:
   schedule:
     - cron: "0 12 * * *"
   push:
-    branches:
-      - "master"
+    # branches:
+    #   - "master"
   pull_request:
-    branches:
-      - "master"
+    # branches:
+    #   - "master"
 
 concurrency:
   group: "${{ github.ref }}-${{ github.head_ref }}"
