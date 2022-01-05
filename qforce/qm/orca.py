@@ -493,8 +493,8 @@ class ReadORCA(ReadABC):
                             lone_e[atom-1] += occ
             # Check if the NBO analysis has been done
             if "Environment variable NBOEXE for nbo6.exe or nbo5.exe not set! Skipping NBO-Analysis" in line:
-                raise ValueError('NBO Analysis has not been found. Check if '
-                                 'NBOEXE has been set correctly.')
+                raise ValueError('NBO needs to be purchased separately from https://nbo7.chem.wisc.edu/.\n'
+                                 'If you have purchased NBO, set the path as "export NBOEXE=path/to/nbo7/bin/nbo7.i4.exe".')
         file.close()
         return n_bonds, b_orders, lone_e
 
