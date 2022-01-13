@@ -1,12 +1,13 @@
 import numpy as np
 import pytest
 
-from qforce_examples import Orca_default
+from qforce_examples import Orca_default, ORCA_DMF
 from ase.units import Hartree, mol, kJ
 
 from qforce.qm.orca import ReadORCA
 from .test_qm_gaussian import TestReadHessian as Gaussian_hessian
 from .test_qm_gaussian import TestReadScan as Gaussian_scan
+from .test_qm_gaussian import TestReadLP as Gaussian_LP
 
 
 class TestReadHessian(Gaussian_hessian):
@@ -89,3 +90,22 @@ class TestReadScan(Gaussian_scan):
         energy = np.array([float(point) for point in energy])
         energies = energies * kJ / Hartree / mol
         assert all(np.isclose(energies, energy, atol=0.01))
+
+class TestReadLP(Gaussian_LP):
+    @staticmethod
+    @pytest.fixture(scope='class')
+    def hessian():
+        class Config(dict):
+            charge_method = "cm5"
+            charge = 0
+            multiplicity = 1
+
+        (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
+         b_orders, lone_e, point_charges) = ReadORCA().hessian(Config(),
+                                                               ORCA_DMF['out_file'],
+                                                               ORCA_DMF['hess_file'],
+                                                               ORCA_DMF['pc_file'],
+                                                               ORCA_DMF['coord_file'],)
+
+        return n_atoms, charge, multiplicity, elements, coords, hessian, \
+               n_bonds,  b_orders, lone_e, point_charges

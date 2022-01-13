@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from qforce_examples import Gaussian_default
+from qforce_examples import Gaussian_default, Gaussian_DMF
 from ase.units import Hartree, mol, kJ
 
 from qforce.qm.gaussian import ReadGaussian
@@ -124,3 +124,22 @@ class TestReadScan():
         energies = energies * kJ / Hartree / mol
         assert all(np.isclose(energies, energy, atol=0.01))
 
+class TestReadLP():
+    @staticmethod
+    @pytest.fixture(scope='class')
+    def hessian():
+        class Config(dict):
+            charge_method = "cm5"
+
+        (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
+         b_orders, lone_e, point_charges) = ReadGaussian().hessian(Config(),
+                                                                   Gaussian_DMF['out_file'],
+                                                                   Gaussian_DMF['fchk_file'])
+
+        return n_atoms, charge, multiplicity, elements, coords, hessian, \
+               n_bonds,  b_orders, lone_e, point_charges
+
+    def test_lone_e(self, hessian):
+        (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
+         b_orders, lone_e, point_charges) = hessian
+        assert all(lone_e == [4, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
