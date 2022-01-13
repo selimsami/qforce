@@ -464,10 +464,10 @@ class ReadORCA(ReadABC):
         file = open(out_file, 'r')
         line = file.readline()
         # Skip to the step after geometry optimisation
-        while not 'FINAL ENERGY EVALUATION AT' in line:
+        while not 'Now starting NBO' in line:
             line = file.readline()
 
-        while "NBO analysis completed" not in line:
+        while "COMPOUND JOB" not in line:
             line = file.readline()
             if "bond index matrix" in line:
                 for _ in range(int(np.ceil(n_atoms/9))):
