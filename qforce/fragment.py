@@ -32,7 +32,8 @@ def fragment(mol, qm, job, config):
 
         if name not in unique_dihedrals:
             unique_dihedrals[name] = term.atomids
-    generated = [] # Number of fragments generated but not computed
+
+    generated = []  # Number of fragments generated but not computed
     for name, atomids in unique_dihedrals.items():
         frag = Fragment(job, config, mol, qm, atomids, name)
         if frag.has_data:
@@ -108,6 +109,7 @@ class Fragment():
         self.frag_charges = []
         self.charge_scaling = config.ff.charge_scaling
         self.ext_charges = config.ff.ext_charges
+        self.use_ext_charges_for_frags = config.ff.use_ext_charges_for_frags
         self.charge_method = config.qm.charge_method
 
         self.check_fragment(job, config.scan, mol, qm)
@@ -174,9 +176,9 @@ class Fragment():
         # self.remove_non_bonded = [cap['idx'] for cap in self.caps]
         # for cap in self.caps:
         #     hydrogens = possible_h_caps[cap['connected']]
-            # for h in hydrogens:
-            #     if h not in self.remove_non_bonded:
-            #         self.remove_non_bonded.append(h)
+        #     for h in hydrogens:
+        #         if h not in self.remove_non_bonded:
+        #             self.remove_non_bonded.append(h)
 
     def make_fragment_graph(self, mol):
         self.map_mol_to_frag = {self.atomids[i]: i for i in range(self.n_atoms_without_cap)}
@@ -340,7 +342,6 @@ class Fragment():
             cap['idx'] = self.map_frag_to_db[cap['idx']]
             cap['connected'] = self.map_frag_to_db[cap['connected']]
 
-            # # TEMPORARY
             self.non_bonded.lj_types[cap['idx']] = self.non_bonded.h_cap
             for term in self.terms['bond']:
                 if cap['idx'] in term.atomids and cap['connected'] in term.atomids:
@@ -380,7 +381,8 @@ class Fragment():
                 self.make_qm_input(job, qm)
 
     def assign_frag_charge(self, mol, charges):
-        if self.charge_method in charges.keys() and not self.ext_charges:
+        if (self.charge_method in charges.keys() and
+                not (self.ext_charges and self.use_ext_charges_for_frags)):
             self.frag_charges = np.array(charges[self.charge_method])
             if mol.charge == 0:
                 self.frag_charges *= self.charge_scaling
