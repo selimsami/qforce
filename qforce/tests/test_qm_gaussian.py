@@ -57,9 +57,9 @@ class TestReadHessian():
     def test_n_bonds(self, hessian):
         (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
          b_orders, lone_e, point_charges) = hessian
-        assert np.isclose(n_bonds[0], 3.8275, rtol=0.1)
-        assert np.isclose(n_bonds[1], 3.8902, rtol=0.1)
-        assert np.isclose(n_bonds[2], 0.9384, rtol=0.1)
+        assert np.isclose(n_bonds[0], 4, atol=0.1)
+        assert np.isclose(n_bonds[1], 4, atol=0.1)
+        assert np.isclose(n_bonds[2], 1, atol=0.1)
 
     def test_b_orders(self, hessian):
         (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,

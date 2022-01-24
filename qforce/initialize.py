@@ -31,6 +31,12 @@ ext_charges = no :: bool
 # Scale QM charges to account for condensed phase polarization (should be set to 1 for gas phase)
 charge_scaling = 1.2 :: float
 
+# If user chooses ext_charges=True, by default fragments will still use the chosen QM method for
+# determining fragment charges. This is to avoid spuriously high charges on capping hydrogens.
+# However, using QM charges for fragments and ext_charges for the molecule can also result in
+# inaccuracies if these two charges are very different.
+use_ext_charges_for_frags = no :: bool
+
 # Additional exclusions (GROMACS format)
 exclusions = :: literal
 
