@@ -128,4 +128,4 @@ class TestReadLP(Gaussian_LP):
                                                                ORCA_DMF['coord_file'],)
 
         return n_atoms, charge, multiplicity, elements, coords, hessian, \
-               n_bonds,  b_orders, lone_e, 
+               n_bonds,  b_orders, lone_e, point_charges
