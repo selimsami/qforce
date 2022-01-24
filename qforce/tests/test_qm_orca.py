@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from qforce_examples import Orca_default
+from qforce_examples import Orca_default, Orca_default_NBO6
 from ase.units import Hartree, mol, kJ
 
 from qforce.qm.orca import ReadORCA
@@ -89,3 +89,23 @@ class TestReadScan(Gaussian_scan):
         energy = np.array([float(point) for point in energy])
         energies = energies * kJ / Hartree / mol
         assert all(np.isclose(energies, energy, atol=0.01))
+
+class TestReadHessian_NBO6(TestReadHessian):
+    '''Test if NBO6 output could be read correctly'''
+    @staticmethod
+    @pytest.fixture(scope='class')
+    def hessian():
+        class Config(dict):
+            charge_method = "cm5"
+            charge = 0
+            multiplicity = 1
+
+        (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
+         b_orders, lone_e, point_charges) = ReadORCA().hessian(Config(),
+                                                               Orca_default_NBO6['out_file'],
+                                                               Orca_default_NBO6['hess_file'],
+                                                               Orca_default_NBO6['pc_file'],
+                                                               Orca_default_NBO6['coord_file'],)
+
+        return n_atoms, charge, multiplicity, elements, coords, hessian, \
+               n_bonds,  b_orders, lone_e, point_charges
