@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 
-
 from qforce_examples import Orca_default, ORCA_DMF, Orca_default_NBO6
 from ase.units import Hartree, mol, kJ
 
