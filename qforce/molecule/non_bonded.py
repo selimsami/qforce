@@ -333,7 +333,8 @@ def determine_opls_atom_types(topo, q):
             a_type = 'opls_732'
 
         else:
-            sys.exit(f'ERROR: Atom ID "{atomid}" not implemented for auto-atom-type detection.')
+            sys.exit(f'ERROR: Atomic number {elem} (encountered for atom {atomid+1}) is '
+                      'not implemented for auto-atom-type detection.')
 
         a_types.append(a_type)
 
