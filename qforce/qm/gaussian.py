@@ -145,8 +145,8 @@ class WriteGaussian(WriteABC):
             elem = ATOM_SYM[atnum]
             file.write(f'{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n')
 
-    @staticmethod
-    def _write_hessian_job_setting(job_name, config, file):
+    @classmethod
+    def _write_hessian_job_setting(cls, job_name, config, file):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
