@@ -13,8 +13,9 @@ from .qm_base import scriptify, HessianOutput, ScanOutput
 
 implemented_qm_software = {'gaussian': Gaussian,
                            'qchem': QChem,
-                           'orca': Orca, 
-                           'xtb': XTB}
+                           'orca': Orca,
+                           'xtb': XTB,
+                           }
 
 
 class QM(Colt):

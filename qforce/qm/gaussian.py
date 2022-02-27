@@ -163,7 +163,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
-        file.write(f"#Opt=Modredundant ") 
+        file.write(f"#Opt=Modredundant ")
         cls.write_method(file, config)
         cls.write_pop(file, " pop=(CM5, ESP) ")
         file.write("\n\n")
