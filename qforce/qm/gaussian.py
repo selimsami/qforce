@@ -121,6 +121,7 @@ class ReadGaussian(ReadABC):
 
 
 class WriteGaussian(WriteABC):
+
     def hessian(self, file, job_name, config, coords, atnums):
         self._write_hessian_job_setting(job_name, config, file)
         self._write_coords(atnums, coords, file)
@@ -149,17 +150,30 @@ class WriteGaussian(WriteABC):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
-        file.write(f"#Opt Freq {config.method} {config.dispersion} {config.basis} "
-                   "pop=(CM5, ESP, NBOREAD)\n\n")
+        file.write(f"#Opt Freq ")
+        cls.write_method(file, config)
+        cls.write_pop(file, "pop=(CM5, ESP, NBOREAD)")
+        file.write("\n\n")
+
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
-    @staticmethod
-    def _write_scan_job_setting(job_name, config, file, charge, multiplicity):
+    @classmethod
+    def _write_scan_job_setting(cls, job_name, config, file, charge, multiplicity):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
-        file.write(f"#Opt=Modredundant {config.method} {config.dispersion} {config.basis} "
-                   "pop=(CM5, ESP)\n\n")
+        file.write(f"#Opt=Modredundant ") 
+        cls.write_method(file, config)
+        cls.write_pop(file, " pop=(CM5, ESP) ")
+        file.write("\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
+
+    @staticmethod
+    def write_method(file, config):
+        file.write(f" {config.method} {config.dispersion} {config.basis} ")
+
+    @staticmethod
+    def write_pop(file, string):
+        file.write(string)

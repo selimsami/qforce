@@ -7,12 +7,14 @@ from colt import Colt
 from .gaussian import Gaussian
 from .qchem import QChem
 from .orca import Orca
+from .xtb. import XTB
 from .qm_base import scriptify, HessianOutput, ScanOutput
 
 
 implemented_qm_software = {'gaussian': Gaussian,
                            'qchem': QChem,
-                           'orca': Orca}
+                           'orca': Orca, 
+                           'xtb': XTB}
 
 
 class QM(Colt):
@@ -143,7 +145,7 @@ vib_scaling = 1.0 :: float
         try:
             software = implemented_qm_software[selection]()
         except KeyError:
-            raise KeyError(f'"{selection}" software is not implemented.')
+            raise KeyError(f'"{selection}" software is not implemented.') from None
         self._print_selected(selection, software.required_hessian_files)
         return software
 
