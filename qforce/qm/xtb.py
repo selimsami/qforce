@@ -15,7 +15,7 @@ class WriteXTBGaussian(WriteGaussian):
 
     @staticmethod
     def _write_bndix(file):
-        pass
+        file.write("\n\n\n")
 
 
 class ReadXTBGaussian(ReadGaussian):
