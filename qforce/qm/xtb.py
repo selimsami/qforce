@@ -13,6 +13,10 @@ class WriteXTBGaussian(WriteGaussian):
     def write_pop(file, string):
         pass
 
+    @staticmethod
+    def _write_bndix(file):
+        pass
+
 
 class ReadXTBGaussian(ReadGaussian):
 

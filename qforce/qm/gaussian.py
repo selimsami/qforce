@@ -125,6 +125,10 @@ class WriteGaussian(WriteABC):
     def hessian(self, file, job_name, config, coords, atnums):
         self._write_hessian_job_setting(job_name, config, file)
         self._write_coords(atnums, coords, file)
+        self._write_bndix(file)
+
+    @staticmethod
+    def _write_bndix(file):
         file.write('\n$nbo BNDIDX $end\n\n')
 
     def scan(self, file, job_name, config, coords, atnums, scanned_atoms, start_angle, charge,
