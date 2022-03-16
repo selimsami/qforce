@@ -56,7 +56,6 @@ class ReadXTBGaussian(ReadGaussian):
         b_orders = [[] for _ in range(n_atoms)]
         while "--- END WBO ANALYSIS ---" not in line:
             line = file.readline()
-            print(line)
             if ("bond index matrix" in line and not found_wiberg):
                 for _ in range(int(np.ceil(n_atoms/9))):
                     for atom in range(-3, n_atoms):
