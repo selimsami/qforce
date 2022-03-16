@@ -17,6 +17,18 @@ class WriteXTBGaussian(WriteGaussian):
     def _write_bndix(file):
         file.write("\n\n\n")
 
+    @classmethod
+    def _write_scan_job_setting(cls, job_name, config, file, charge, multiplicity):
+        file.write(f"%nprocshared={config.n_proc}\n")
+        file.write(f"%mem={config.memory}MB\n")
+        file.write(f"%chk={job_name}.chk\n")
+        file.write(f"#Opt=(Modredundant,nomicro) ")
+        cls.write_method(file, config)
+        cls.write_pop(file, " pop=(CM5, ESP) ")
+        file.write("\n\n")
+        file.write(f"{job_name}\n\n")
+        file.write(f"{charge} {multiplicity}\n")
+
 
 class ReadXTBGaussian(ReadGaussian):
 
