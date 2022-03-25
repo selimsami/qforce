@@ -7,7 +7,7 @@ from colt import Colt
 from .gaussian import Gaussian
 from .qchem import QChem
 from .orca import Orca
-from .xtb import xTB
+from .xtb import xTB 
 from .qm_base import scriptify, HessianOutput, ScanOutput
 
 
