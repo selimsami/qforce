@@ -10,7 +10,7 @@ from .gaussian import Gaussian
 from .qchem import QChem
 from .orca import Orca
 from .xtb import xTB
-from .qm_base import scriptify, HessianOutput, ScanOutput
+from .qm_base import scriptify, HessianOutput, ScanOutput, ReadABC
 from ..elements import ATOM_SYM
 
 
@@ -76,17 +76,51 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
 
         return ScanOutput(file, n_scan_steps, *qm_out)
 
-    def _xtb_torsiondrive_write(self, config, frag_dir):
+    def _xtb_torsiondrive_read(self, config, log_file):
         '''Read the TorsionDrive output.
 
         Parameters
         ----------
         config : config
             A configparser object with all the parameters.
-        frag_dir : string
-            The directory to the fragment.
-        '''
+        log_file : string
+            The path to the fragment result output.
 
+        Returns
+        -------
+        n_atoms : int
+            The number of atoms in the molecule.
+        coords : list
+            A list of array of float. The list has the length of the number
+            of steps and the array has the shape of (n_atoms, 3).
+        angles : list
+            A list (length: steps) of the angles that is being scanned.
+        energies : list
+            A list (length: steps) of the energy.
+        point_charges : dict
+            A dictionary with key in charge_method and the value to be a
+            list of float of the size of n_atoms.
+        '''
+        with open(log_file, 'r') as f:
+            coord_text = f.read()
+        lines = coord_text.strip().split('\n')
+        n_atoms = int(lines[0])
+        num_conf = len(lines) // (n_atoms+2)
+        energy_list = []
+        coord_list = []
+        angle_list = []
+        for conf in range(num_conf):
+            current = lines[conf*(n_atoms+2):(conf+1)*(n_atoms+2)]
+            _, angle, _, energy = current[1].split()
+            angle = float(angle[1:-2])
+            angle_list.append(angle)
+            energy = float(energy)
+            energy_list.append(energy)
+            n_atoms, elements, coords = ReadABC._read_xyz_coords('\n'.join(current))
+            coord_list.append(coords)
+
+        point_charges = np.loadtxt(os.path.splitext(log_file)[0]+'.charges')
+        return n_atoms, coord_list, angle_list, energy_list, {'xtb': point_charges}
 
     def _xtb_torsiondrive_write(self, file, dir, scan_id, coords, atnums,
                                    scanned_atoms, charge,
@@ -140,6 +174,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         file.write(f'torsiondrive-launch input.xyz dihedrals.txt '
                    f'-g {int(self.config.scan_step_size)} '
                    f'-e xtb --native_opt -v \n')
+        file.write(f'cp scan.xyz ../{scan_id}.log\n')
+        file.write(f'cp opt_tmp/gid_+000/1/charges ../{scan_id}.charges\n')
+        file.write(f'cp opt_tmp/gid_+180/1/charges ../{scan_id}.charges\n')
         file.write(f'cd ..\n')
 
         # cwd = os.getcwd()

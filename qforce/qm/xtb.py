@@ -200,36 +200,6 @@ class ReadxTB(ReadABC):
         return len(point_charges), point_charges
 
     @staticmethod
-    def _read_xyz_coords(coord_text):
-        """ Read the coordiantes from the coordiantes string.
-
-        The string is in the format of the standard xyz file.
-
-        Parameters
-        ----------
-        coord_text : string
-            The content of the xyz file file.
-
-        Returns
-        -------
-        n_atoms : int
-            The number of atoms in the molecule.
-        elements : array
-            A np.array of integer of the atomic number of the atoms.
-        coords : array
-            An array of float of the shape (n_atoms, 3).
-        """
-        lines = coord_text.split('\n')
-        n_atoms = int(lines[0])
-        coords = np.empty((n_atoms, 3))
-        elements = []
-        for i, line in enumerate(lines[2: 2 + n_atoms]):
-            element, x, y, z = line.split()
-            elements.append(ATOM_SYM.index(element))
-            coords[i, :] = (x, y, z)
-        return n_atoms, np.array(elements), coords
-
-    @staticmethod
     def _read_xtb_xyz(coord_file):
         """ Read the optimised coordinate xyz file.
 
@@ -252,7 +222,7 @@ class ReadxTB(ReadABC):
         """
         with open(coord_file, 'r') as f:
             coord_text = f.read()
-        return ReadxTB._read_xyz_coords(coord_text)
+        return ReadABC._read_xyz_coords(coord_text)
 
     @staticmethod
     def _read_xtb_scan_log(coord_file, n_atoms):
@@ -287,7 +257,7 @@ class ReadxTB(ReadABC):
             current = lines[conf*(n_atoms+2):(conf+1)*(n_atoms+2)]
             energy = float(current[1].split()[1])
             energy_list.append(energy)
-            n_atoms, elements, coords = ReadxTB._read_xyz_coords('\n'.join(current))
+            n_atoms, elements, coords = ReadABC._read_xyz_coords('\n'.join(current))
             coord_list.append(coords)
         return elements, energy_list, coord_list
 
