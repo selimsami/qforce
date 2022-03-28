@@ -10,7 +10,7 @@ dependencies:
   - xtb
   - parmed
   - scipy
-  - numpy
+  - numpy<1.22
   - ase
   - matplotlib
   - seaborn
