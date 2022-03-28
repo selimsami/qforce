@@ -20,39 +20,23 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-
-    # More info on options: https://github.com/conda-incubator/setup-miniconda
-    - uses: conda-incubator/setup-miniconda@v2
+    - name: Setup python ${{ matrix.py_version }}
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-        environment-file: .github/test_env.yaml
 
-        channels: conda-forge,defaults
-
-        activate-environment: test
-        auto-update-conda: false
-        auto-activate-base: false
-        show-channel-urls: true
-
-
-    - name: Install package
+    - name: Install dependencies
       run: |
-        pip install -e .
-
+        pip install --upgrade setuptools pip
+        pip install --upgrade .
         # Test
+        pip install pytest pytest-cov pytest-pep8 coverage
         pip install https://github.com/selimsami/qforce_examples/archive/master.zip
-
-    - name: Run tests
-
-      # conda setup requires this special shell
-      shell: bash -l {0}
-
+    - name: Run test
       run: |
-        pytest -v --cov=qforce --cov-report=xml --color=yes qforce/tests/
-
-    - name: CodeCov
-      uses: codecov/codecov-action@v1
+        coverage run $(which pytest) -v
+        coverage xml
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
       with:
-        file: ./coverage.xml
-        flags: unittests
         name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
