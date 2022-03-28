@@ -20,10 +20,18 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Setup python ${{ matrix.py_version }}
-      uses: actions/setup-python@v2
+    # More info on options: https://github.com/conda-incubator/setup-miniconda
+    - uses: conda-incubator/setup-miniconda@v2
       with:
         python-version: ${{ matrix.python-version }}
+        environment-file: .github/test_env.yaml
+
+        channels: conda-forge
+
+        activate-environment: test
+        auto-update-conda: false
+        auto-activate-base: false
+        show-channel-urls: true
 
     - name: Install dependencies
       run: |
