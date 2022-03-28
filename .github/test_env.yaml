@@ -6,9 +6,8 @@ dependencies:
   - python
   - pip
 
-  # Additional dependency
-  - xtb
-  - parmed
+
+
 
     # Testing
   - pytest
