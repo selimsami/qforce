@@ -9,14 +9,6 @@ dependencies:
   # Additional dependency
   - xtb
   - parmed
-  - scipy
-  - numpy<1.22
-  - ase
-  - matplotlib
-  - seaborn
-  - networkx
-  - pulp<2.2
-  - numba>=0.50
 
     # Testing
   - pytest
