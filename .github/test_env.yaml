@@ -1,0 +1,17 @@
+name: test
+channels:
+  - conda-forge
+dependencies:
+    # Base depends
+  - python
+  - pip
+
+  # Additional dependency
+  - xtb
+  - parmed
+
+    # Testing
+  - pytest
+  - pytest-cov
+  - codecov
+
