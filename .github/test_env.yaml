@@ -7,7 +7,7 @@ dependencies:
   - pip
 
   - setuptools
-  - xtb
+
   - parmed
   - scipy
   - numpy
