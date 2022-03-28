@@ -33,17 +33,23 @@ jobs:
         auto-activate-base: false
         show-channel-urls: true
 
-    - name: Install dependencies
+    - name: Install package
+
+      # conda setup requires this special shell
+      shell: bash -l {0}
       run: |
-        pip install --upgrade .
-        # Test
-        pip install pytest pytest-cov pytest-pep8 coverage
-        pip install https://github.com/selimsami/qforce_examples/archive/master.zip
-    - name: Run test
+        python -m pip install . --no-deps
+        conda list
+    - name: Run tests
+
+      # conda setup requires this special shell
+      shell: bash -l {0}
+
       run: |
-        coverage run $(which pytest) -v
-        coverage xml
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v2
+        pytest -v --cov=qforce --cov-report=xml --color=yes qforce/tests/
+    - name: CodeCov
+      uses: codecov/codecov-action@v1
       with:
+        file: ./coverage.xml
+        flags: unittests
         name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
