@@ -37,7 +37,7 @@ jobs:
 
     - name: Install package
       run: |
-        pip install --upgrade .
+        pip install -e .
 
         # Test
         pip install https://github.com/selimsami/qforce_examples/archive/master.zip
@@ -49,7 +49,7 @@ jobs:
 
       run: |
         pytest -v --cov=qforce --cov-report=xml --color=yes qforce/tests/
-        
+
     - name: CodeCov
       uses: codecov/codecov-action@v1
       with:
