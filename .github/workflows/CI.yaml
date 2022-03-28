@@ -42,12 +42,17 @@ jobs:
         # Test
         pip install https://github.com/selimsami/qforce_examples/archive/master.zip
 
-    - name: Run test
-      run: |
-        coverage run $(which pytest) -v
-        coverage xml
+    - name: Run tests
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v2
+      # conda setup requires this special shell
+      shell: bash -l {0}
+
+      run: |
+        pytest -v --cov=qforce --cov-report=xml --color=yes qforce/tests/
+        
+    - name: CodeCov
+      uses: codecov/codecov-action@v1
       with:
+        file: ./coverage.xml
+        flags: unittests
         name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
