@@ -15,7 +15,7 @@ dependencies:
   - matplotlib
   - seaborn
   - networkx
-  - pulp<2.2
+  - pulp
   - numba>=0.50
 
     # Testing
