@@ -199,8 +199,6 @@ class ReadxTB(ReadABC):
         point_charges = np.loadtxt(pc_file)
         return len(point_charges), point_charges
 
-
-
     @staticmethod
     def _read_xtb_xyz(coord_file):
         """ Read the optimised coordinate xyz file.
@@ -224,7 +222,8 @@ class ReadxTB(ReadABC):
         """
         with open(coord_file, 'r') as f:
             coord_text = f.read()
-        return ReadABC._read_xyz_coords(coord_text)
+        n_atoms, elements, coords, comments = ReadABC._read_xyz_coords(coord_text)
+        return n_atoms, elements, coords
 
     @staticmethod
     def _read_xtb_scan_log(coord_file):
@@ -415,7 +414,7 @@ class ReadxTB(ReadABC):
                 '{}.charges'.format(os.path.join(base, name)))
         point_charges["xtb"] = charges
         elements, energies, coords = self._read_xtb_scan_log(
-            '{}.xtbscan.log'.format(os.path.join(base, name)), n_atoms)
+            '{}.xtbscan.log'.format(os.path.join(base, name)))
         angles = self._read_xtb_input_angle(
             '{}.dat'.format(os.path.join(base, name)))
 
