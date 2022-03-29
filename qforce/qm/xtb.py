@@ -222,10 +222,11 @@ class ReadxTB(ReadABC):
         """
         with open(coord_file, 'r') as f:
             coord_text = f.read()
-        return ReadABC._read_xyz_coords(coord_text)
+        n_atoms, elements, coords, comments = ReadABC._read_xyz_coords(coord_text)
+        return n_atoms, elements, coords
 
     @staticmethod
-    def _read_xtb_scan_log(coord_file, n_atoms):
+    def _read_xtb_scan_log(coord_file):
         """ Read the xTB scan log file.
 
         For xTB jobs, the optimised geometry will be stored as in the xyz
@@ -235,8 +236,6 @@ class ReadxTB(ReadABC):
         ----------
         coord_file : string
             The name of the .xtbscan.log file.
-        n_atoms : int
-            The number of atoms in the fragment.
 
         Returns
         -------
@@ -250,14 +249,15 @@ class ReadxTB(ReadABC):
         with open(coord_file, 'r') as f:
             coord_text = f.read()
         lines = coord_text.strip().split('\n')
+        n_atoms = int(lines[0])
         num_conf = len(lines) // (n_atoms+2)
         energy_list = []
         coord_list = []
         for conf in range(num_conf):
             current = lines[conf*(n_atoms+2):(conf+1)*(n_atoms+2)]
-            energy = float(current[1].split()[1])
+            n_atoms, elements, coords, comments = ReadABC._read_xyz_coords('\n'.join(current))
+            energy = float(comments.split()[1])
             energy_list.append(energy)
-            n_atoms, elements, coords = ReadABC._read_xyz_coords('\n'.join(current))
             coord_list.append(coords)
         return elements, energy_list, coord_list
 
@@ -414,7 +414,7 @@ class ReadxTB(ReadABC):
                 '{}.charges'.format(os.path.join(base, name)))
         point_charges["xtb"] = charges
         elements, energies, coords = self._read_xtb_scan_log(
-            '{}.xtbscan.log'.format(os.path.join(base, name)), n_atoms)
+            '{}.xtbscan.log'.format(os.path.join(base, name)))
         angles = self._read_xtb_input_angle(
             '{}.dat'.format(os.path.join(base, name)))
 

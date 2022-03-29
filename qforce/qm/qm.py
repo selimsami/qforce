@@ -1,17 +1,14 @@
 import os
-import shutil
 import sys
 from ase.io import read, write
 import numpy as np
 from colt import Colt
-from warnings import warn
 #
 from .gaussian import Gaussian
 from .qchem import QChem
 from .orca import Orca
-from .xtb import xTB
+from .xtb import xTB 
 from .qm_base import scriptify, HessianOutput, ScanOutput, ReadABC
-from ..elements import ATOM_SYM
 
 
 implemented_qm_software = {'gaussian': Gaussian,
@@ -45,10 +42,6 @@ n_proc = 1 :: int
 
 # Scaling of the vibrational frequency for the corresponding QM method (not implemented)
 vib_scaling = 1.0 :: float
-
-# Use the internal relaxed scan method of the QM software or the Torsiondrive method using xTB
-dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
-
 """
     _method = ['scan_step_size']
 
@@ -199,39 +192,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
     @scriptify
     def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge,
                    multiplicity):
-        '''Generate the input file for the dihedral scan.
-
-        Parameters
-        ----------
-        file : file
-            The file handler for writing the input file. e.g. file.write('test')
-        scan_id : string
-            The name of the fragment.
-        coords : numpy.array
-            Array of the coordinates in the same of (n,3), where n is the
-            number of atoms.
-        atnums : list
-            A list of n integers representing the atomic number, where n is
-            the number of atoms.
-        scanned_atoms : list
-            A list of 4 integers representing the one-based atom index of the
-            dihedral.
-        start_angle : float
-            The dihedral angle of the current conformation.
-        charge : int
-            The total charge of the fragment.
-        multiplicity : int
-            The multiplicity of the molecule.
-        '''
-        if self.config.dihedral_scanner == 'relaxed_scan':
-            self.software.write().scan(file, scan_id, self.config, coords,
-                                       atnums, scanned_atoms, start_angle,
-                                       charge, multiplicity)
-        elif self.config.dihedral_scanner == 'xtb-torsiondrive':
-            self._xtb_torsiondrive_write(file, self.job.frag_dir, scan_id, coords,
-                                            atnums, scanned_atoms, charge,
-                                            multiplicity)
-
+        self.software.write().scan(file, scan_id, self.config, coords, atnums, scanned_atoms,
+                                   start_angle, charge, multiplicity)
 
     def _get_unique_scan_points(self, qm_outs, n_scan_steps):
         all_angles, all_energies, all_coords, chosen_point_charges, final_e = [], [], [], {}, 0
