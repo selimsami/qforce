@@ -9,6 +9,7 @@ from .qchem import QChem
 from .orca import Orca
 from .xtb import xTB 
 from .qm_base import scriptify, HessianOutput, ScanOutput, ReadABC
+from ase.units import Hartree, mol, kJ
 
 
 implemented_qm_software = {'gaussian': Gaussian,
@@ -42,6 +43,9 @@ n_proc = 1 :: int
 
 # Scaling of the vibrational frequency for the corresponding QM method (not implemented)
 vib_scaling = 1.0 :: float
+
+# Use the internal relaxed scan method of the QM software or the Torsiondrive method using xTB
+dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
 """
     _method = ['scan_step_size']
 
@@ -103,16 +107,19 @@ vib_scaling = 1.0 :: float
         angle_list = []
         for conf in range(num_conf):
             current = lines[conf*(n_atoms+2):(conf+1)*(n_atoms+2)]
-            _, angle, _, energy = current[1].split()
+            n_atoms, elements, coords, comment = ReadABC._read_xyz_coords(
+                '\n'.join(current))
+
+            _, angle, _, energy = comment.split()
             angle = float(angle[1:-2])
             angle_list.append(angle)
             energy = float(energy)
             energy_list.append(energy)
-            n_atoms, elements, coords = ReadABC._read_xyz_coords('\n'.join(current))
             coord_list.append(coords)
 
         point_charges = np.loadtxt(os.path.splitext(log_file)[0]+'.charges')
-        return n_atoms, coord_list, angle_list, energy_list, {'xtb': point_charges}, elements
+        energies = np.array(energy_list) * Hartree * mol / kJ
+        return n_atoms, coord_list, angle_list, energies, {'xtb': point_charges}
 
     def _xtb_torsiondrive_write(self, file, dir, scan_id, coords, atnums,
                                    scanned_atoms, charge,
