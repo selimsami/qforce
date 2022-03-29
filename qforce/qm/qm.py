@@ -71,20 +71,19 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             if self.config.dihedral_scanner == 'relaxed_scan':
                 qm_outs.append(self.software.read().scan(self.config, f'{self.job.frag_dir}/{file}'))
             elif self.config.dihedral_scanner == 'xtb-torsiondrive':
-                qm_outs.append(self._xtb_torsiondrive_read(self.config, f'{self.job.frag_dir}/{file}'))
+                qm_outs.append(self._xtb_torsiondrive_read(f'{self.job.frag_dir}/{file}'))
         qm_out = self._get_unique_scan_points(qm_outs, n_scan_steps)
 
         return ScanOutput(file, n_scan_steps, *qm_out)
 
-    def _xtb_torsiondrive_read(self, config, log_file):
+    @staticmethod
+    def _xtb_torsiondrive_read(log_file):
         '''Read the TorsionDrive output.
 
         Parameters
         ----------
         config : config
             A configparser object with all the parameters.
-        log_file : string
-            The path to the fragment result output.
 
         Returns
         -------
@@ -120,7 +119,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             coord_list.append(coords)
 
         point_charges = np.loadtxt(os.path.splitext(log_file)[0]+'.charges')
-        return n_atoms, coord_list, angle_list, energy_list, {'xtb': point_charges}
+        return n_atoms, coord_list, angle_list, energy_list, {'xtb': point_charges}, elements
 
     def _xtb_torsiondrive_write(self, file, dir, scan_id, coords, atnums,
                                    scanned_atoms, charge,
