@@ -18,6 +18,8 @@ class Test_runxTB():
 charge_scaling = 1.0
 [qm]
 software = xtb
+[qm::software(xtb)]
+xtb_command = --gfnff
 [scan]
 frag_lib = {}/qforce_fragments
  '''.format(str(outdir)))
