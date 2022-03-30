@@ -15,12 +15,13 @@ class Test_runxTB():
     def propane(tmp_path_factory):
         outdir = tmp_path_factory.mktemp('propane')
         setting = outdir / 'settings'
-        setting.write_text('''[ff]
+        setting.write_text('''
+[ff]
 charge_scaling = 1.0
 [qm]
 software = xtb
 [qm::software(xtb)]
-xtb_command = --gfn 2
+xtb_command = --gfn 1
 [scan]
 frag_lib = {}/qforce_fragments
  '''.format(str(outdir)))
@@ -69,17 +70,17 @@ frag_lib = {}/qforce_fragments
     def test_charge(self, propane):
         '''Test if the charges are generated in the same fashion.'''
         charges = [atom.charge for atom in propane.atoms]
-        ref_charge = [-0.10206769,
-   -0.04738168,
-    0.03075230,
-    0.03360933,
-    0.03360297,
-   -0.10205990,
-    0.02778609,
-    0.02778578,
-    0.03077589,
-    0.03359926,
-    0.03359765,
+        ref_charge = [   -0.08636199,
+   -0.03300440,
+    0.02786050,
+    0.02695452,
+    0.02695197,
+   -0.08634214,
+    0.02109018,
+    0.02108986,
+    0.02786865,
+    0.02694661,
+    0.02694623,
 ]
         assert np.allclose(ref_charge, charges, atol=0.01)
 
@@ -93,16 +94,16 @@ frag_lib = {}/qforce_fragments
         assert propane.angles[0].atom1.idx == 0
         assert propane.angles[0].atom2.idx == 1
         assert propane.angles[0].atom3.idx == 5
-        assert np.isclose(propane.angles[0].type.k, 54.72, atol=0.01)
-        assert np.isclose(propane.angles[0].type.theteq, 111.62, atol=0.01)
+        assert np.isclose(propane.angles[0].type.k, 57.64, atol=0.01)
+        assert np.isclose(propane.angles[0].type.theteq, 111.655, atol=0.01)
 
     def test_bonds(self, propane):
         assert len(propane.bonds) == 10
         assert propane.bonds[0].funct == 1
         assert propane.bonds[0].atom1.idx == 0
         assert propane.bonds[0].atom2.idx == 1
-        assert np.isclose(propane.bonds[0].type.k, 211.478, atol=0.01)
-        assert np.isclose(propane.bonds[0].type.req, 1.5242, atol=0.01)
+        assert np.isclose(propane.bonds[0].type.k, 216.019, atol=0.01)
+        assert np.isclose(propane.bonds[0].type.req, 1.5283, atol=0.01)
 
     def test_dihedrals(self, propane):
         assert len(propane.rb_torsions) == 2
@@ -111,14 +112,10 @@ frag_lib = {}/qforce_fragments
         assert propane.rb_torsions[0].atom3.idx == 1
         assert propane.rb_torsions[0].atom4.idx == 5
         assert propane.rb_torsions[0].funct == 3
-        assert np.isclose(propane.rb_torsions[0].type.c0, 0.9964, atol=0.01)
+        assert np.isclose(propane.rb_torsions[0].type.c0, 0.7311, atol=0.01)
 
     def test_defaults(self, propane):
         assert propane.defaults.comb_rule == 3
         assert propane.defaults.fudgeLJ == 0.5
         assert propane.defaults.fudgeQQ == 0.5
         assert propane.defaults.nbfunc == 1
-
-
-
-
