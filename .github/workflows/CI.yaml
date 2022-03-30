@@ -46,7 +46,8 @@ jobs:
       shell: bash -l {0}
 
       run: |
-        pytest -v --cov=qforce --cov-report=xml --color=yes qforce/tests/
+        pytest -v -m "not slow" --cov=qforce --cov-report=xml --color=yes qforce/tests/
+        pytest -v -m "slow" --cov=qforce --cov-append --cov-report=xml --color=yes qforce/tests/
     - name: CodeCov
       uses: codecov/codecov-action@v1
       with:
