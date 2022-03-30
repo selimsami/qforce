@@ -7,6 +7,7 @@ from subprocess import call
 from qforce.main import run_qforce
 from qforce_examples import xTB_default
 
+@pytest.mark.slow
 class Test_runxTB():
     '''Do a fresh run and test if the result changes over time.'''
     @staticmethod
@@ -18,6 +19,8 @@ class Test_runxTB():
 charge_scaling = 1.0
 [qm]
 software = xtb
+[qm::software(xtb)]
+xtb_command = --gfn 2
 [scan]
 frag_lib = {}/qforce_fragments
  '''.format(str(outdir)))

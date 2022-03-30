@@ -10,7 +10,12 @@ from ..elements import ATOM_SYM
 
 class xTB(Colt):
     _user_input = """
+    # xTB only allows Mulliken charge.
     charge_method = xtb :: str ::
+    
+    # Extra command line passed to the xtb executable
+    xtb_command = --gfn 2 :: str ::
+    
     """
 
     _method = []
@@ -46,7 +51,8 @@ class WritexTB(WriteABC):
         # We create the xTB command template here.
         cmd = f'xtb {job_name}_input.xyz --ohess --chrg {config.charge} ' \
               f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name}_hessian --parallel {config.n_proc}'
+              f'--namespace {job_name}_hessian --parallel {config.n_proc} ' \
+              f'{config.xtb_command}'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
@@ -87,7 +93,7 @@ class WritexTB(WriteABC):
         cmd = f'xtb {job_name}_input.xyz --opt --chrg {config.charge} ' \
               f'--uhf {config.multiplicity - 1} ' \
               f'--namespace {job_name} --parallel {config.n_proc} ' \
-              f'--input {job_name}.dat'
+              f'--input {job_name}.dat {config.xtb_command}'
 
         # Create the scan input file
         a1, a2, a3, a4 = np.array(scanned_atoms)
