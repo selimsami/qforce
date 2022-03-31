@@ -3,7 +3,6 @@ import numpy as np
 import sys
 from ase.units import Hartree, mol, kJ, Bohr
 from abc import ABC, abstractmethod
-from ..elements import ATOM_SYM
 
 
 class WriteABC(ABC):
@@ -93,36 +92,6 @@ class ReadABC(ABC):
                             lone_e[atom-1] += occ
         return n_bonds, b_orders, lone_e
 
-    @staticmethod
-    def _read_xyz_coords(coord_text):
-        """ Read the coordiantes from the coordiantes string.
-
-        The string is in the format of the standard xyz file.
-
-        Parameters
-        ----------
-        coord_text : string
-            The content of the xyz file file.
-
-        Returns
-        -------
-        n_atoms : int
-            The number of atoms in the molecule.
-        elements : array
-            A np.array of integer of the atomic number of the atoms.
-        coords : array
-            An array of float of the shape (n_atoms, 3).
-        """
-        lines = coord_text.split('\n')
-        n_atoms = int(lines[0])
-        comment = lines[1]
-        coords = np.empty((n_atoms, 3))
-        elements = []
-        for i, line in enumerate(lines[2: 2 + n_atoms]):
-            element, x, y, z = line.split()
-            elements.append(ATOM_SYM.index(element))
-            coords[i, :] = (x, y, z)
-        return n_atoms, np.array(elements), coords, comment
 
 def scriptify(writer):
     def wrapper(*args, **kwargs):

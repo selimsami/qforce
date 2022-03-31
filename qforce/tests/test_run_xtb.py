@@ -118,7 +118,3 @@ frag_lib = {}/qforce_fragments
         assert propane.defaults.fudgeLJ == 0.5
         assert propane.defaults.fudgeQQ == 0.5
         assert propane.defaults.nbfunc == 1
-
-
-
-

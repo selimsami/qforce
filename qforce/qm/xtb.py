@@ -1,8 +1,10 @@
 import os.path
+from tempfile import NamedTemporaryFile
 
 from colt import Colt
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
+from ase.io import read
 #
 from .qm_base import WriteABC, ReadABC
 from ..elements import ATOM_SYM
@@ -226,9 +228,10 @@ class ReadxTB(ReadABC):
         coords : array
             An array of float of the shape (n_atoms, 3).
         """
-        with open(coord_file, 'r') as f:
-            coord_text = f.read()
-        n_atoms, elements, coords, comments = ReadABC._read_xyz_coords(coord_text)
+        mol = read(coord_file)
+        n_atoms = len(mol)
+        elements = [atom.number for atom in mol]
+        coords = mol.positions
         return n_atoms, elements, coords
 
     @staticmethod
@@ -252,19 +255,13 @@ class ReadxTB(ReadABC):
         coord_list : array
             An array of float of the shape (n_atoms, 3).
         """
-        with open(coord_file, 'r') as f:
-            coord_text = f.read()
-        lines = coord_text.strip().split('\n')
-        n_atoms = int(lines[0])
-        num_conf = len(lines) // (n_atoms+2)
+        frames = read(coord_file, index=':', format='extxyz')
         energy_list = []
         coord_list = []
-        for conf in range(num_conf):
-            current = lines[conf*(n_atoms+2):(conf+1)*(n_atoms+2)]
-            n_atoms, elements, coords, comments = ReadABC._read_xyz_coords('\n'.join(current))
-            energy = float(comments.split()[1])
-            energy_list.append(energy)
-            coord_list.append(coords)
+        for frame in frames:
+            coord_list.append(frame.positions)
+            energy_list.append(float(list(frame.info.keys())[1]))
+        elements = [atom.number for atom in frame]
         return elements, energy_list, coord_list
 
     @staticmethod
