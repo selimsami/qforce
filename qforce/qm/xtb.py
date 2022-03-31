@@ -260,7 +260,7 @@ class ReadxTB(ReadABC):
         coord_list = []
         for frame in frames:
             coord_list.append(frame.positions)
-            energy_list.append(list(frame.info.keys())[1])
+            energy_list.append(float(list(frame.info.keys())[1]))
         elements = [atom.number for atom in frame]
         return elements, energy_list, coord_list
 

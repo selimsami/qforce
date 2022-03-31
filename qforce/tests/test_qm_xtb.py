@@ -43,7 +43,7 @@ class TestReadHessian():
     def test_elements(self, hessian):
         (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
          b_orders, lone_e, point_charges) = hessian
-        assert all(elements == [6, 6, 1, 1, 1, 6, 1, 1, 1, 1, 1])
+        assert elements == [6, 6, 1, 1, 1, 6, 1, 1, 1, 1, 1]
 
     def test_coords(self, hessian):
         (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
