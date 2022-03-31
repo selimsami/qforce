@@ -100,7 +100,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             list of float of the size of n_atoms.
         '''
         frames = read(log_file, index=':', format='extxyz')
-        n_atoms = int(frames[0])
+        n_atoms = len(frames[0])
         energy_list = []
         coord_list = []
         angle_list = []
