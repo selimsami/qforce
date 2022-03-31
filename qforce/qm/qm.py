@@ -99,25 +99,18 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             A dictionary with key in charge_method and the value to be a
             list of float of the size of n_atoms.
         '''
-        with open(log_file, 'r') as f:
-            coord_text = f.read()
-        lines = coord_text.strip().split('\n')
-        n_atoms = int(lines[0])
-        num_conf = len(lines) // (n_atoms+2)
+        frames = read(log_file, index=':', format='extxyz')
+        n_atoms = int(frames[0])
         energy_list = []
         coord_list = []
         angle_list = []
-        for conf in range(num_conf):
-            current = lines[conf*(n_atoms+2):(conf+1)*(n_atoms+2)]
-            n_atoms, elements, coords, comment = ReadABC._read_xyz_coords(
-                '\n'.join(current))
-
-            _, angle, _, energy = comment.split()
+        for frame in frames:
+            coord_list.append(frame.positions)
+            _, angle, _, energy = list(frame.info.keys())
             angle = float(angle[1:-2])
             angle_list.append(angle)
             energy = float(energy)
             energy_list.append(energy)
-            coord_list.append(coords)
 
         point_charges = np.loadtxt(os.path.splitext(log_file)[0]+'.charges')
         energies = np.array(energy_list) * Hartree * mol / kJ
