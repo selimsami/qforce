@@ -3,7 +3,6 @@ import numpy as np
 import sys
 from ase.units import Hartree, mol, kJ, Bohr
 from abc import ABC, abstractmethod
-from ..elements import ATOM_SYM
 
 
 class WriteABC(ABC):
