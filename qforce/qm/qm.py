@@ -11,6 +11,7 @@ from .orca import Orca
 from .xtb import xTB 
 from .qm_base import scriptify, HessianOutput, ScanOutput, ReadABC
 from ase.units import Hartree, mol, kJ
+from ..elements import ATOM_SYM
 
 
 implemented_qm_software = {'gaussian': Gaussian,
@@ -276,15 +277,15 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
                       'calculation and put the output files in the same directory.\n')
                 with open(file_name, 'w') as file:
                     self.write_hessian(file, coords, atnums)
-                sys.exit()
+                raise SystemExit
             elif n_files == 0:
                 print('Required Hessian output file(s) not found in the job directory\n'
                       'and no coordinate file was provided to create input files.\nExiting...\n')
-                sys.exit()
+                raise SystemExit
             elif n_files > 1:
                 print('There are multiple files in the job directory with the expected Hessian'
                       ' output extensions.\nPlease remove the undesired ones.\n')
-                sys.exit()
+                raise SystemExit
             else:
                 hessian_files[req] = f'{self.job.dir}/{files[0]}'
         return hessian_files
