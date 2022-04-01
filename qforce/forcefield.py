@@ -286,8 +286,6 @@ class ForceField():
 
         for dihed in terms['dihedral/inversion']:
             ids = dihed.atomids + 1
-            # itp.write(f'{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{ids[3]:>6}{1:>6}'
-            #           f'{0.0:>11.3f}{dihed.fconst:>11.3f}{3:>11}\n')
             c0, c1, c2 = convert_to_inversion_rb(dihed.fconst, dihed.equ)
             itp.write(f'{ids[0]:>6}{ids[1]:>6}{ids[2]:>6}{ids[3]:>6}{3:>6}'
                       f'{c0:>11.3f}{c1:>11.3f}{c2:>11.3f}{0:>11.1f}{0:>11.1f}{0:>11.1f}\n')
@@ -303,20 +301,11 @@ class ForceField():
                 itp.write("\n")
 
     def make_pairs(self, neighbors, non_bonded):
-        pairs, polar_pairs = [], []
-
-        for pair in non_bonded.pairs:
-            pairs.append(sorted(pair))
+        polar_pairs = []
 
         if self.n_excl == 2:
-            for i in range(self.n_atoms):
-                for neigh in neighbors[2][i]:
-                    if (i < neigh and [i, neigh] not in pairs and (i, neigh)
-                            not in non_bonded.exclusions):
-                        pairs.append([i, neigh])
-
             if self.polar:
-                for a1, a2 in pairs:
+                for a1, a2 in non_bonded.pairs:
                     if a2 in non_bonded.alpha_map.keys():
                         polar_pairs.append([a1, non_bonded.alpha_map[a2]])
                     if a1 in non_bonded.alpha_map.keys():
@@ -324,18 +313,15 @@ class ForceField():
                     if a1 in non_bonded.alpha_map.keys() and a2 in non_bonded.alpha_map.keys():
                         polar_pairs.append([non_bonded.alpha_map[a1], non_bonded.alpha_map[a2]])
 
-        return pairs+polar_pairs
+        return non_bonded.pairs+polar_pairs
 
     def make_exclusions(self, non_bonded, neighbors, exclude_all):
         exclusions = [[] for _ in range(self.n_atoms)]
 
-        # input exclusions
-        for exclusion in non_bonded.exclusions:
-            exclusions[exclusion[0]].append(exclusion[1]+1)
-
-        # exclusions for input pairs
-        for pair in non_bonded.pairs:
-            exclusions[pair[0]].append(pair[1]+1)
+        # input exclusions  for exclusions if outside of n_excl
+        for a1, a2 in non_bonded.exclusions+non_bonded.pairs:
+            if all([a2 not in neighbors[i][a1] for i in range(self.n_excl+1)]):
+                exclusions[a1].append(a2+1)
 
         # fragment capping atom exclusions
         for i in exclude_all:
