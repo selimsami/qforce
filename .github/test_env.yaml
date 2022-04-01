@@ -1,0 +1,28 @@
+name: test
+channels:
+  - conda-forge
+dependencies:
+    # Base depends
+  - python
+  - pip
+
+  - setuptools
+  - xtb
+  - parmed
+  - scipy
+  - numpy
+  - ase
+  - matplotlib
+  - seaborn
+  - networkx
+  - pulp
+  - numba>=0.50
+
+    # Testing
+  - pytest
+  - pytest-cov
+  - codecov
+
+  - pip:
+      - pycolt>=0.5.3
+      - git+https://github.com/selimsami/qforce_examples.git

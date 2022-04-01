@@ -7,12 +7,14 @@ from colt import Colt
 from .gaussian import Gaussian
 from .qchem import QChem
 from .orca import Orca
+from .xtb import xTB 
 from .qm_base import scriptify, HessianOutput, ScanOutput
 
 
 implemented_qm_software = {'gaussian': Gaussian,
                            'qchem': QChem,
-                           'orca': Orca}
+                           'orca': Orca,
+                           'xtb': xTB}
 
 
 class QM(Colt):
