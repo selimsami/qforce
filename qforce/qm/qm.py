@@ -170,22 +170,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
                    f'-e xtb --native_opt -v \n')
         file.write(f'cp scan.xyz ../{scan_id}.log\n')
         file.write(f'cp opt_tmp/gid_+000/1/charges ../{scan_id}.charges\n')
+        # Ensure that at least one charge file is being copied.
         file.write(f'cp opt_tmp/gid_+180/1/charges ../{scan_id}.charges\n')
         file.write(f'cd ..\n')
-
-        # cwd = os.getcwd()
-        # os.chdir(f"{dir}/{scan_id}_torsiondrive")
-        # grid_ids, grid_energies, grid_geometries, elements = run("input.xyz",
-        #     [self.config.scan_step_size, ], 'dihedrals.txt', verbose=False)
-        # os.chdir(cwd)
-        #
-        # coord_list = []
-        # energy_list = []
-        # for grid_id in grid_ids:
-        #     coord_list.append(grid_geometries[grid_id])
-        #     energy_list.append(grid_energies[grid_id])
-        #
-        # return grid_ids, coord_list, energy_list
 
     @scriptify
     def write_hessian(self, file, coords, atnums):
