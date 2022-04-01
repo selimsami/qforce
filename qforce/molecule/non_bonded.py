@@ -31,8 +31,11 @@ class NonBonded():
     @classmethod
     def from_topology(cls, config, job, qm_out, topo, ext_q, ext_lj):
         comb_rule, fudge_lj, fudge_q, h_cap = set_non_bonded_props(config)
-        exclusions = cls._set_exclusions_and_pairs(config.exclusions)
-        pairs = cls._set_exclusions_and_pairs(config.pairs)
+
+        exclusions = cls._set_custom_exclusions_and_pairs(config.exclusions)
+        pairs = cls._set_custom_exclusions_and_pairs(config.pairs)
+        if config.n_excl == 2:
+            pairs = cls._set_1_4_pairs(topo, exclusions, pairs)
 
         # RUN D4 if necessary
         if config._d4:
@@ -110,7 +113,7 @@ class NonBonded():
                    non_bonded.fudge_q, non_bonded.h_cap, alpha)
 
     @staticmethod
-    def _set_exclusions_and_pairs(value):
+    def _set_custom_exclusions_and_pairs(value):
         selection = []
         if value:
             for line in value.split('\n'):
@@ -126,6 +129,15 @@ class NonBonded():
                           'First entry is excluded from / paired to all the following entries.\n',
                           f'Ignoring the line: {line[0]}\n')
         return selection
+
+    @staticmethod
+    def _set_1_4_pairs(topo, exclusions, pairs):
+        for i in range(topo.n_atoms):
+            for neigh in topo.neighbors[2][i]:
+                if (i < neigh and [i, neigh] not in pairs and (i, neigh) not in exclusions and
+                        not any([{i, neigh}.issubset(ring) for ring in topo.rings])):
+                    pairs.append((i, neigh))
+        return pairs
 
 
 def get_external_lennard_jones(config, topo, q, job, ext_lj):
