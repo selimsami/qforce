@@ -1,17 +1,15 @@
 import os
-import shutil
-import sys
+
 from ase.io import read, write
 import numpy as np
 from colt import Colt
-from warnings import warn
+
 from .gaussian import Gaussian
 from .qchem import QChem
 from .orca import Orca
 from .xtb import xTB 
-from .qm_base import scriptify, HessianOutput, ScanOutput, ReadABC
-from ase.units import Hartree, mol, kJ
-from ..elements import ATOM_SYM
+from .qm_base import scriptify, HessianOutput, ScanOutput
+from .torsiondrive_xtb import TorsiondrivexTB
 
 
 implemented_qm_software = {'gaussian': Gaussian,
@@ -70,109 +68,10 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             if self.config.dihedral_scanner == 'relaxed_scan':
                 qm_outs.append(self.software.read().scan(self.config, f'{self.job.frag_dir}/{file}'))
             elif self.config.dihedral_scanner == 'xtb-torsiondrive':
-                qm_outs.append(self._xtb_torsiondrive_read(f'{self.job.frag_dir}/{file}'))
+                qm_outs.append(TorsiondrivexTB.read(f'{self.job.frag_dir}/{file}'))
         qm_out = self._get_unique_scan_points(qm_outs, n_scan_steps)
 
         return ScanOutput(file, n_scan_steps, *qm_out)
-
-    @staticmethod
-    def _xtb_torsiondrive_read(log_file):
-        '''Read the TorsionDrive output.
-
-        Parameters
-        ----------
-        config : config
-            A configparser object with all the parameters.
-
-        Returns
-        -------
-        n_atoms : int
-            The number of atoms in the molecule.
-        coords : list
-            A list of array of float. The list has the length of the number
-            of steps and the array has the shape of (n_atoms, 3).
-        angles : list
-            A list (length: steps) of the angles that is being scanned.
-        energies : list
-            A list (length: steps) of the energy.
-        point_charges : dict
-            A dictionary with key in charge_method and the value to be a
-            list of float of the size of n_atoms.
-        '''
-        frames = read(log_file, index=':', format='extxyz')
-        n_atoms = len(frames[0])
-        energy_list = []
-        coord_list = []
-        angle_list = []
-        for frame in frames:
-            coord_list.append(frame.positions)
-            _, angle, _, energy = list(frame.info.keys())
-            angle = float(angle[1:-2])
-            angle_list.append(angle)
-            energy = float(energy)
-            energy_list.append(energy)
-
-        point_charges = np.loadtxt(os.path.splitext(log_file)[0]+'.charges')
-        energies = np.array(energy_list) * Hartree * mol / kJ
-        return n_atoms, coord_list, angle_list, energies, {'xtb': point_charges}
-
-    def _xtb_torsiondrive_write(self, file, dir, scan_id, coords, atnums,
-                                   scanned_atoms, charge,
-                                   multiplicity):
-        '''Create the TorsionDrive input.
-
-        Parameters
-        ----------
-        file : file
-            The file object to write the torsiondrive command
-        dir : string
-            The path to the current directory.
-        scan_id : string
-            The name of the fragment.
-        coords : numpy.array
-            Array of the coordinates in the same of (n,3), where n is the
-            number of atoms.
-        atnums : list
-            A list of n integers representing the atomic number, where n is
-            the number of atoms.
-        scanned_atoms : list
-            A list of 4 integers representing the one-based atom index of the
-            dihedral.
-        charge : int
-            The total charge of the fragment.
-        multiplicity : int
-            The multiplicity of the molecule.
-         '''
-        try:
-            os.makedirs(f'{dir}/{scan_id}_torsiondrive')
-        except FileExistsError:
-            warn(f'Folder {dir}/{scan_id}_torsiondrive exists, remove the folder.')
-            shutil.rmtree(f'{dir}/{scan_id}_torsiondrive')
-            os.makedirs(f'{dir}/{scan_id}_torsiondrive')
-
-        # Create the coordinate input file
-        with open(f'{dir}/{scan_id}_torsiondrive/input.xyz', 'w') as f:
-            n_atoms = len(atnums)
-            uhf = multiplicity - 1
-            cmd = f'xTB arguments: --opt --chrg {charge} --uhf {uhf} --gfn 2 --parallel 1'
-            crd = '\n'.join(['{:>3s} {:>12.6f} {:>12.6f} {:>12.6f}'.format(ATOM_SYM[ele_id], *pos)
-                             for ele_id, pos in zip(atnums, coords)])
-            f.write(f'''{n_atoms}
-{cmd}
-{crd}''')
-        with open(f"{dir}/{scan_id}_torsiondrive/dihedrals.txt", 'w') as f:
-            f.write('{} {} {} {}'.format(*scanned_atoms))
-
-        # Write the torsiondrive input command
-        file.write(f'cd {scan_id}_torsiondrive\n')
-        file.write(f'torsiondrive-launch input.xyz dihedrals.txt '
-                   f'-g {int(self.config.scan_step_size)} '
-                   f'-e xtb --native_opt -v \n')
-        file.write(f'cp scan.xyz ../{scan_id}.log\n')
-        file.write(f'cp opt_tmp/gid_+000/1/charges ../{scan_id}.charges\n')
-        # Ensure that at least one charge file is being copied.
-        file.write(f'cp opt_tmp/gid_+180/1/charges ../{scan_id}.charges\n')
-        file.write(f'cd ..\n')
 
     @scriptify
     def write_hessian(self, file, coords, atnums):
@@ -209,9 +108,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
                                        atnums, scanned_atoms, start_angle,
                                        charge, multiplicity)
         elif self.config.dihedral_scanner == 'xtb-torsiondrive':
-            self._xtb_torsiondrive_write(file, self.job.frag_dir, scan_id, coords,
-                                            atnums, scanned_atoms, charge,
-                                            multiplicity)
+            TorsiondrivexTB.write(self.config, file, self.job.frag_dir,
+                                  scan_id, coords, atnums, scanned_atoms,
+                                  charge, multiplicity)
 
     def _get_unique_scan_points(self, qm_outs, n_scan_steps):
         all_angles, all_energies, all_coords, chosen_point_charges, final_e = [], [], [], {}, 0

@@ -4,14 +4,14 @@ import pytest
 from ase.units import Hartree, mol, kJ
 
 from qforce_examples import xTB_default
-from qforce.qm.qm import QM
+from qforce.qm.torsiondrive_xtb import TorsiondrivexTB
 
 class Test_xtb_torsiondrive_read():
     @staticmethod
     @pytest.fixture(scope='class')
     def torsiondrive():
         (n_atoms, coord_list, angle_list, energies, point_charges) = \
-            QM._xtb_torsiondrive_read(xTB_default['torsiondrive_energy'])
+            TorsiondrivexTB.read(xTB_default['torsiondrive_energy'])
         return n_atoms, coord_list, angle_list, energies, point_charges['xtb']
 
     def test_n_atoms(self, torsiondrive):
