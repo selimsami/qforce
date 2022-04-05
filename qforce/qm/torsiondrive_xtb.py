@@ -5,9 +5,8 @@ from warnings import warn
 
 import numpy as np
 from ase.io import read, write
+from ase import Atoms
 from ase.units import Hartree, mol, kJ
-
-from ..elements import ATOM_SYM
 
 class TorsiondrivexTB():
     @staticmethod
@@ -89,16 +88,13 @@ class TorsiondrivexTB():
         os.makedirs(name)
 
         # Create the coordinate input file
+        uhf = multiplicity - 1
+        cmd = f'xTB arguments: --opt --chrg {charge} --uhf {uhf} --gfn 2 --parallel 1'
 
-        with open(f'{dir}/{scan_id}_torsiondrive/input.xyz', 'w') as f:
-            n_atoms = len(atnums)
-            uhf = multiplicity - 1
-            cmd = f'xTB arguments: --opt --chrg {charge} --uhf {uhf} --gfn 2 --parallel 1'
-            crd = '\n'.join(['{:>3s} {:>12.6f} {:>12.6f} {:>12.6f}'.format(ATOM_SYM[ele_id], *pos)
-                             for ele_id, pos in zip(atnums, coords)])
-            f.write(f'''{n_atoms}
-{cmd}
-{crd}''')
+        mol = Atoms(positions=coords, numbers=atnums)
+        write(f'{dir}/{scan_id}_torsiondrive/input.xyz', mol, plain=True,
+              comment=cmd)
+
         with open(f"{dir}/{scan_id}_torsiondrive/dihedrals.txt", 'w') as f:
             f.write('{} {} {} {}'.format(*scanned_atoms))
 
