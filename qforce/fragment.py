@@ -73,7 +73,7 @@ def check_and_notify(job, config, n_unique, n_have, n_generated):
                 print('Continuing without the missing dihedrals...\n')
             else:
                 print('Exiting...\n')
-                sys.exit()
+                raise SystemExit
 
 
 class Fragment():

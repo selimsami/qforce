@@ -1,13 +1,12 @@
 import os.path
-from tempfile import NamedTemporaryFile
 
 from colt import Colt
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
-from ase.io import read
+from ase.io import read, write
+from ase import Atoms
 #
 from .qm_base import WriteABC, ReadABC
-from ..elements import ATOM_SYM
 
 
 class xTB(Colt):
@@ -58,9 +57,9 @@ class WritexTB(WriteABC):
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
-        with open(f'{base}/{job_name}_input.xyz', 'w') as f:
-            f.write(f'{len(atnums)}\n{cmd}\n')
-            self._write_coords(atnums, coords, f)
+        mol = Atoms(positions=coords, numbers=atnums)
+        write(f'{base}/{job_name}_input.xyz', mol, plain=True,
+              comment=cmd)
 
     def scan(self, file, job_name, config, coords, atnums, scanned_atoms,
              start_angle, charge, multiplicity):
@@ -111,28 +110,11 @@ class WritexTB(WriteABC):
             f.write('$end\n')
 
         # Write the coordiante file in the xyz file format
-        with open(f'{base}/{job_name}_input.xyz', 'w') as f:
-            f.write(f'{len(atnums)}\n{cmd}\n')
-            self._write_coords(atnums, coords, f)
+        mol = Atoms(positions=coords, numbers=atnums)
+        write(f'{base}/{job_name}_input.xyz', mol, plain=True,
+              comment=cmd)
+
         file.write(cmd)
-
-    @staticmethod
-    def _write_coords(atnums, coords, file):
-        """ Write the input coordinates.
-
-        Parameters
-        ----------
-        atnums : list
-            A list (N) of atom elements represented as atomic number.
-        coords : array
-            A coordinates array of shape (N,3), where N is the number of atoms.
-        file : file
-            The file object to write the input.
-        """
-        for atnum, coord in zip(atnums, coords):
-            elem = ATOM_SYM[atnum]
-            file.write(
-                f'{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n')
 
 class ReadxTB(ReadABC):
     @staticmethod

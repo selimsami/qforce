@@ -1,14 +1,15 @@
 import os
-import sys
+
 from ase.io import read, write
 import numpy as np
 from colt import Colt
-#
+
 from .gaussian import Gaussian
 from .qchem import QChem
 from .orca import Orca
 from .xtb import xTB 
 from .qm_base import scriptify, HessianOutput, ScanOutput
+from .torsiondrive_xtb import TorsiondrivexTB
 
 
 implemented_qm_software = {'gaussian': Gaussian,
@@ -42,6 +43,9 @@ n_proc = 1 :: int
 
 # Scaling of the vibrational frequency for the corresponding QM method (not implemented)
 vib_scaling = 1.0 :: float
+
+# Use the internal relaxed scan method of the QM software or the Torsiondrive method using xTB
+dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
 """
     _method = ['scan_step_size']
 
@@ -61,7 +65,10 @@ vib_scaling = 1.0 :: float
         n_scan_steps = int(np.ceil(360/self.config.scan_step_size))
 
         for file in files:
-            qm_outs.append(self.software.read().scan(self.config, f'{self.job.frag_dir}/{file}'))
+            if self.config.dihedral_scanner == 'relaxed_scan':
+                qm_outs.append(self.software.read().scan(self.config, f'{self.job.frag_dir}/{file}'))
+            elif self.config.dihedral_scanner == 'xtb-torsiondrive':
+                qm_outs.append(TorsiondrivexTB.read(f'{self.job.frag_dir}/{file}'))
         qm_out = self._get_unique_scan_points(qm_outs, n_scan_steps)
 
         return ScanOutput(file, n_scan_steps, *qm_out)
@@ -73,8 +80,37 @@ vib_scaling = 1.0 :: float
     @scriptify
     def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge,
                    multiplicity):
-        self.software.write().scan(file, scan_id, self.config, coords, atnums, scanned_atoms,
-                                   start_angle, charge, multiplicity)
+        '''Generate the input file for the dihedral scan.
+        Parameters
+        ----------
+        file : file
+            The file handler for writing the input file. e.g. file.write('test')
+        scan_id : string
+            The name of the fragment.
+        coords : numpy.array
+            Array of the coordinates in the same of (n,3), where n is the
+            number of atoms.
+        atnums : list
+            A list of n integers representing the atomic number, where n is
+            the number of atoms.
+        scanned_atoms : list
+            A list of 4 integers representing the one-based atom index of the
+            dihedral.
+        start_angle : float
+            The dihedral angle of the current conformation.
+        charge : int
+            The total charge of the fragment.
+        multiplicity : int
+            The multiplicity of the molecule.
+        '''
+        if self.config.dihedral_scanner == 'relaxed_scan':
+            self.software.write().scan(file, scan_id, self.config, coords,
+                                       atnums, scanned_atoms, start_angle,
+                                       charge, multiplicity)
+        elif self.config.dihedral_scanner == 'xtb-torsiondrive':
+            TorsiondrivexTB.write(self.config, file, self.job.frag_dir,
+                                  scan_id, coords, atnums, scanned_atoms,
+                                  charge, multiplicity)
 
     def _get_unique_scan_points(self, qm_outs, n_scan_steps):
         all_angles, all_energies, all_coords, chosen_point_charges, final_e = [], [], [], {}, 0
@@ -120,15 +156,15 @@ vib_scaling = 1.0 :: float
                       'calculation and put the output files in the same directory.\n')
                 with open(file_name, 'w') as file:
                     self.write_hessian(file, coords, atnums)
-                sys.exit()
+                raise SystemExit
             elif n_files == 0:
                 print('Required Hessian output file(s) not found in the job directory\n'
                       'and no coordinate file was provided to create input files.\nExiting...\n')
-                sys.exit()
+                raise SystemExit
             elif n_files > 1:
                 print('There are multiple files in the job directory with the expected Hessian'
                       ' output extensions.\nPlease remove the undesired ones.\n')
-                sys.exit()
+                raise SystemExit
             else:
                 hessian_files[req] = f'{self.job.dir}/{files[0]}'
         return hessian_files
