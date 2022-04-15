@@ -463,9 +463,12 @@ class ReadORCA(ReadABC):
 
         file = open(out_file, 'r')
         line = file.readline()
+        
+        # Skip to the step after geometry optimisation
+        while not 'nbo' in line.lower():
+            line = file.readline()
 
         while "COMPOUND JOB" not in line:
-            line = file.readline()
             if "bond index matrix" in line:
                 for _ in range(int(np.ceil(n_atoms/9))):
                     for atom in range(-3, n_atoms):
@@ -492,6 +495,8 @@ class ReadORCA(ReadABC):
             if "Environment variable NBOEXE for nbo6.exe or nbo5.exe not set! Skipping NBO-Analysis" in line:
                 raise ValueError('NBO needs to be purchased separately from https://nbo7.chem.wisc.edu/.\n'
                                  'If you have purchased NBO, set the path as "export NBOEXE=path/to/nbo7/bin/nbo7.i4.exe".')
+                
+            line = file.readline()
         file.close()
         return n_bonds, b_orders, lone_e
 
