@@ -463,9 +463,6 @@ class ReadORCA(ReadABC):
 
         file = open(out_file, 'r')
         line = file.readline()
-        # Skip to the step after geometry optimisation
-        while not 'Now starting NBO' in line:
-            line = file.readline()
 
         while "COMPOUND JOB" not in line:
             line = file.readline()
