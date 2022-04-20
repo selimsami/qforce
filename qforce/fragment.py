@@ -215,7 +215,7 @@ class Fragment():
     def make_fragment_identifier(self, config, mol, qm):
         atom_ids = [[], []]
         comp_dict = {i: 0 for i in set(self.elements[:self.n_atoms_without_cap])}
-        if 1 not in comp_dict.keys() and len(self.cap) > 0:
+        if 1 not in comp_dict.keys() and len(self.caps) > 0:
             comp_dict[1] = 0
 
         for a in range(2):
