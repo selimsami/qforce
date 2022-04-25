@@ -205,7 +205,7 @@ class Fragment():
             self.map_mol_to_frag[cap['idx']] = self.n_atoms_without_cap + cap['n_cap']
             h_type = f'1(1.0){mol.topo.elements[cap["connected"]]}'
             self.graph.add_node(self.n_atoms_without_cap + cap['n_cap'], elem=1, n_bonds=1,
-                                lone_e=0, coords=cap['coord'], capping=True)
+                                coords=cap['coord'], capping=True)
             self.graph.add_edge(self.n_atoms_without_cap + cap['n_cap'],
                                 self.map_mol_to_frag[cap["connected"]], type=h_type)
 
@@ -260,7 +260,7 @@ class Fragment():
         self.map_frag_to_db = {i: i for i in range(self.n_atoms)}
         have_match = False
 
-        nm = iso.categorical_node_match(['elem', 'n_bonds', 'lone_e', 'capping', 'scan'],
+        nm = iso.categorical_node_match(['elem', 'n_bonds', 'capping', 'scan'],
                                         [0, 0, 0, False, False])
         em = iso.categorical_edge_match(['type'], [0])
 

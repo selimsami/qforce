@@ -205,11 +205,11 @@ def set_non_bonded_props(config):
 
 
 class Neighbor():
-    def __init__(self, elem, b_order, in_ring, lone_e):
+    def __init__(self, elem, b_order, in_ring, n_bonds):
         self.elem = elem
         self.b_order = b_order
         self.in_ring = in_ring
-        self.lone_e = lone_e
+        self.n_bonds = n_bonds
 
 
 class Neighbors(list):
@@ -220,17 +220,17 @@ class Neighbors(list):
             elem = topo.elements[neigh]
             b_order = topo.edge(atomid, neigh)['order']
             in_ring = topo.edge(atomid, neigh)['n_rings'] > 0
-            lone_e = topo.node(neigh)['lone_e']
-            neighbors.append(Neighbor(elem, b_order, in_ring, lone_e))
+            n_bonds = topo.node(neigh)['n_bonds']
+            neighbors.append(Neighbor(elem, b_order, in_ring, n_bonds))
         return cls(neighbors)
 
-    def count(neighs, elem=None, b_order_gt=None, b_order_lt=None, in_ring=None, lone_e_lt=None):
+    def count(neighs, elem=None, b_order_gt=None, b_order_lt=None, in_ring=None, n_bonds_gt=None):
         matched = []
         for neigh in neighs:
             if ((elem is None or neigh.elem == elem) and
                 (b_order_gt is None or neigh.b_order > b_order_gt) and
                 (b_order_lt is None or neigh.b_order < b_order_lt) and
-                (lone_e_lt is None or neigh.lone_e < lone_e_lt) and
+                (n_bonds_gt is None or neigh.n_bonds > n_bonds_gt) and
                     (in_ring is None or in_ring)):
                 matched.append(neigh)
         return len(matched)
@@ -304,7 +304,7 @@ def determine_opls_atom_types(topo, q):
                 a_type = 'opls_760'  # NO (nitro group)
             elif neighs.count(b_order_gt=2.4):
                 a_type = 'opls_262'  # NZ
-            elif (neighs.count(b_order_gt=1.25) or neighs.count(elem=16, lone_e_lt=1) > 1):
+            elif (neighs.count(b_order_gt=1.25) or neighs.count(elem=16, n_bonds_gt=2) > 0):
                 a_type = 'opls_237'  # N
             else:
                 a_type = 'opls_900'  # NT

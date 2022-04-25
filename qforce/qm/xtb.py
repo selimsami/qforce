@@ -13,10 +13,10 @@ class xTB(Colt):
     _user_input = """
     # xTB only allows Mulliken charge.
     charge_method = xtb :: str ::
-    
+
     # Extra command line passed to the xtb executable
     xtb_command = --gfn 2 :: str ::
-    
+
     """
 
     _method = []
@@ -28,6 +28,7 @@ class xTB(Colt):
                                        'coord_file': ['xtbopt.xyz'], }
         self.read = ReadxTB
         self.write = WritexTB
+
 
 class WritexTB(WriteABC):
     def hessian(self, file, job_name, config, coords, atnums):
@@ -116,6 +117,7 @@ class WritexTB(WriteABC):
 
         file.write(cmd)
 
+
 class ReadxTB(ReadABC):
     @staticmethod
     def _read_xtb_hess(hess_file, n_atoms):
@@ -149,7 +151,7 @@ class ReadxTB(ReadABC):
         for i in range(n_atoms):
             # Find the row
             trunk = lines[: int(np.ceil(n_atoms / 5))]
-            lines = lines[int(np.ceil(n_atoms / 5)): ]
+            lines = lines[int(np.ceil(n_atoms / 5)):]
             # Split into columns
             row = []
             for line in trunk:
@@ -259,14 +261,10 @@ class ReadxTB(ReadABC):
 
         Returns
         -------
-        n_bonds : list
-            A list of integer of length n_atoms of the total number of bonds.
         b_orders : list
             A list (length: n_atoms) of list (length: n_atoms) of float.
             representing the bond order between each atom pair.
-        lone_e : list
-            A list (length: n_atoms) of integer. The number of lone pair
-            electrons for each atom. This is computed using a heuristic rule.
+
         """
         n_atoms = len(elements)
 
@@ -277,16 +275,7 @@ class ReadxTB(ReadABC):
             b_orders[int(x) - 1][int(y) - 1] = bo
             b_orders[int(y) - 1][int(x) - 1] = bo
 
-        n_bonds = [round(sum(atom)) for atom in b_orders]
-        lone_e = []
-        for ele, atom in zip(elements, n_bonds):
-            if ele <= 2:
-                # Account for H and He (s orbitals)
-                lone_e.append((1-atom)*2)
-            else:
-                # Account for all p orbitals
-                lone_e.append((4 - atom) * 2)
-        return n_bonds, b_orders, np.array(lone_e)
+        return b_orders
 
     @staticmethod
     def _read_xtb_input_angle(in_file):
@@ -341,14 +330,9 @@ class ReadxTB(ReadABC):
         out_hessian : array
             An array of float of the size of ((n_atoms*3)**2+n_atoms*3)/2),
             which is the lower triangle of the hessian matrix. Unit： kJ/mol
-        n_bonds : list
-            A list of integer of length n_atoms of the total number of bonds.
         b_orders : list
             A list (length: n_atoms) of list (length: n_atoms) of float.
             representing the bond order between each atom pair.
-        lone_e : list
-            A list (length: n_atoms) of integer. The number of lone pair
-            electrons for each atom.
         point_charges : float
             A list of float of the size of n_atoms.
         """
@@ -356,13 +340,10 @@ class ReadxTB(ReadABC):
         n_atoms, elements, coords = self._read_xtb_xyz(coord_file)
         charge = config.charge
         multiplicity = config.multiplicity
-        n_bonds, b_orders, lone_e = self._read_xtb_wbo_analysis(wbo_file,
-                                                                 elements)
+        b_orders = self._read_xtb_wbo_analysis(wbo_file, elements)
         hessian = self._read_xtb_hess(hess_file, n_atoms)
-        return (
-        n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds,
-        b_orders,
-        lone_e, point_charges)
+        return (n_atoms, charge, multiplicity, elements, coords, hessian,
+                b_orders, point_charges)
 
     def scan(self, config, file_name):
         """ Read data from the scan file.
@@ -392,7 +373,6 @@ class ReadxTB(ReadABC):
         file_name_base, ext = os.path.splitext(file_name)
         base, name = os.path.split(file_name_base)
         name = name.split('.')[0]
-
 
         point_charges = {}
         n_atoms, charges = self._read_xtb_charge(

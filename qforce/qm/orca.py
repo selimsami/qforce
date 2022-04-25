@@ -12,21 +12,21 @@ class Orca(Colt):
     _user_input = """
 
     charge_method = esp :: str :: [cm5, esp]
-    
+
     # QM method to be used for geometry optimisation
     qm_method_opt = r2SCAN-3c :: str
-    
+
     # QM method to be used for hessian calculation
-    # Note: The accuracy of this method determines the accuracy of bond, 
+    # Note: The accuracy of this method determines the accuracy of bond,
     # angle and improper dihedral.
     qm_method_hessian = B3LYP D4 def2-TZVP def2/J RIJCOSX
-    
+
     # QM method to be used for charge derivation
     # Note: Method chosen according to the standard RESP procedure.
     qm_method_charge = HF 6-31G* :: str
-    
+
     # QM method to be used for dihedral scan energy calculation.
-    # Note: The accuracy of this method determines the accuracy of 
+    # Note: The accuracy of this method determines the accuracy of
     # flexible dihedral.
     qm_method_sp = PWPB95 D4 def2-TZVPP def2/J def2-TZVPP/C notrah RIJCOSX tightSCF :: str
 
@@ -38,9 +38,10 @@ class Orca(Colt):
         self.required_hessian_files = {'out_file': ['.out', '.log'],
                                        'hess_file': ['_opt.hess'],
                                        'pc_file': ['_charge.pc_chelpg'],
-                                       'coord_file': ['_opt.xyz'],}
+                                       'coord_file': ['_opt.xyz']}
         self.read = ReadORCA
         self.write = WriteORCA
+
 
 class WriteORCA(WriteABC):
     def hessian(self, file, job_name, config, coords, atnums):
@@ -89,7 +90,7 @@ class WriteORCA(WriteABC):
         file.write('New_Step\n')
         file.write(f"! {config.qm_method_hessian} nbo nopop\n")
         file.write(f'%base "{job_name}_nbo"\n')
-        file.write(f'%nbo NBOKEYLIST = "$nbo BNDIDX $end" end\n')
+        file.write('%nbo NBOKEYLIST = "$nbo BNDIDX $end" end\n')
         file.write('STEP_END\n\n')
 
         # Write the charge calculation input
@@ -196,12 +197,12 @@ class WriteORCA(WriteABC):
         # Remove the last point as it is the same as the first point
         end_angle = start_angle + 360 - step_size
         n_steps = int(np.ceil(360 / step_size))
-        file.write(f"%geom Scan\n")
+        file.write("%geom Scan\n")
         file.write(f"D {a1} {a2} {a3} {a4} = {start_angle:.2f},"
                    f" {end_angle:.2f},"
                    f" {n_steps}\n")
-        file.write(f"end\n")
-        file.write(f"end\n")
+        file.write("end\n")
+        file.write("end\n")
 
     @staticmethod
     def _write_constrained_atoms(file, scanned_atoms):
@@ -216,11 +217,11 @@ class WriteORCA(WriteABC):
         """
         # ORCA uses zero-based indexing
         a1, a2, a3, a4 = np.array(scanned_atoms) - 1
-        file.write(f"%geom\n")
-        file.write(f"Constraints\n")
+        file.write("%geom\n")
+        file.write("Constraints\n")
         file.write(f"{{D {a1} {a2} {a3} {a4} C }}\n")
-        file.write(f"end\n")
-        file.write(f"end\n")
+        file.write("end\n")
+        file.write("end\n")
 
     @staticmethod
     def _write_coords(atnums, coords, file):
@@ -238,6 +239,7 @@ class WriteORCA(WriteABC):
         for atnum, coord in zip(atnums, coords):
             elem = ATOM_SYM[atnum]
             file.write(f'{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n')
+
 
 class ReadORCA(ReadABC):
     @staticmethod
@@ -263,16 +265,16 @@ class ReadORCA(ReadABC):
 
         text = text[text.index('$hessian'):]
         lines = text.split('\n')[1:]
-        n_atoms = int(lines[0]) # This is written as number of atoms but is
-        # actually number of atoms * 3 for the x, y and z axis
-        lines = lines[1:]
-        hessian = np.empty((n_atoms, n_atoms))
 
-        for _ in range(int(np.ceil(n_atoms / 5))):
-            trunk = lines[: (n_atoms + 1)]
-            lines = lines[(n_atoms + 1): ]
+        n_atoms_times_3 = int(lines[0])
+        lines = lines[1:]
+        hessian = np.empty((n_atoms_times_3, n_atoms_times_3))
+
+        for _ in range(int(np.ceil(n_atoms_times_3 / 5))):
+            trunk = lines[:(n_atoms_times_3 + 1)]
+            lines = lines[(n_atoms_times_3 + 1):]
             cols = [int(col) for col in trunk[0].split()]
-            for row in range(n_atoms):
+            for row in range(n_atoms_times_3):
                 row_idx, *points = trunk[1 + row].split()
                 assert int(row_idx) == row
                 for point, col in zip(points, cols):
@@ -334,15 +336,15 @@ class ReadORCA(ReadABC):
         file = open(out_file, 'r')
         line = file.readline()
         # Skip to HIRSHFELD ANALYSIS
-        while not 'HIRSHFELD ANALYSIS' in line:
+        while 'HIRSHFELD ANALYSIS' not in line:
             line = file.readline()
 
-        while not 'ATOM     CHARGE      SPIN' in line:
+        while 'ATOM     CHARGE      SPIN' not in line:
             line = file.readline()
 
         charges = []
 
-        while not 'TOTAL' in line:
+        while 'TOTAL' not in line:
             line = file.readline()
             if len(line.split()) == 4:
                 atom_id, element, charge, _ = line.split()
@@ -448,55 +450,36 @@ class ReadORCA(ReadABC):
 
         Returns
         -------
-        n_bonds : list
-            A list of integer of length n_atoms of the total number of bonds.
         b_orders : list
             A list (length: n_atoms) of list (length: n_atoms) of float.
             representing the bond order between each atom pair.
-        lone_e : list
-            A list (length: n_atoms) of integer. The number of lone pair
-            electrons for each atom.
         """
-        lone_e = np.zeros(n_atoms, dtype=int)
-        n_bonds = []
+
         b_orders = [[] for _ in range(n_atoms)]
 
         file = open(out_file, 'r')
         line = file.readline()
         # Skip to the step after geometry optimisation
-        while not 'Now starting NBO' in line:
+        while 'Now starting NBO' not in line:
             line = file.readline()
 
         while "COMPOUND JOB" not in line:
             line = file.readline()
             if "bond index matrix" in line:
                 for _ in range(int(np.ceil(n_atoms/9))):
-                    for atom in range(-3, n_atoms):
+                    for _ in range(3):
+                        next(file)
+                    for atom in range(n_atoms):
                         line = file.readline().split()
-                        if atom >= 0:
-                            order = [float(line_cut) for line_cut in line[2:]]
-                            b_orders[atom].extend(order)
-            if "bond index, Totals" in line:
-                for i in range(-3, n_atoms):
-                    line = file.readline()
-                    if i >= 0:
-                        n_bonds.append(int(round(float(line.split()[2]), 0)))
-            # ORCA has this line capitalised
-            if "NATURAL BOND ORBITALS (Summary):" in line:
-                while "Total Lewis" not in line:
-                    line = file.readline()
-                    if " LP " in line:
-                        # The position has to be changed as well
-                        atom = int(line[16:20])
-                        occ = int(round(float(line[32:39]), 0))
-                        if occ > 0:
-                            lone_e[atom-1] += occ
+                        order = [float(line_cut) for line_cut in line[2:]]
+                        b_orders[atom].extend(order)
+
             # Check if the NBO analysis has been done
             if "Environment variable NBOEXE for nbo6.exe or nbo5.exe not set! Skipping NBO-Analysis" in line:
                 raise ValueError('NBO needs to be purchased separately from https://nbo7.chem.wisc.edu/.\n'
                                  'If you have purchased NBO, set the path as "export NBOEXE=path/to/nbo7/bin/nbo7.i4.exe".')
         file.close()
-        return n_bonds, b_orders, lone_e
+        return b_orders
 
     @staticmethod
     def _read_orca_dat(dat):
@@ -517,7 +500,7 @@ class ReadORCA(ReadABC):
         """
         with open(dat, 'r') as f:
             coord_text = f.read().strip()
-        parameter =[]
+        parameter = []
         energies = []
         for line in coord_text.split('\n'):
             parameter.append(float(line.split()[0]))
@@ -555,14 +538,9 @@ class ReadORCA(ReadABC):
         out_hessian : array
             An array of float of the size of ((n_atoms*3)**2+n_atoms*3)/2),
             which is the lower triangle of the hessian matrix. Unit： kJ/mol
-        n_bonds : list
-            A list of integer of length n_atoms of the total number of bonds.
         b_orders : list
             A list (length: n_atoms) of list (length: n_atoms) of float.
             representing the bond order between each atom pair.
-        lone_e : list
-            A list (length: n_atoms) of integer. The number of lone pair
-            electrons for each atom.
         point_charges : float
             A list of float of the size of n_atoms.
         """
@@ -574,9 +552,8 @@ class ReadORCA(ReadABC):
         n_atoms, elements, coords = self._read_orca_xyz(coord_file)
         charge = config.charge
         multiplicity = config.multiplicity
-        n_bonds, b_orders, lone_e = self._read_orca_nbo_analysis(out_file, n_atoms)
-        return (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds, b_orders,
-                lone_e, point_charges)
+        b_orders = self._read_orca_nbo_analysis(out_file, n_atoms)
+        return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges
 
     def scan(self, config, file_name):
         """ Read data from the scan file.

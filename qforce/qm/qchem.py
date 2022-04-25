@@ -59,7 +59,7 @@ class QChem(Colt):
 
 class ReadQChem(ReadABC):
     def hessian(self, config, out_file, fchk_file):
-        n_bonds, b_orders, lone_e, point_charges = [], [], [], []
+        b_orders, point_charges = [], []
         n_atoms, charge, multiplicity, elements, coords, hessian = self._read_fchk_file(fchk_file)
 
         with open(out_file, "r", encoding='utf-8') as file:
@@ -69,10 +69,9 @@ class ReadQChem(ReadABC):
                 elif "Merz-Kollman RESP Net Atomic" in line and config.charge_method == "resp":
                     point_charges = self._read_resp_charges(file, n_atoms)
                 if "N A T U R A L   B O N D   O R B I T A L" in line:
-                    n_bonds, b_orders, lone_e = self._read_nbo_analysis(file, line, n_atoms)
+                    b_orders = self._read_bond_order_from_nbo_analysis(file, n_atoms)
 
-        return (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds, b_orders,
-                lone_e, point_charges)
+        return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges
 
     def scan(self, config, file_name):
         n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
