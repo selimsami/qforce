@@ -214,7 +214,7 @@ class ReadxTB(ReadABC):
         """
         mol = read(coord_file)
         n_atoms = len(mol)
-        elements = [atom.number for atom in mol]
+        elements = np.array([atom.number for atom in mol])
         coords = mol.positions
         return n_atoms, elements, coords
 
