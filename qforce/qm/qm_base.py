@@ -62,35 +62,19 @@ class ReadABC(ABC):
         return n_atoms, charge, multiplicity, elements, coords, hessian
 
     @staticmethod
-    def _read_nbo_analysis(file, line, n_atoms):
-        found_wiberg = False
-        lone_e = np.zeros(n_atoms, dtype=int)
-        n_bonds = []
+    def _read_bond_order_from_nbo_analysis(file, n_atoms):
         b_orders = [[] for _ in range(n_atoms)]
-        while "Calling FoFJK" not in line and "Charge unit " not in line:
-            line = file.readline()
-            if ("bond index matrix" in line and not found_wiberg):
+
+        for line in file:
+            if "bond index matrix" in line:
                 for _ in range(int(np.ceil(n_atoms/9))):
-                    for atom in range(-3, n_atoms):
+                    for _ in range(3):
+                        next(file)
+                    for atom in range(n_atoms):
                         line = file.readline().split()
-                        if atom >= 0:
-                            order = [float(line_cut) for line_cut in line[2:]]
-                            b_orders[atom].extend(order)
-            if ("bond index, Totals" in line and not found_wiberg):
-                found_wiberg = True
-                for i in range(-3, n_atoms):
-                    line = file.readline()
-                    if i >= 0:
-                        n_bonds.append(int(round(float(line.split()[2]), 0)))
-            if "Natural Bond Orbitals (Summary)" in line:
-                while "Total Lewis" not in line:
-                    line = file.readline()
-                    if " LP " in line:
-                        atom = int(line[19:23])
-                        occ = int(round(float(line[40:48]), 0))
-                        if occ > 0:
-                            lone_e[atom-1] += occ
-        return n_bonds, b_orders, lone_e
+                        order = [float(line_cut) for line_cut in line[2:]]
+                        b_orders[atom].extend(order)
+                return b_orders
 
 
 def scriptify(writer):
@@ -128,7 +112,7 @@ def scriptify(writer):
 
 class HessianOutput():
     def __init__(self, vib_scaling, n_atoms, charge, multiplicity, elements, coords, hessian,
-                 n_bonds, b_orders, lone_e, point_charges):
+                 b_orders, point_charges):
 
         self.n_atoms = self.check_type(n_atoms, 'n_atoms', int)
         self.charge = self.check_type(charge, 'charge', int)
@@ -137,9 +121,8 @@ class HessianOutput():
         self.coords = self.check_type_and_shape(coords, 'coords', float, (n_atoms, 3))
         self.hessian = self.check_type_and_shape(hessian, 'hessian', float,
                                                  (((n_atoms*3)**2+n_atoms*3)/2,)) * vib_scaling**2
-        self.n_bonds = self.check_type_and_shape(n_bonds, 'n_bonds', int, (n_atoms,))
         self.b_orders = self.check_type_and_shape(b_orders, 'b_orders', float, (n_atoms, n_atoms))
-        self.lone_e = self.check_type_and_shape(lone_e, 'lone_e', int, (n_atoms,))
+        self.n_bonds = self.b_orders.sum(axis=1).round().astype(int)
         self.point_charges = self.check_type_and_shape(point_charges, 'point_charges', float,
                                                        (n_atoms,))
 

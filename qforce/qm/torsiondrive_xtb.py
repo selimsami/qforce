@@ -1,5 +1,4 @@
 import shutil
-import sys
 import os
 from warnings import warn
 
@@ -7,6 +6,7 @@ import numpy as np
 from ase.io import read, write
 from ase import Atoms
 from ase.units import Hartree, mol, kJ
+
 
 class TorsiondrivexTB():
     @staticmethod
@@ -51,9 +51,7 @@ class TorsiondrivexTB():
         return n_atoms, coord_list, angle_list, energies, {'xtb': point_charges}
 
     @staticmethod
-    def write(config, file, dir, scan_id, coords, atnums,
-                                   scanned_atoms, charge,
-                                   multiplicity):
+    def write(config, file, dir, scan_id, coords, atnums, scanned_atoms, charge, multiplicity):
         '''Create the TorsionDrive input.
 
         Parameters
@@ -107,4 +105,4 @@ class TorsiondrivexTB():
         file.write(f'cp opt_tmp/gid_+000/1/charges ../{scan_id}.charges\n')
         # Ensure that at least one charge file is being copied.
         file.write(f'cp opt_tmp/gid_+180/1/charges ../{scan_id}.charges\n')
-        file.write(f'cd ..\n')
+        file.write('cd ..\n')
