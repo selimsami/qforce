@@ -3,6 +3,7 @@ import os.path
 from colt import Colt
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
+from ase.io import read
 #
 from .qm_base import WriteABC, ReadABC
 from ..elements import ATOM_SYM
@@ -88,9 +89,9 @@ class WriteORCA(WriteABC):
 
         # Do the nbo calculation
         file.write('New_Step\n')
-        file.write(f"! {config.qm_method_hessian} nbo nopop\n")
+        file.write(f"! {config.qm_method_hessian}\n")
         file.write(f'%base "{job_name}_nbo"\n')
-        file.write('%nbo NBOKEYLIST = "$nbo BNDIDX $end" end\n')
+        file.write('%method\n  MAYER_BONDORDERTHRESH 0\nend\n')
         file.write('STEP_END\n\n')
 
         # Write the charge calculation input
@@ -403,9 +404,11 @@ class ReadORCA(ReadABC):
         coords : array
             An array of float of the shape (n_atoms, 3).
         """
-        with open(coord_file, 'r') as f:
-            coord_text = f.read()
-        return ReadORCA._read_orca_coords(coord_text)
+        mol = read(coord_file)
+        n_atoms = len(mol)
+        elements = np.array([atom.number for atom in mol])
+        coords = mol.positions
+        return n_atoms, elements, coords
 
     @staticmethod
     def _read_orca_allxyz(coord_file):
@@ -438,8 +441,8 @@ class ReadORCA(ReadABC):
         return n_atoms, elements, coords
 
     @staticmethod
-    def _read_orca_nbo_analysis(out_file, n_atoms):
-        """ Read the nbo analysis from NBO 7.
+    def _read_orca_bond_order(out_file, n_atoms):
+        """ Read the bond order analysis.
 
         Parameters
         ----------
@@ -455,29 +458,27 @@ class ReadORCA(ReadABC):
             representing the bond order between each atom pair.
         """
 
-        b_orders = [[] for _ in range(n_atoms)]
+        b_orders = [[0, ] * n_atoms for _ in range(n_atoms)]
 
         file = open(out_file, 'r')
         line = file.readline()
         # Skip to the step after geometry optimisation
-        while 'Now starting NBO' not in line:
+        while 'Mayer bond orders larger than' not in line:
             line = file.readline()
 
-        while "COMPOUND JOB" not in line:
+        line = file.readline()
+        while "-------" not in line:
+            items = line.split('B')
+            for item in items:
+                if item.strip():
+                    item = item.split()
+                    i = int(item[1].split('-')[0])
+                    j = int(item[3].split('-')[0])
+                    bond_order = float(item[-1])
+                    b_orders[i][j] = bond_order
+                    b_orders[j][i] = bond_order
             line = file.readline()
-            if "bond index matrix" in line:
-                for _ in range(int(np.ceil(n_atoms/9))):
-                    for _ in range(3):
-                        next(file)
-                    for atom in range(n_atoms):
-                        line = file.readline().split()
-                        order = [float(line_cut) for line_cut in line[2:]]
-                        b_orders[atom].extend(order)
 
-            # Check if the NBO analysis has been done
-            if "Environment variable NBOEXE for nbo6.exe or nbo5.exe not set! Skipping NBO-Analysis" in line:
-                raise ValueError('NBO needs to be purchased separately from https://nbo7.chem.wisc.edu/.\n'
-                                 'If you have purchased NBO, set the path as "export NBOEXE=path/to/nbo7/bin/nbo7.i4.exe".')
         file.close()
         return b_orders
 
@@ -552,7 +553,7 @@ class ReadORCA(ReadABC):
         n_atoms, elements, coords = self._read_orca_xyz(coord_file)
         charge = config.charge
         multiplicity = config.multiplicity
-        b_orders = self._read_orca_nbo_analysis(out_file, n_atoms)
+        b_orders = self._read_orca_bond_order(out_file, n_atoms)
         return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges
 
     def scan(self, config, file_name):
