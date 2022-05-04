@@ -3,6 +3,7 @@ import numpy as np
 import sys
 from ase.units import Hartree, mol, kJ, Bohr
 from abc import ABC, abstractmethod
+from warnings import warn
 
 
 class WriteABC(ABC):
@@ -112,7 +113,7 @@ def scriptify(writer):
 
 class HessianOutput():
     def __init__(self, vib_scaling, n_atoms, charge, multiplicity, elements, coords, hessian,
-                 b_orders, point_charges):
+                 b_orders, point_charges, lone_e=None, n_bonds=None):
 
         self.n_atoms = self.check_type(n_atoms, 'n_atoms', int)
         self.charge = self.check_type(charge, 'charge', int)
@@ -125,6 +126,10 @@ class HessianOutput():
         self.n_bonds = self.b_orders.sum(axis=1).round().astype(int)
         self.point_charges = self.check_type_and_shape(point_charges, 'point_charges', float,
                                                        (n_atoms,))
+
+        if lone_e is not None or n_bonds is not None:
+            warn('HessianOutput no longer needs "lone_e" or "n_bonds" arguments and they will be '
+                 'removed in a future release.', DeprecationWarning, stacklevel=2)
 
     @staticmethod
     def check_type(value, name, expected_type):
