@@ -16,6 +16,14 @@ To install Q-Force with :code:`pip`::
 If you work in a shared environment, add :code:`--user`.
 
 
+With conda
+----------
+
+To install Q-Force with :code:`conda`::
+
+    conda install -c conda-forge qforce
+
+
 From GitHub
 -----------
 
