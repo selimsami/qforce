@@ -472,7 +472,6 @@ class ReadORCA(ReadABC):
             items = line.split('B')
             for item in items:
                 if item.strip():
-                    item = item.split()
                     _m = re.match(item_match, item)
                     i = int(_m.group(1))
                     j = int(_m.group(2))
