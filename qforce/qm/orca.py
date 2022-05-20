@@ -129,7 +129,7 @@ class WriteORCA(WriteABC):
         """
         # Using the ORCA compound functionality
         # Write the coordinates
-        file.write(f"* xyz   {config.charge}   {config.multiplicity}\n")
+        file.write(f"* xyz   {charge}   {multiplicity}\n")
         self._write_coords(atnums, coords, file)
         file.write(' *\n')
 
@@ -161,7 +161,7 @@ class WriteORCA(WriteABC):
         file.write(f"! opt {config.qm_method_opt} nopop\n")
         file.write(f'%base "{job_name}_scan"\n')
         self._write_scanned_atoms(file, scanned_atoms, start_angle, config.scan_step_size)
-        file.write(f"*xyzfile {config.charge} {config.multiplicity} {job_name}_opt.xyz\n")
+        file.write(f"*xyzfile {charge} {multiplicity} {job_name}_opt.xyz\n")
         file.write('STEP_END\n\n')
 
         # Do the single point energy
@@ -171,7 +171,7 @@ class WriteORCA(WriteABC):
         file.write(f"! {config.qm_method_sp} PModel nopop\n")
         file.write(f'%base "{job_name}_sp"\n')
         file.write(
-            f"*xyzfile {config.charge} {config.multiplicity} "
+            f"*xyzfile {charge} {multiplicity} "
             f"{job_name}_scan.allxyz\n")
         file.write('STEP_END\n')
 
