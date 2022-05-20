@@ -1,4 +1,5 @@
 import os.path
+import re
 
 from colt import Colt
 import numpy as np
@@ -457,7 +458,7 @@ class ReadORCA(ReadABC):
             A list (length: n_atoms) of list (length: n_atoms) of float.
             representing the bond order between each atom pair.
         """
-
+        item_match = re.compile('^\(\s*(\d+)-\w{1,2}\s*,\s*(\d+)-\w{1,2}\s*\)\s*:\s*(-?\w.+)$')
         b_orders = [[0, ] * n_atoms for _ in range(n_atoms)]
 
         file = open(out_file, 'r')
@@ -471,10 +472,10 @@ class ReadORCA(ReadABC):
             items = line.split('B')
             for item in items:
                 if item.strip():
-                    item = item.split()
-                    i = int(item[1].split('-')[0])
-                    j = int(item[3].split('-')[0])
-                    bond_order = float(item[-1])
+                    _m = re.match(item_match, item)
+                    i = int(_m.group(1))
+                    j = int(_m.group(2))
+                    bond_order = float(_m.group(3))
                     b_orders[i][j] = bond_order
                     b_orders[j][i] = bond_order
             line = file.readline()
