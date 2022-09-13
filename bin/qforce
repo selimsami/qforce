@@ -1,7 +1,56 @@
 #!/usr/bin/env python3
 
-from qforce.main import run
+import sys
+import threading
+import time
 
+class ProgressBarThread(threading.Thread):
+    def __init__(self, label='Working', delay=0.1):
+        super(ProgressBarThread, self).__init__()
+        self.label = label
+        self.delay = delay  # interval between updates
+        self.running = False
+    def start(self):
+        self.running = True
+        super(ProgressBarThread, self).start()
+    def run(self):
+        label = '\r' + self.label + ' '
+        while self.running:
+        #    for c in ('-', '\\', '|', '/'):
+        #    for c in ('▌', '▀', '▐', '▄'):
+            for c in ('◐', '◓', '◑', '◒'):
+        #    for c in ('▙', '▛', '▜', '▟'):
+        #    for c in ('▤', '▧', '▥', '▨'):
+
+                sys.stdout.write(label + c)
+                sys.stdout.flush()
+                time.sleep(self.delay)
+    def stop(self):
+        self.running = False
+        self.join()  # wait for run() method to terminate
+        sys.stdout.write('\r' + len(self.label)*' ' + 2*' ' + '\r')  # clean-up
+        sys.stdout.flush()
+
+def work():
+    time.sleep(5)  #
+
+print("""
+          ____         ______
+         / __ \       |  ____|
+        | |  | |______| |__ ___  _ __ ___ ___
+        | |  | |______|  __/ _ \| '__/ __/ _ \\
+        | |__| |      | | | (_) | | | (_|  __/
+         \___\_\      |_|  \___/|_|  \___\___|
+
+                     Selim Sami
+            University of Groningen - 2020
+            ==============================
+""")
+
+pb_thread = ProgressBarThread('                   Initializing')
+pb_thread.start()
+from qforce.main import run
+pb_thread.stop()
 
 if __name__ == '__main__':
     run()
