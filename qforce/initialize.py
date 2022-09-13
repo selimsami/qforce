@@ -15,6 +15,10 @@ from .misc import LOGO
 class Initialize(Colt):
     _user_input = """
 [ff]
+# MD software to use
+# Currently amber supports only gaff2 atom types
+forcefield = gromacs :: str :: gromacs, amber
+
 # Number of n equivalent neighbors needed to consider two atoms equivalent
 # Negative values turns off equivalence, 0 makes same elements equivalent
 n_equiv = 4 :: int
@@ -23,7 +27,7 @@ n_equiv = 4 :: int
 n_excl = 2 :: int :: [2, 3]
 
 # Lennard jones method for the forcefield
-lennard_jones = opls_auto :: str :: [gromos_auto, gromos, opls_auto, opls, gaff, gaff2, charmm36, ext]
+lennard_jones = opls_auto :: str :: [gromos_auto, gromos, opls_auto, opls, gaff, gaff2, ext]
 
 # Use externally provided point charges in the file "ext_q" in the job directyory
 ext_charges = no :: bool
@@ -164,7 +168,7 @@ def _check_and_copy_settings_file(job_dir, config_file):
 
 
 def initialize(filename, config_file, presets=None):
-    print(LOGO)
+    #print(LOGO)
 
     job_info = _get_job_info(filename)
     settings_file = _check_and_copy_settings_file(job_info.dir, config_file)
