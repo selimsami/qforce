@@ -27,7 +27,7 @@ n_equiv = 4 :: int
 n_excl = 2 :: int :: [2, 3]
 
 # Lennard jones method for the forcefield
-lennard_jones = opls_auto :: str :: [gromos_auto, gromos, opls_auto, opls, gaff, gaff2, ext]
+lennard_jones = opls_auto :: str :: [gromos_auto, gromos, opls_auto, opls, gaff, gaff2, charmm36, ext]
 
 # Use externally provided point charges in the file "ext_q" in the job directyory
 ext_charges = no :: bool
