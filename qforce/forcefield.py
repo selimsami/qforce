@@ -167,7 +167,7 @@ class ForceField():
 
         # atoms
         itp.write("\n[ atoms ]\n")
-        itp.write(";  nr     type  resnr  resnm    atom  cgrp      charge       mass\n")
+        itp.write(";  nr      type  resnr  resnm    atom  cgrp      charge       mass\n")
         for i, (lj_type, a_name, q, mass) in enumerate(zip(non_bonded.lj_types, self.atom_names,
                                                            self.q, self.masses), start=1):
             itp.write(f'{i:>5} {lj_type:>9} {1:>6} {self.residue:>6} {a_name:>7} {i:>5} ')
@@ -181,7 +181,7 @@ class ForceField():
     def write_itp_polarization(self, itp, non_bonded):
         # polarization
         itp.write("\n[ polarization ]\n")
-        itp.write(";    i      j      f         alpha\n")
+        itp.write(";    i      j      f          alpha\n")
         for atom, drude in non_bonded.alpha_map.items():
             alpha = non_bonded.alpha[atom]*1e-3
             itp.write(f"{atom+1:>6} {drude+1:>6} {1:>6} {alpha:>14.8f}\n")
@@ -226,6 +226,7 @@ class ForceField():
         if self.urey:
             itp.write('         r0     k_bond')
         itp.write('\n')
+
         for angle in terms['angle']:
             ids = angle.atomids + 1
             equ = np.degrees(angle.equ)
@@ -250,7 +251,7 @@ class ForceField():
         # rigid dihedrals
         if len(terms['dihedral/rigid']) > 0:
             itp.write("; rigid dihedrals \n")
-            itp.write(";   ai     aj     ak     al     f     theta0      k_theta\n")
+            itp.write(";   ai     aj     ak     al      f      theta0       k_theta\n")
 
         for dihed in terms['dihedral/rigid']:
             ids = dihed.atomids + 1
@@ -263,7 +264,7 @@ class ForceField():
         # improper dihedrals
         if len(terms['dihedral/improper']) > 0:
             itp.write("; improper dihedrals \n")
-            itp.write(";   ai     aj     ak     al     f     theta0      k_theta\n")
+            itp.write(";   ai     aj     ak     al      f      theta0       k_theta\n")
 
         for dihed in terms['dihedral/improper']:
             ids = dihed.atomids + 1
