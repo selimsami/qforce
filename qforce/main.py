@@ -56,13 +56,7 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
 
     calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
     ff = ForceField(job.name, config, mol, mol.topo.neighbors)
-
-    forcefield = config.ff.forcefield
-    if forcefield in ["gromacs"]:
-        ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
-
-    else:
-        ff.write_amber(job.dir, mol, qm_hessian_out.coords)
+    ff.write_ff(config.ff.forcefield, job.dir, mol, qm_hessian_out.coords)
 
     print_outcome(job.dir)
 
