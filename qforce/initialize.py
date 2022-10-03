@@ -168,7 +168,7 @@ def _check_and_copy_settings_file(job_dir, config_file):
 
 
 def initialize(filename, config_file, presets=None):
-    #print(LOGO)
+    print(LOGO)
 
     job_info = _get_job_info(filename)
     settings_file = _check_and_copy_settings_file(job_info.dir, config_file)
