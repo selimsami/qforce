@@ -32,6 +32,12 @@ class ForceField():
         else:
             self.polar_title = ''
 
+    def write_ff(self, forcefield, directory, mol, coords):
+        if forcefield == "gromacs":
+            self.write_gromacs(directory, mol, coords)
+        else:
+            self.write_amber(directory, mol, coords)
+
     def write_gromacs(self, directory, mol, coords):
         self.write_itp(mol, directory)
         self.write_top(directory)
