@@ -61,7 +61,7 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     if forcefield in ["gromacs"]:
         ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
 
-    if forcefield in ["amber"]:
+    else:
         ff.write_amber(job.dir, mol, qm_hessian_out.coords)
 
     print_outcome(job.dir)
