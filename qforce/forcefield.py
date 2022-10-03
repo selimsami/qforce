@@ -312,7 +312,6 @@ class ForceField():
         polar_pairs = []
 
         if self.n_excl == 2:
-
             if self.polar:
                 for a1, a2 in non_bonded.pairs:
                     if a2 in non_bonded.alpha_map.keys():
