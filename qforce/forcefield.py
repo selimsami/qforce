@@ -1,12 +1,10 @@
 import numpy as np
+import string
 #
 from .elements import ATOM_SYM, ATOMMASS
 from .molecule.non_bonded import calc_sigma_epsilon
 from .forces import convert_to_inversion_rb
-from .misc import LOGO_SEMICOL
-
-from .misc import LOGO_HASH
-import string
+from .misc import get_logo
 
 
 class ForceField():
@@ -27,16 +25,15 @@ class ForceField():
         self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
         self.pairs = self.make_pairs(neighbors, mol.non_bonded)
 
+        if config.ff.output_software == 'gromacs':
+            self.write_ff = self.write_gromacs
+        elif config.ff.output_software == 'amber':
+            self.write_ff = self.write_amber
+
         if self.polar:
             self.polar_title = '_polar'
         else:
             self.polar_title = ''
-
-    def write_ff(self, forcefield, directory, mol, coords):
-        if forcefield == "gromacs":
-            self.write_gromacs(directory, mol, coords)
-        else:
-            self.write_amber(directory, mol, coords)
 
     def write_gromacs(self, directory, mol, coords):
         self.write_itp(mol, directory)
@@ -84,7 +81,7 @@ class ForceField():
 
     def write_itp(self, mol, directory):
         with open(f"{directory}/{self.mol_name}_qforce{self.polar_title}.itp", "w") as itp:
-            itp.write(LOGO_SEMICOL)
+            itp.write(get_logo(';'))
             self.write_itp_atoms_and_molecule(itp, mol.non_bonded)
             if self.polar:
                 self.write_itp_polarization(itp, mol.non_bonded)
@@ -137,7 +134,8 @@ class ForceField():
             itp.write(";   name  at_num     mass   charge  type        sigma      epsilon\n")
 
         for lj_type, lj_params in gro_atomtypes.items():
-            itp.write(f'{lj_type:>8} {non_bonded.lj_atomic_number[lj_type]:>7} {0:>8.4f} {0:>8.4f} {"A":>5} ')
+            itp.write(f'{lj_type:>8} {non_bonded.lj_atomic_number[lj_type]:>7} {0:>8.4f} '
+                      '{0:>8.4f} {"A":>5} ')
             itp.write(f'{lj_params[0]:>12.5e} {lj_params[1]:>12.5e}\n')
 
         if self.polar:
@@ -397,7 +395,7 @@ class ForceField():
         return q
 
     def write_amber(self, directory, mol, coords):
-        atom_ids, unique_at =self.get_atom_types(mol.topo, mol.non_bonded)
+        atom_ids, unique_at = self.get_atom_types(mol.topo, mol.non_bonded)
         self.write_mol2(directory, mol, coords, atom_ids, unique_at)
         self.write_frcmod(directory, mol, coords, atom_ids, unique_at)
 
@@ -411,13 +409,14 @@ class ForceField():
     def write_frcmod(self, directory, mol, coords, atom_ids, unique_at):
         with open(f"{directory}/{self.mol_name}_qforce{self.polar_title}.frcmod", "w") as frcmod:
             self.write_frcmod_mass(frcmod, mol.non_bonded, atom_ids, unique_at)
-            self.write_frcmod_bonds(frcmod, mol.terms, mol.non_bonded.alpha_map,atom_ids,unique_at)
+            self.write_frcmod_bonds(frcmod, mol.terms, mol.non_bonded.alpha_map, atom_ids,
+                                    unique_at)
             self.write_frcmod_angles(frcmod, mol.terms, atom_ids, unique_at)
             self.write_frcmod_dihedrals(frcmod, mol.terms, atom_ids, unique_at)
             self.write_frcmod_nonbond(frcmod, mol.non_bonded, atom_ids, unique_at)
 
     def write_mol2_title(self, mol2):
-        mol2.write(LOGO_HASH)
+        mol2.write(get_logo('#'))
         mol2.write(f"# Name: {self.mol_name}\n")
 
     def write_mol2_molecule(self, mol2, topo, terms):
@@ -425,14 +424,15 @@ class ForceField():
         n_bonds = 0
         for bond in terms['bond']:
             n_bonds = n_bonds + 1
-        mol2.write(f"{self.n_atoms:8d} {n_bonds:8d} {1:8d} {0:8d} {0:8d}\n") #n_bonds
-        mol2.write(f"esp") # type of charge
+        mol2.write(f"{self.n_atoms:8d} {n_bonds:8d} {1:8d} {0:8d} {0:8d}\n")  # n_bonds
+        mol2.write("esp")  # type of charge
         mol2.write("\n\n")
 
     def write_mol2_atom(self, mol2, topo, coords, non_bonded, atom_ids, unique_at):
-        mol2.write(f"@<TRIPOS>ATOM\n")
-        for i_idx, (lj_type, a_name, q, mass) in enumerate(zip(non_bonded.lj_types, self.atom_names,
-                                                           self.q, self.masses), start=1):
+        mol2.write("@<TRIPOS>ATOM\n")
+        for i_idx, (lj_type, a_name, q, mass) in enumerate(zip(non_bonded.lj_types,
+                                                               self.atom_names, self.q,
+                                                               self.masses), start=1):
 
             mol2.write(f"{i_idx:8d} {lj_type} {coords[i_idx-1][0]:10.4f}"
                        f"{coords[i_idx-1][1]:10.4f} {coords[i_idx-1][2]:10.4f}")
@@ -440,17 +440,17 @@ class ForceField():
 
     def write_mol2_bond(self, mol2, topo, terms, atom_ids, unique_at):
         n_bonds = 1
-        mol2.write(f"@<TRIPOS>BOND\n")
+        mol2.write("@<TRIPOS>BOND\n")
         for bond in terms['bond']:
             ids = bond.atomids + 1
             mol2.write(f'{n_bonds:>6} {ids[0]:>6}{ids[1]:>6} un \n')
             n_bonds = n_bonds + 1
-        mol2.write(f"@<TRIPOS>SUBSTRUCTURE\n")
+        mol2.write("@<TRIPOS>SUBSTRUCTURE\n")
         mol2.write(f"{1:5} {self.mol_name} {1:8} TEMP {0:>8d} **** **** {0:5} ROOT\n")
 
     def write_frcmod_mass(self, frcmod, non_bonded, atom_ids, unique_at):
         frcmod.write(f'{self.mol_name} - frcmod generated by QForce\n')
-        frcmod.write(f'MASS\n')
+        frcmod.write('MASS\n')
         for i, mass in enumerate((self.masses), start=1):
             frcmod.write(f"{unique_at[i][atom_ids[i]]} {mass}\n")
 
@@ -458,7 +458,7 @@ class ForceField():
         frcmod.write("\nBOND\n")
         for bond in terms['bond']:
             ids = bond.atomids + 1
-            fconst = bond.fconst  * (0.239005)/2  # kJ -> kcal
+            fconst = bond.fconst * (0.239005)/2  # kJ -> kcal
             equ = bond.equ
             frcmod.write(f"{unique_at[ids[0]][atom_ids[ids[0]]]:<2}-")
             frcmod.write(f"{unique_at[ids[1]][atom_ids[ids[1]]]:<2}")
@@ -498,7 +498,7 @@ class ForceField():
                 ids = dihed.atomids + 1
                 equ = dihed.equ
 
-                if dihed.equ == 0.00 or dihed.equ==3.141592653589793:
+                if dihed.equ == 0.00 or dihed.equ == 3.141592653589793:
                     equ = 180.0
 
                 fconst = dihed.fconst * (0.239005)
@@ -517,7 +517,7 @@ class ForceField():
                 c = dihed.equ
 
                 for n in range(3, 0, -1):
-                    if n%2==1:
+                    if n % 2 == 1:
                         equ = 180.0
                     else:
                         equ = 0.00
@@ -533,7 +533,6 @@ class ForceField():
                 frcmod.write(f"{unique_at[ids[2]][atom_ids[ids[2]]]:<2}-")
                 frcmod.write(f"{unique_at[ids[3]][atom_ids[ids[3]]]:<2}")
                 frcmod.write(f" 1 {c[0]:>15.2f} {0.00:>15.2f}  1\n")
-
 
             # improper dihedrals
             if len(terms['dihedral/improper']) > 0:
@@ -553,118 +552,29 @@ class ForceField():
         frcmod.write("\nNONB\n")
         # support to gaff and gaff2
         if self.comb_rule == 2:
-            for i in range(1,self.n_atoms+1,1):
+            for i in range(1, self.n_atoms+1, 1):
                 frcmod.write(f"{unique_at[i][atom_ids[i]]:<8}")
                 frcmod.write(f"{gro_atomtypes[atom_ids[i]][0]*5.612:>12.4f}")
                 frcmod.write(f"{gro_atomtypes[atom_ids[i]][1]/4.184:>12.4f}")
                 frcmod.write(f"\t{atom_ids[i]}\n")
 
     def get_atom_types(self, topo, non_bonded):
-        atom_ids={}  #dictonary containing original atom types
-        unique_at={}  #dictonary containing new unique atom types
-        unique_masses={}
+        atom_ids = {}  # original atom types
+        unique_at = {}  # new unique atom types
 
         ascii_lowercase = list(string.ascii_lowercase)
         ascii_digits = list(string.digits)
         ascii_uppercase = list(string.ascii_uppercase)
 
         for i, (lj_type, a_name) in enumerate(zip(non_bonded.lj_types, self.atom_names), start=1):
-            atom_ids[i]=lj_type
+            atom_ids[i] = lj_type
             if self.n_atoms < 36:
                 if i <= 10:
-                    unique_at[i]={atom_ids[i] : "Q{}".format(ascii_digits[i-1])}
+                    unique_at[i] = {atom_ids[i]: "Q{}".format(ascii_digits[i-1])}
                 elif i > 10:
-                    unique_at[i]={atom_ids[i] : "Q{}".format(ascii_lowercase[i-11])}
+                    unique_at[i] = {atom_ids[i]: "Q{}".format(ascii_lowercase[i-11])}
             else:
-                unique_at[i]={atom_ids[i] : "{}{}".format(ascii_uppercase[i-1],
-                              ascii_lowercase[i-1])}
+                unique_at[i] = {atom_ids[i]: "{}{}".format(ascii_uppercase[i-1],
+                                ascii_lowercase[i-1])}
 
         return atom_ids, unique_at
-
-
-    # bohr2nm = 0.052917721067
-    # if polar:
-    #     alphas = qm.alpha*bohr2nm**3
-    #     drude = {}
-    #     n_drude = 1
-    #     ff.atom_types.append(["DP", 0, 0, "S", 0, 0])
-
-    #     for i, alpha in enumerate(alphas):
-    #         if alpha > 0:
-    #             drude[i] = mol.topo.n_atoms+n_drude
-    #             ff.atoms[i][6] += 8
-    #             # drude atoms
-    #             ff.atoms.append([drude[i], 'DP', 2, 'MOL', f'D{atoms[i]}',
-    #                              i+1, -8., 0.])
-    #             ff.coords.append(ff.coords[i])
-    #             # polarizability
-    #             ff.polar.append([i+1, drude[i], 1, alpha])
-    #             n_drude += 1
-    #     ff.natom = len(ff.atoms)
-    #     for i, alpha in enumerate(alphas):
-    #         if alpha > 0:
-    #             # exclusions for balancing the drude particles
-    #             for j in (mol.topo.neighbors[self.n_excl-2][i] +
-    #                       mol.topo.neighbors[self.n_excl-1][i]):
-    #                 if alphas[j] > 0:
-    #                     ff.exclu[drude[i]-1].extend([drude[j]])
-    #             for j in mol.topo.neighbors[self.n_excl-1][i]:
-    #                 ff.exclu[drude[i]-1].extend([j+1])
-    #             ff.exclu[drude[i]-1].sort()
-    #             # thole polarizability
-    #             for neigh in [mol.topo.neighbors[n][i] for n in range(self.n_excl)]:
-    #                 for j in neigh:
-    #                     if i < j and alphas[j] > 0:
-    #                         ff.thole.append([i+1, drude[i], j+1, drude[j], "2", 2.6, alpha,
-    #                                          alphas[j]])
-
-    # def read_itp(self, itp_file):
-    #     with open(itp_file, "r") as itp:
-    #         in_section = []
-    #         bond_atoms, bond_r0, bond_k = [], [], []
-
-    #         for line in itp:
-    #             low_line = line.lower().strip().replace(" ", "")
-    #             unsplit = line
-    #             line = line.split()
-    #             if low_line == "" or low_line[0] == ";":
-    #                 continue
-    #             elif "[" in low_line and "]" in low_line:
-    #                 open_bra = low_line.index("[") + 1
-    #                 close_bra = low_line.index("]")
-    #                 in_section = low_line[open_bra:close_bra]
-    #             elif in_section == "atomtypes":
-    #                 self.atom_types.append([line[0], float(line[1]),
-    #                                         float(line[2]), line[3],
-    #                                         float(line[4]), float(line[5])])
-    #                 self.atype.append(line[0])
-    #                 self.c6.append(line[4])
-    #                 self.c12.append(line[5])
-    #             elif in_section == "moleculetype":
-    #                 self.mol_type = line[0]
-    #             elif in_section == "atoms":
-    #                 self.atoms.append([int(line[0]), line[1], int(line[2]),
-    #                                    line[3], line[4], line[5], float(line[6]),
-    #                                    float(line[7])])
-    #                 self.natom += 1
-    #             elif in_section == "bonds":
-    #                 bond_atoms = (line[0:2])
-    #                 bond_r0 = (float(line[3]) * 10)
-    #                 bond_k = (float(line[4]) / 100)
-    #                 self.bond.append([bond_atoms, bond_r0, bond_k])
-    #                 self.bonds.append(unsplit)
-    #             elif in_section == "angles":
-    #                 angle_atoms = (line[0:3])
-    #                 angle_theta0 = float(line[4])
-    #                 angle_k = float(line[5])
-    #                 self.angle.append([angle_atoms, angle_theta0, angle_k])
-    #                 self.angles.append(unsplit)
-    #             elif in_section == "dihedrals":
-    #                 self.dihedrals.append(unsplit)
-    #                 if line[4] == "3":
-    #                     self.rbdihed.append([line[0:4], line[4:]])
-    #                 elif line[4] == "2":
-    #                     self.idihed.append([line[0:4], line[4:]])
-
-    #             elif in_section == "pairs":
-    #                 self.pairs.append(sorted([int(line[0]), int(line[1])]))
