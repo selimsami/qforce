@@ -135,7 +135,7 @@ class ForceField():
 
         for lj_type, lj_params in gro_atomtypes.items():
             itp.write(f'{lj_type:>8} {non_bonded.lj_atomic_number[lj_type]:>7} {0:>8.4f} '
-                      '{0:>8.4f} {"A":>5} ')
+                      f'{0:>8.4f} {"A":>5} ')
             itp.write(f'{lj_params[0]:>12.5e} {lj_params[1]:>12.5e}\n')
 
         if self.polar:
