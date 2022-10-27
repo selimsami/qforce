@@ -480,8 +480,6 @@ class ForceField():
                 frcmod.write(f"{unique_at[ids[2]][atom_ids[ids[2]]]:<2}")
                 frcmod.write(f"{fconst:>10.2f}{equ:>10.2f}\n")
             else:
-                urey_equ = urey[0].equ
-                urey_fconst = urey[0].fconst * (0.239005)/2
                 frcmod.write(f"{unique_at[ids[0]][atom_ids[ids[0]]]:<2}-")
                 frcmod.write(f"{unique_at[ids[1]][atom_ids[ids[1]]]:<2}-")
                 frcmod.write(f"{unique_at[ids[2]][atom_ids[ids[2]]]:<2}")
