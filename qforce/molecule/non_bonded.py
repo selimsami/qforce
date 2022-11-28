@@ -350,7 +350,8 @@ def determine_opls_atom_types(topo, q):
 
         else:
             sys.exit(f'ERROR: Atomic number {elem} (encountered for atom {atomid+1}) is '
-                      'not implemented for auto-atom-type detection.')
+                      'either not implemented for auto-atom-type detection or not '
+                      'available in the chosen force field.')
 
         a_types.append(a_type)
 
