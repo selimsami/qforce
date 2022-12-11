@@ -593,7 +593,8 @@ class ReadORCA(ReadABC):
             point_charges["esp"] = charges
         n_atoms, elements, coords = self._read_orca_allxyz(
             '{}_scan.allxyz'.format(base))
-        angles, _ = self._read_orca_dat('{}_scan.relaxscanact.dat'.format(base))
-        _, energies = self._read_orca_dat('{}_sp.xyzact.dat'.format(base))
+        angles, energies = self._read_orca_dat('{}_scan.relaxscanact.dat'.format(base))
+        if os.path.isfile('{}_sp.xyzact.dat'.format(base)):
+            _, energies = self._read_orca_dat('{}_sp.xyzact.dat'.format(base))
         energies = np.array(energies) * Hartree * mol / kJ
         return n_atoms, coords, angles, energies, point_charges
