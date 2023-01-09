@@ -5,6 +5,7 @@ import sys
 import networkx.algorithms.isomorphism as iso
 import numpy as np
 import json
+import pickle
 #
 from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
 from .forces import get_dihed
@@ -268,7 +269,9 @@ class Fragment():
         identifiers = [i for i in sorted(os.listdir(f'{self.dir}')) if i.startswith('ident')]
 
         for id_no, id_file in enumerate(identifiers, start=1):
-            compared = nx.read_gpickle(f"{self.dir}/{id_file}")
+            with open(f"{self.dir}/{id_file}", 'rb') as f:
+                compared = pickle.load(f)
+
             GM = iso.GraphMatcher(self.graph, compared, node_match=nm, edge_match=em)
             if self.graph.graph['qm_method'] == compared.graph['qm_method'] and GM.is_isomorphic():
                 if os.path.isfile(f'{self.dir}/scandata_{id_no}'):
@@ -372,7 +375,10 @@ class Fragment():
         else:
             self.check_new_scan_data(job, mol, config, qm)
             self.write_have_or_missing(job, config)
-            nx.write_gpickle(self.graph, f"{self.dir}/identifier_{self.hash_idx}")
+
+            with open(f"{self.dir}/identifier_{self.hash_idx}", 'wb') as f:
+                pickle.dump(self.graph, f, pickle.HIGHEST_PROTOCOL)
+
             self.write_xyz()
             with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
                 json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)
