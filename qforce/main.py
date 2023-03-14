@@ -37,19 +37,6 @@ def run(file, options):
     run_qforce(input_arg=file, config=options)
 
 
-"""
-steps: 
-    1. preopt qm1
-    2. opt + freq qm2
-    3. scan qm3
-    4. scan single points  qm4
-
-input: 
-
-
-"""
-
-
 def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     # setup system
     config, job = initialize(input_arg, config, presets)
