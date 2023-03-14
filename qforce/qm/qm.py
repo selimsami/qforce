@@ -16,7 +16,7 @@ from .torsiondrive_xtb import TorsiondrivexTB
 implemented_qm_software = {'gaussian': Gaussian,
                            'qchem': QChem,
                            'orca': Orca,
-                           'xtb': XTB,
+                           'xtb': xTB,
                            'xtb-gaussian': XTBGaussian
                            }
 
