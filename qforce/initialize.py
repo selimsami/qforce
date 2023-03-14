@@ -90,7 +90,7 @@ _ext_alpha = no :: bool
 
     @staticmethod
     def _to_simplenamespace(config, name):
-        if config[name].value is None: 
+        if config[name].value is None:
             config.update({name: None})
         else:
             config.update({
@@ -99,10 +99,10 @@ _ext_alpha = no :: bool
 
     @classmethod
     def _set_config(cls, config):
-#        cls._to_simplenamespace(config['qm'], 'preopt') 
-#        cls._to_simplenamespace(config['qm'], 'software') 
-#        cls._to_simplenamespace(config['qm'], 'scan_software') 
-#        cls._to_simplenamespace(config['qm'], 'scan_sp') 
+        cls._to_simplenamespace(config['qm'], 'preopt')
+        cls._to_simplenamespace(config['qm'], 'software')
+        cls._to_simplenamespace(config['qm'], 'scan_software')
+        cls._to_simplenamespace(config['qm'], 'scan_sp')
         config['qm'].update(config['qm']['software'])
         # config['qm'].update({'software': config['qm']['software'].value})
         config.update({key: SimpleNamespace(**val) for key, val in config.items()})
