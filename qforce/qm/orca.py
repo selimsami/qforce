@@ -36,16 +36,23 @@ class Orca(Colt):
 
     _method = ['qm_method_hessian', 'qm_method_opt', 'qm_method_charge', 'qm_method_sp']
 
-    def __init__(self):
+    def __init__(self, config):
         self.required_hessian_files = {'out_file': ['.out', '.log'],
                                        'hess_file': ['_opt.hess'],
                                        'pc_file': ['_charge.pc_chelpg'],
                                        'coord_file': ['_opt.xyz']}
-        self.read = ReadORCA
-        self.write = WriteORCA
+        self.read = ReadORCA(config)
+        self.write = WriteORCA(config)
 
 
 class WriteORCA(WriteABC):
+
+    def opt(self):
+        raise NotImplementedError
+
+    def sp(self):
+        raise NotImplementedError
+
     def hessian(self, file, job_name, config, coords, atnums):
         """ Write the input file for hessian and charge calculation.
 
@@ -244,6 +251,13 @@ class WriteORCA(WriteABC):
 
 
 class ReadORCA(ReadABC):
+
+    def opt(self):
+        raise NotImplementedError
+
+    def sp(self):
+        raise NotImplementedError
+
     @staticmethod
     def _read_orca_hess(hess_file):
         """ Read the hessian matrix.
