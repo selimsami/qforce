@@ -1,8 +1,8 @@
 import pytest
-import os
 
 from qforce_examples import Gaussian_default
 from qforce.main import run_qforce
+
 
 @pytest.mark.parametrize("batch_run,exist", [(True, False), (False, True)])
 def test_BatchRun(batch_run, exist, tmpdir):

@@ -31,8 +31,11 @@ class NonBonded():
     @classmethod
     def from_topology(cls, config, job, qm_out, topo, ext_q, ext_lj):
         comb_rule, fudge_lj, fudge_q, h_cap = set_non_bonded_props(config)
-        exclusions = cls._set_exclusions_and_pairs(config.exclusions)
-        pairs = cls._set_exclusions_and_pairs(config.pairs)
+
+        exclusions = cls._set_custom_exclusions_and_pairs(config.exclusions)
+        pairs = cls._set_custom_exclusions_and_pairs(config.pairs)
+        if config.n_excl == 2:
+            pairs = cls._set_1_4_pairs(topo, exclusions, pairs)
 
         # RUN D4 if necessary
         if config._d4:
@@ -110,7 +113,7 @@ class NonBonded():
                    non_bonded.fudge_q, non_bonded.h_cap, alpha)
 
     @staticmethod
-    def _set_exclusions_and_pairs(value):
+    def _set_custom_exclusions_and_pairs(value):
         selection = []
         if value:
             for line in value.split('\n'):
@@ -126,6 +129,15 @@ class NonBonded():
                           'First entry is excluded from / paired to all the following entries.\n',
                           f'Ignoring the line: {line[0]}\n')
         return selection
+
+    @staticmethod
+    def _set_1_4_pairs(topo, exclusions, pairs):
+        for i in range(topo.n_atoms):
+            for neigh in topo.neighbors[2][i]:
+                if (i < neigh and [i, neigh] not in pairs and (i, neigh) not in exclusions and
+                        not any([{i, neigh}.issubset(ring) for ring in topo.rings])):
+                    pairs.append((i, neigh))
+        return pairs
 
 
 def get_external_lennard_jones(config, topo, q, job, ext_lj):
@@ -189,15 +201,19 @@ def set_non_bonded_props(config):
         comb_rule = 2
         fudge_lj, fudge_q = 0.5, 0.8333
         h_cap = 'hc'
+    elif config.lennard_jones == 'charmm36':
+        comb_rule = 2
+        fudge_lj, fudge_q = 1.0, 1.0
+        h_cap = 'HGA2'
     return comb_rule, fudge_lj, fudge_q, h_cap
 
 
 class Neighbor():
-    def __init__(self, elem, b_order, in_ring, lone_e):
+    def __init__(self, elem, b_order, in_ring, n_bonds):
         self.elem = elem
         self.b_order = b_order
         self.in_ring = in_ring
-        self.lone_e = lone_e
+        self.n_bonds = n_bonds
 
 
 class Neighbors(list):
@@ -208,17 +224,17 @@ class Neighbors(list):
             elem = topo.elements[neigh]
             b_order = topo.edge(atomid, neigh)['order']
             in_ring = topo.edge(atomid, neigh)['n_rings'] > 0
-            lone_e = topo.node(neigh)['lone_e']
-            neighbors.append(Neighbor(elem, b_order, in_ring, lone_e))
+            n_bonds = topo.node(neigh)['n_bonds']
+            neighbors.append(Neighbor(elem, b_order, in_ring, n_bonds))
         return cls(neighbors)
 
-    def count(neighs, elem=None, b_order_gt=None, b_order_lt=None, in_ring=None, lone_e_lt=None):
+    def count(neighs, elem=None, b_order_gt=None, b_order_lt=None, in_ring=None, n_bonds_gt=None):
         matched = []
         for neigh in neighs:
             if ((elem is None or neigh.elem == elem) and
                 (b_order_gt is None or neigh.b_order > b_order_gt) and
                 (b_order_lt is None or neigh.b_order < b_order_lt) and
-                (lone_e_lt is None or neigh.lone_e < lone_e_lt) and
+                (n_bonds_gt is None or neigh.n_bonds > n_bonds_gt) and
                     (in_ring is None or in_ring)):
                 matched.append(neigh)
         return len(matched)
@@ -292,7 +308,7 @@ def determine_opls_atom_types(topo, q):
                 a_type = 'opls_760'  # NO (nitro group)
             elif neighs.count(b_order_gt=2.4):
                 a_type = 'opls_262'  # NZ
-            elif (neighs.count(b_order_gt=1.25) or neighs.count(elem=16, lone_e_lt=1) > 1):
+            elif (neighs.count(b_order_gt=1.25) or neighs.count(elem=16, n_bonds_gt=2) > 0):
                 a_type = 'opls_237'  # N
             else:
                 a_type = 'opls_900'  # NT
@@ -334,7 +350,8 @@ def determine_opls_atom_types(topo, q):
 
         else:
             sys.exit(f'ERROR: Atomic number {elem} (encountered for atom {atomid+1}) is '
-                      'not implemented for auto-atom-type detection.')
+                      'either not implemented for auto-atom-type detection or not '
+                      'available in the chosen force field.')
 
         a_types.append(a_type)
 

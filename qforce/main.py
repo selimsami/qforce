@@ -38,20 +38,28 @@ def run(file, options):
 
 
 def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
+    # setup system
     config, job = initialize(input_arg, config, presets)
 
     if config.ff._polarize:
         polarize(job, config.ff)
 
+    # setup qm calculation
     qm = QM(job, config.qm)
+    # check if output existed
     qm_hessian_out = qm.read_hessian()
+    # hessian parsed
 
+    # check molecule
     mol = Molecule(config, job, qm_hessian_out, ext_q, ext_lj)
 
+    # fit hessian
     md_hessian = fit_hessian(config.terms, mol, qm_hessian_out)
 
     if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
+        # get fragments with qm
         fragments = fragment(mol, qm, job, config)
+        # do dihedralscan
         DihedralScan(fragments, mol, job, config)
 
     calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)

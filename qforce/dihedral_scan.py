@@ -135,14 +135,19 @@ batch_run = False :: bool
             r_squared = calc_r_squared(fit_sum, frag.qm_energies-unfit_energy)
 
             self.plot_results(frag, final, 'scan', r_squared=r_squared)
+
+            np.save(f'{self.frag_dir}/scan_data_{frag.id}', np.vstack((frag.qm_angles,
+                                                                       frag.qm_energies,
+                                                                       final)))
+
             if self.config.plot_fit:
                 self.plot_fit(frag, frag.qm_energies-unfit_energy, fit_sum, r_squared)
                 unfit_energy -= unfit_energy.min()
                 self.plot_results(frag, unfit_energy, 'unfit')
-                np.save(f'{self.frag_dir}/scan_data_{frag.id}', np.vstack((frag.qm_angles,
-                                                                           frag.qm_energies,
-                                                                           unfit_energy,
-                                                                           fit_sum)))
+                np.save(f'{self.frag_dir}/fit_data_{frag.id}', np.vstack((frag.qm_angles,
+                                                                          frag.qm_energies,
+                                                                          unfit_energy,
+                                                                          fit_sum)))
             energy_diff = frag.qm_energies - final
             if np.any(energy_diff > 2.0) and r_squared < 0.9:
                 bad_fits.append(frag.id)

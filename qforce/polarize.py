@@ -39,7 +39,7 @@ def polarize(inp, path):
 
     print("Done!")
     print(f"Polarizable coordinate file in: {polar_gro_file}\n\n")
-    sys.exit()
+    raise SystemExit
 
 
 def read_gro(gro_file):

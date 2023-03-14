@@ -20,34 +20,43 @@ class Gaussian(Colt):
     # QM basis set to be used - leave it empty to turn off
     basis = 6-31+G(D) :: str
 
+    # Include implicit solvent for the complete parametrization
+    solvent_method = :: str, optional
+
     """
 
-    _method = ['method', 'dispersion', 'basis']
+    _method = ['method', 'dispersion', 'basis', 'solvent_method']
 
-    def __init__(self):
+    def __init__(self, config):
         self.required_hessian_files = {'out_file': ['.out', '.log'],
                                        'fchk_file': ['.fchk', '.fck']}
-        self.read = ReadGaussian
-        self.write = WriteGaussian
+        self.read = ReadGaussian(config)
+        self.write = WriteGaussian(config)
 
 
 class ReadGaussian(ReadABC):
+
+    def opt(self, ):
+        ...
+
+    def sp(self, ):
+        ...
+
     def hessian(self, config, out_file, fchk_file):
-        n_bonds, b_orders, lone_e, point_charges = [], [], [], []
+        b_orders, point_charges = [], []
 
         n_atoms, charge, multiplicity, elements, coords, hessian = self._read_fchk_file(fchk_file)
 
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
-                if "Hirshfeld charges, spin densities" in line and config.charge_method == "cm5":
+                if "Hirshfeld charges, spin densities" in line and self.config.charge_method == "cm5":
                     point_charges = self._read_cm5_charges(file, n_atoms)
-                elif " ESP charges:" in line and config.charge_method == "esp":
+                elif " ESP charges:" in line and self.config.charge_method == "esp":
                     point_charges = self._read_esp_charges(file, n_atoms)
                 elif "N A T U R A L   B O N D   O R B I T A L" in line:
-                    n_bonds, b_orders, lone_e = self._read_nbo_analysis(file, line, n_atoms)
+                    b_orders = self._read_bond_order_from_nbo_analysis(file, n_atoms)
 
-        return (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds, b_orders,
-                lone_e, point_charges)
+        return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges
 
     def scan(self, config, file_name):
         n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
@@ -122,6 +131,16 @@ class ReadGaussian(ReadABC):
 
 class WriteGaussian(WriteABC):
 
+    def opt(self, file, job_name, config, coords, atnums):
+        self._write_opt_job_setting(job_name, config, file)
+        self._write_coords(atnums, coords, file)
+        file.write("\n\n\n")
+
+    def sp(self, file, job_name, config, coords, atnums):
+        self._write_opt_job_setting(job_name, config, file)
+        self._write_coords(atnums, coords, file)
+        file.write("\n\n\n")
+
     def hessian(self, file, job_name, config, coords, atnums):
         self._write_hessian_job_setting(job_name, config, file)
         self._write_coords(atnums, coords, file)
@@ -149,34 +168,49 @@ class WriteGaussian(WriteABC):
             elem = ATOM_SYM[atnum]
             file.write(f'{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n')
 
-    @classmethod
-    def _write_hessian_job_setting(cls, job_name, config, file):
+    def _write_sp_job_setting(self, job_name, config, file):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
-        file.write(f"#Opt Freq ")
-        cls.write_method(file, config)
-        cls.write_pop(file, "pop=(CM5, ESP, NBOREAD)")
-        file.write("\n\n")
-
+        file.write(f"#p ")
+        self.write_method(file, config)
+        file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
-    @classmethod
-    def _write_scan_job_setting(cls, job_name, config, file, charge, multiplicity):
+    def _write_opt_job_setting(self, job_name, config, file):
+        file.write(f"%nprocshared={config.n_proc}\n")
+        file.write(f"%mem={config.memory}MB\n")
+        file.write(f"%chk={job_name}_hessian.chk\n")
+        file.write(f"#p Opt")
+        self.write_method(file, config)
+        file.write(f"{self.config.solvent_method}\n\n")
+        file.write(f"{job_name}\n\n")
+        file.write(f"{config.charge} {config.multiplicity}\n")
+
+    def _write_hessian_job_setting(self, job_name, config, file):
+        file.write(f"%nprocshared={config.n_proc}\n")
+        file.write(f"%mem={config.memory}MB\n")
+        file.write(f"%chk={job_name}_hessian.chk\n")
+        file.write(f"#p Opt Freq ")
+        self.write_method(file, config)
+        file.write(f"pop=(CM5, ESP, NBOREAD) {self.config.solvent_method}\n\n")
+        file.write(f"{job_name}\n\n")
+        file.write(f"{config.charge} {config.multiplicity}\n")
+
+    def _write_scan_job_setting(self, job_name, config, file, charge, multiplicity):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
-        file.write(f"#Opt=Modredundant ")
-        cls.write_method(file, config)
-        cls.write_pop(file, " pop=(CM5, ESP) ")
-        file.write("\n\n")
+        file.write(f"#p Opt=Modredundant ")
+        self.write_method(file, config)
+        file.write(f"pop=(CM5, ESP) {self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
 
     @staticmethod
     def write_method(file, config):
-        file.write(f" {config.method} {config.dispersion} {config.basis} ")
+        file.write(f" {self.config.method} {self.config.dispersion} {self.config.basis} density=current ")
 
     @staticmethod
     def write_pop(file, string):

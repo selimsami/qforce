@@ -41,8 +41,7 @@ class Topology(object):
         self.graph = nx.Graph()
         for i_idx, i_elem in enumerate(self.elements):
             self.graph.add_node(i_idx, elem=i_elem, n_bonds=qm_out.n_bonds[i_idx],
-                                q=qm_out.point_charges[i_idx], lone_e=qm_out.lone_e[i_idx],
-                                coords=self.coords[i_idx])
+                                q=qm_out.point_charges[i_idx], coords=self.coords[i_idx])
             # add bonds
             for j_idx, j_elem in enumerate(self.elements):
                 b_order = qm_out.b_orders[i_idx, j_idx]

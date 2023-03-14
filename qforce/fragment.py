@@ -5,6 +5,7 @@ import sys
 import networkx.algorithms.isomorphism as iso
 import numpy as np
 import json
+import pickle
 #
 from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
 from .forces import get_dihed
@@ -73,7 +74,7 @@ def check_and_notify(job, config, n_unique, n_have, n_generated):
                 print('Continuing without the missing dihedrals...\n')
             else:
                 print('Exiting...\n')
-                sys.exit()
+                raise SystemExit
 
 
 class Fragment():
@@ -205,7 +206,7 @@ class Fragment():
             self.map_mol_to_frag[cap['idx']] = self.n_atoms_without_cap + cap['n_cap']
             h_type = f'1(1.0){mol.topo.elements[cap["connected"]]}'
             self.graph.add_node(self.n_atoms_without_cap + cap['n_cap'], elem=1, n_bonds=1,
-                                lone_e=0, coords=cap['coord'], capping=True)
+                                coords=cap['coord'], capping=True)
             self.graph.add_edge(self.n_atoms_without_cap + cap['n_cap'],
                                 self.map_mol_to_frag[cap["connected"]], type=h_type)
 
@@ -215,7 +216,7 @@ class Fragment():
     def make_fragment_identifier(self, config, mol, qm):
         atom_ids = [[], []]
         comp_dict = {i: 0 for i in set(self.elements[:self.n_atoms_without_cap])}
-        if 1 not in comp_dict.keys() and len(self.cap) > 0:
+        if 1 not in comp_dict.keys() and len(self.caps) > 0:
             comp_dict[1] = 0
 
         for a in range(2):
@@ -260,7 +261,7 @@ class Fragment():
         self.map_frag_to_db = {i: i for i in range(self.n_atoms)}
         have_match = False
 
-        nm = iso.categorical_node_match(['elem', 'n_bonds', 'lone_e', 'capping', 'scan'],
+        nm = iso.categorical_node_match(['elem', 'n_bonds', 'capping', 'scan'],
                                         [0, 0, 0, False, False])
         em = iso.categorical_edge_match(['type'], [0])
 
@@ -268,7 +269,9 @@ class Fragment():
         identifiers = [i for i in sorted(os.listdir(f'{self.dir}')) if i.startswith('ident')]
 
         for id_no, id_file in enumerate(identifiers, start=1):
-            compared = nx.read_gpickle(f"{self.dir}/{id_file}")
+            with open(f"{self.dir}/{id_file}", 'rb') as f:
+                compared = pickle.load(f)
+
             GM = iso.GraphMatcher(self.graph, compared, node_match=nm, edge_match=em)
             if self.graph.graph['qm_method'] == compared.graph['qm_method'] and GM.is_isomorphic():
                 if os.path.isfile(f'{self.dir}/scandata_{id_no}'):
@@ -372,7 +375,10 @@ class Fragment():
         else:
             self.check_new_scan_data(job, mol, config, qm)
             self.write_have_or_missing(job, config)
-            nx.write_gpickle(self.graph, f"{self.dir}/identifier_{self.hash_idx}")
+
+            with open(f"{self.dir}/identifier_{self.hash_idx}", 'wb') as f:
+                pickle.dump(self.graph, f, pickle.HIGHEST_PROTOCOL)
+
             self.write_xyz()
             with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
                 json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)

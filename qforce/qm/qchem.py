@@ -50,29 +50,29 @@ class QChem(Colt):
     _method = ['method', 'dispersion', 'basis', 'cis_n_roots', 'cis_singlets', 'cis_triplets',
                'cis_state_deriv', 'solvent_method']
 
-    def __init__(self):
+    def __init__(self, config):
         self.required_hessian_files = {'out_file': ['.out', '.log'],
                                        'fchk_file': ['.fchk', '.fck']}
-        self.read = ReadQChem
-        self.write = WriteQChem
+        self.read = ReadQChem(config)
+        self.write = WriteQChem(config)
 
 
 class ReadQChem(ReadABC):
+
     def hessian(self, config, out_file, fchk_file):
-        n_bonds, b_orders, lone_e, point_charges = [], [], [], []
+        b_orders, point_charges = [], []
         n_atoms, charge, multiplicity, elements, coords, hessian = self._read_fchk_file(fchk_file)
 
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
-                if "Charge Model 5" in line and config.charge_method == "cm5":
+                if "Charge Model 5" in line and self.config.charge_method == "cm5":
                     point_charges = self._read_cm5_charges(file, n_atoms)
-                elif "Merz-Kollman RESP Net Atomic" in line and config.charge_method == "resp":
+                elif "Merz-Kollman RESP Net Atomic" in line and self.config.charge_method == "resp":
                     point_charges = self._read_resp_charges(file, n_atoms)
                 if "N A T U R A L   B O N D   O R B I T A L" in line:
-                    n_bonds, b_orders, lone_e = self._read_nbo_analysis(file, line, n_atoms)
+                    b_orders = self._read_bond_order_from_nbo_analysis(file, n_atoms)
 
-        return (n_atoms, charge, multiplicity, elements, coords, hessian, n_bonds, b_orders,
-                lone_e, point_charges)
+        return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges
 
     def scan(self, config, file_name):
         n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
@@ -109,6 +109,12 @@ class ReadQChem(ReadABC):
         energies = np.array(energies) * Hartree * mol / kJ
         return n_atoms, coords, angles, energies, point_charges
 
+    def opt(self):
+        raise NotImplementedError
+
+    def sp(self):
+        raise NotImplementedError
+
     @staticmethod
     def _read_cm5_charges(file, n_atoms):
         point_charges = []
@@ -131,10 +137,21 @@ class ReadQChem(ReadABC):
 
 
 class WriteQChem(WriteABC):
+    sp_rem = {'jobtype': 'sp'}
     hess_opt_rem = {'jobtype': 'opt'}
     hess_freq_rem = {'jobtype': 'freq', 'cm5': 'true', 'resp_charges': 'true', 'nbo': 2,
                      'iqmol_fchk': 'true'}
     scan_rem = {'jobtype': 'pes_scan', 'cm5': 'true', 'resp_charges': 'true'}
+
+    def opt(self, file, job_name, config, coords, atnums):
+        self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)
+        self._write_job_setting(file, job_name, config, self.hess_opt_rem)
+        file.write('\n\n\n\n\n')
+
+    def sp(self, file, job_name, config, coords, atnums):
+        self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)
+        self._write_job_setting(file, job_name, config, self.sp_rem)
+        file.write('\n\n\n\n\n')
 
     def hessian(self, file, job_name, config, coords, atnums):
         self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)
@@ -196,25 +213,25 @@ class WriteQChem(WriteABC):
     @staticmethod
     def _write_job_setting(file, job_name, config, job_rem):
         file.write('$rem\n')
-        file.write(f'  method = {config.method}\n')
+        file.write(f'  method = {self.config.method}\n')
         if config.basis is not None:
-            file.write(f'  basis = {config.basis}\n')
+            file.write(f'  basis = {self.config.basis}\n')
         if config.dispersion is not None:
-            file.write(f'  dft_d = {config.dispersion}\n')
+            file.write(f'  dft_d = {self.config.dispersion}\n')
         if config.solvent_method is not None:
-            file.write(f'  solvent_method = {config.solvent_method}\n')
+            file.write(f'  solvent_method = {self.config.solvent_method}\n')
         if config.cis_n_roots is not None:
-            file.write(f'  cis_n_roots = {config.cis_n_roots}\n')
+            file.write(f'  cis_n_roots = {self.config.cis_n_roots}\n')
         if config.cis_singlets is not None:
-            file.write(f'  cis_singlets = {config.cis_singlets}\n')
+            file.write(f'  cis_singlets = {self.config.cis_singlets}\n')
         if config.cis_triplets is not None:
-            file.write(f'  cis_triplets = {config.cis_triplets}\n')
+            file.write(f'  cis_triplets = {self.config.cis_triplets}\n')
         if config.cis_state_deriv is not None:
-            file.write(f'  cis_state_deriv = {config.cis_state_deriv}\n')
+            file.write(f'  cis_state_deriv = {self.config.cis_state_deriv}\n')
         for key, val in job_rem.items():
             file.write(f'  {key} = {val}\n')
         file.write(f'  mem_total = {config.memory}\n')
         file.write(f'  geom_opt_max_cycles = {config.max_opt_cycles}\n')
-        file.write(f'  max_scf_cycles = {config.max_scf_cycles}\n')
-        file.write(f'  xc_grid = {config.xc_grid}\n')
+        file.write(f'  max_scf_cycles = {self.config.max_scf_cycles}\n')
+        file.write(f'  xc_grid = {self.config.xc_grid}\n')
         file.write('$end\n')
