@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 
 from ase.io import read, write
 import numpy as np
@@ -20,8 +21,17 @@ implemented_qm_software = {'gaussian': Gaussian,
 
 class QM(Colt):
     _user_input = """
-# QM software to use
+# QM software to use for the hessian calculation
 software = gaussian :: str
+
+# software to use in preoptimization
+preopt = :: str, optional
+
+# software to use for the scan
+scan_software = :: str, optional
+
+# software to use for the scan
+scan_sp = :: str, optional
 
 # To turn the QM input files into job scripts
 job_script = :: literal
@@ -52,21 +62,28 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
     def __init__(self, job, config):
         self.job = job
         self.config = config
-        self.software = self._set_qm_software(config.software)
+        self.softwares = self._get_qm_softwares(config)
         self.hessian_files = self._check_hessian_output()
         self.method = self._register_method()
 
+    def read_opt(self):
+        software = self.softwares['preopt']
+        qm_out = software.read.opt(self.config, **self.opt_files)
+        return HessianOutput(self.config.vib_scaling, *qm_out)
+
     def read_hessian(self):
-        qm_out = self.software.read().hessian(self.config, **self.hessian_files)
+        software = self.softwares['software']
+        qm_out = software.read.hessian(self.config, **self.hessian_files)
         return HessianOutput(self.config.vib_scaling, *qm_out)
 
     def read_scan(self, files):
+        software = self.softwares['scan_software']
         qm_outs = []
         n_scan_steps = int(np.ceil(360/self.config.scan_step_size))
 
         for file in files:
             if self.config.dihedral_scanner == 'relaxed_scan':
-                qm_outs.append(self.software.read().scan(self.config, f'{self.job.frag_dir}/{file}'))
+                qm_outs.append(software.read.scan(self.config, f'{self.job.frag_dir}/{file}'))
             elif self.config.dihedral_scanner == 'xtb-torsiondrive':
                 qm_outs.append(TorsiondrivexTB.read(f'{self.job.frag_dir}/{file}'))
         qm_out = self._get_unique_scan_points(qm_outs, n_scan_steps)
@@ -74,8 +91,14 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         return ScanOutput(file, n_scan_steps, *qm_out)
 
     @scriptify
+    def write_opt(self, file, coords, atnums):
+        software = self.softwares['preopt']
+        software.write.opt(file, self.job.name, self.config, coords, atnums)
+
+    @scriptify
     def write_hessian(self, file, coords, atnums):
-        self.software.write().hessian(file, self.job.name, self.config, coords, atnums)
+        software = self.softwares['software']
+        software.write.hessian(file, self.job.name, self.config, coords, atnums)
 
     @scriptify
     def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge,
@@ -103,8 +126,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         multiplicity : int
             The multiplicity of the molecule.
         '''
+        software = self.softwares['scan_software']
         if self.config.dihedral_scanner == 'relaxed_scan':
-            self.software.write().scan(file, scan_id, self.config, coords,
+            software.write.scan(file, scan_id, self.config, coords,
                                        atnums, scanned_atoms, start_angle,
                                        charge, multiplicity)
         elif self.config.dihedral_scanner == 'xtb-torsiondrive':
@@ -141,10 +165,11 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         return n_atoms, all_coords, all_angles, all_energies, chosen_point_charges
 
     def _check_hessian_output(self):
+        software = self.softwares['software']
         hessian_files = {}
         all_files = os.listdir(self.job.dir)
 
-        for req, tails in self.software.required_hessian_files.items():
+        for req, tails in software.required_hessian_files.items():
             files = [file for file in all_files if any(file.endswith(f'{tail}') for tail in tails)]
             n_files = len(files)
 
@@ -177,12 +202,38 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
               comment=f'{self.job.name} - input geometry')
         return coords, atnums
 
+    def _get_qm_softwares(self, config):
+        default = self._set_qm_software(config.software)
+        self._print_selected(config.software.value, default.required_hessian_files)
+        softwares = {'software': default}
+        options = ['preopt', 'scan_software', 'scan_sp']
+        for option in options:
+            if getattr(config, option).value is None:
+                softwares[option] = default
+            else:
+                softwares[option] = self._set_qm_software(getattr(config, option))
+        
+        if getattr(config, 'scan_sp').value is None:
+            softwares['scan_sp'] = None
+        else:
+            softwares['scan_sp'] = self._set_qm_software(config.scan_sp)
+
+        self._print_softwares(softwares)
+
+        return softwares
+    
+    def _print_softwares(self, softwares):
+        print('Selected Electronic Structure Softwares: "')
+        for typ, software in softwares.items():
+            if software is not None:
+                print("%s: %s" % (typ, software.name))
+
     def _set_qm_software(self, selection):
         try:
-            software = implemented_qm_software[selection]()
+            software = implemented_qm_software[selection.value](SimpleNamespace(**selection))
         except KeyError:
-            raise KeyError(f'"{selection}" software is not implemented.')
-        self._print_selected(selection, software.required_hessian_files)
+            raise KeyError(f'"{selection.value}" software is not implemented.')
+        software.name = selection.value
         return software
 
     @staticmethod
@@ -194,7 +245,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         print()
 
     def _register_method(self):
-        method_list = self._method + self.software._method
+        software = self.softwares['software']
+        method_list = self._method + software._method
         method = {key: val for key, val in self.config.__dict__.items() if key in method_list}
         method.update({key: val.upper() for key, val in method.items() if isinstance(val, str)})
         method['software'] = self.config.software

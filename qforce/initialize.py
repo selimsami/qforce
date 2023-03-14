@@ -89,9 +89,22 @@ _ext_alpha = no :: bool
 """
 
     @staticmethod
-    def _set_config(config):
+    def _to_simplenamespace(config, name):
+        if config[name].value is None: 
+            config.update({name: None})
+        else:
+            config.update({
+                name: SimpleNamespace(**{config[name]})})
+
+
+    @classmethod
+    def _set_config(cls, config):
+#        cls._to_simplenamespace(config['qm'], 'preopt') 
+#        cls._to_simplenamespace(config['qm'], 'software') 
+#        cls._to_simplenamespace(config['qm'], 'scan_software') 
+#        cls._to_simplenamespace(config['qm'], 'scan_sp') 
         config['qm'].update(config['qm']['software'])
-        config['qm'].update({'software': config['qm']['software'].value})
+        # config['qm'].update({'software': config['qm']['software'].value})
         config.update({key: SimpleNamespace(**val) for key, val in config.items()})
         return SimpleNamespace(**config)
 
@@ -100,6 +113,12 @@ _ext_alpha = no :: bool
         questions.generate_block("qm", QM.colt_user_input)
         questions.generate_block("scan", DihedralScan.colt_user_input)
         questions.generate_cases("software", {key: software.colt_user_input for key, software in
+                                              implemented_qm_software.items()}, block='qm')
+        questions.generate_cases("preopt", {key: software.colt_user_input for key, software in
+                                              implemented_qm_software.items()}, block='qm')
+        questions.generate_cases("scan_software", {key: software.colt_user_input for key, software in
+                                              implemented_qm_software.items()}, block='qm')
+        questions.generate_cases("scan_sp", {key: software.colt_user_input for key, software in
                                               implemented_qm_software.items()}, block='qm')
         questions.generate_block("terms", Terms.get_questions())
 

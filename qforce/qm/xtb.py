@@ -21,16 +21,17 @@ class xTB(Colt):
 
     _method = []
 
-    def __init__(self):
+    def __init__(self, config):
         self.required_hessian_files = {'hess_file': ['hessian'],
                                        'pc_file': ['charges'],
                                        'wbo_file': ['wbo'],
                                        'coord_file': ['xtbopt.xyz'], }
-        self.read = ReadxTB
-        self.write = WritexTB
+        self.read = ReadxTB(config)
+        self.write = WritexTB(config)
 
 
 class WritexTB(WriteABC):
+
     def hessian(self, file, job_name, config, coords, atnums):
         """ Write the input file for hessian and charge calculation.
 
@@ -54,7 +55,7 @@ class WritexTB(WriteABC):
         cmd = f'xtb {job_name}_input.xyz --ohess --chrg {config.charge} ' \
               f'--uhf {config.multiplicity - 1} ' \
               f'--namespace {job_name}_hessian --parallel {config.n_proc} ' \
-              f'{config.xtb_command}'
+              f'{self.config.xtb_command}'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
@@ -95,7 +96,7 @@ class WritexTB(WriteABC):
         cmd = f'xtb {job_name}_input.xyz --opt --chrg {config.charge} ' \
               f'--uhf {config.multiplicity - 1} ' \
               f'--namespace {job_name} --parallel {config.n_proc} ' \
-              f'--input {job_name}.dat {config.xtb_command}'
+              f'--input {job_name}.dat {self.config.xtb_command}'
 
         # Create the scan input file
         a1, a2, a3, a4 = np.array(scanned_atoms)
@@ -119,6 +120,7 @@ class WritexTB(WriteABC):
 
 
 class ReadxTB(ReadABC):
+
     @staticmethod
     def _read_xtb_hess(hess_file, n_atoms):
         """ Read the hessian matrix.
@@ -300,6 +302,13 @@ class ReadxTB(ReadABC):
         _, _, angle_range = angle_line.split()
         start, end, step_num = angle_range.split(',')
         return np.linspace(float(start), float(end), int(step_num))
+
+    def opt(self, config, coord_file):
+        n_atoms, elements, coords = self._read_xtb_xyz(coord_file)
+        return n_atoms, elements, coords
+
+    def sp(self):
+        pass
 
     def hessian(self, config, hess_file, pc_file, coord_file, wbo_file):
         """ Extract hessian information from all the relevant files.

@@ -7,6 +7,10 @@ from warnings import warn
 
 
 class WriteABC(ABC):
+
+    def __init__(self, config):
+        self.config = config
+
     @abstractmethod
     def hessian(self, ):
         ...
@@ -15,15 +19,33 @@ class WriteABC(ABC):
     def scan(self, ):
         ...
 
+    @abstractmethod
+    def opt(self, ):
+        ...
+
+    @abstractmethod
+    def sp(self, ):
+        ...
 
 class ReadABC(ABC):
 
+    def __init__(self, config):
+        self.config = config
+
     @abstractmethod
     def hessian(self, ):
         ...
 
     @abstractmethod
     def scan(self, ):
+        ...
+
+    @abstractmethod
+    def opt(self, ):
+        ...
+
+    @abstractmethod
+    def sp(self, ):
         ...
 
     @staticmethod
