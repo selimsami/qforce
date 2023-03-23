@@ -1,15 +1,17 @@
 import os
+from subprocess import call
 
 import numpy as np
 import pytest
 import parmed as pmd
-from subprocess import call
 from qforce.main import run_qforce
 from qforce_examples import xTB_default
+
 
 @pytest.mark.slow
 class Test_runxTB():
     '''Do a fresh run and test if the result changes over time.'''
+
     @staticmethod
     @pytest.fixture(scope='session')
     def propane(tmp_path_factory):
