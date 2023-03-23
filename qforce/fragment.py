@@ -381,6 +381,8 @@ class Fragment():
 
             self.write_xyz()
             with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
+                if not isinstance(self.graph.graph['qm_method']['software'], str):
+                    self.graph.graph['qm_method']['software'] = self.graph.graph['qm_method']['software'].value
                 json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)
 
             if not (self.has_data or (config.batch_run and self.has_inp)):

@@ -1,20 +1,32 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 from ase.units import Hartree, mol, kJ
+from colt import Colt
 
 from qforce_examples import Gaussian_default
-from qforce.qm.gaussian import ReadGaussian
+from qforce.qm.gaussian import ReadGaussian, Gaussian
+from qforce.qm.qm import QM
+
+class GaussianConfig(Colt):
+
+    _user_input = Gaussian._user_input + QM._user_input
+
+    @classmethod
+    def from_config(cls, config):
+        return SimpleNamespace(**config)
 
 
 class TestReadHessian():
+
     @staticmethod
     @pytest.fixture(scope='class')
     def hessian():
-        class Config(dict):
-            charge_method = "cm5"
 
+        config = GaussianConfig.from_questions(check_only=True)
         (n_atoms, charge, multiplicity, elements, coords, hessian,
-         b_orders, point_charges) = ReadGaussian().hessian(Config(),
+         b_orders, point_charges) = ReadGaussian(config).hessian(config,
                                                            Gaussian_default['out_file'],
                                                            Gaussian_default['fchk_file'])
 
@@ -64,11 +76,9 @@ class TestReadScan():
     @staticmethod
     @pytest.fixture(scope='class')
     def scan():
-        class Config(dict):
-            charge_method = "cm5"
-
+        config = GaussianConfig.from_questions(check_only=True)
         (n_atoms, coords, angles,
-         energies, point_charges) = ReadGaussian().scan(Config(), Gaussian_default['fragments'])
+         energies, point_charges) = ReadGaussian(config).scan(config, Gaussian_default['fragments'])
 
         return n_atoms, coords, angles, energies, point_charges
 

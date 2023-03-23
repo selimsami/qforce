@@ -1,23 +1,38 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
 from qforce_examples import xTB_default
 from ase.units import Hartree, mol, kJ
+from colt import Colt
 
-from qforce.qm.xtb import ReadxTB
+from qforce.qm.xtb import ReadxTB, xTB
+from qforce.qm.qm import QM
+
+
+class XtbConfig(Colt):
+
+    _user_input = xTB._user_input + QM._user_input
+
+    @classmethod
+    def from_config(cls, config):
+        config = SimpleNamespace(**config)
+        config.check_method = 'xtb'
+        config.charge = 0
+        config.multiplicity = 1
+        return config
 
 
 class TestReadHessian():
     @staticmethod
     @pytest.fixture(scope='class')
     def hessian():
-        class Config(dict):
-            charge_method = "xtb"
-            charge = 0
-            multiplicity = 1
+
+        config = XtbConfig.from_questions(check_only=True)
 
         (n_atoms, charge, multiplicity, elements, coords, hessian,
-         b_orders, point_charges) = ReadxTB().hessian(Config(),
+         b_orders, point_charges) = ReadxTB(config).hessian(config,
                                                       xTB_default['hess_file'],
                                                       xTB_default['pc_file'],
                                                       xTB_default['coord_file'],
@@ -69,11 +84,12 @@ class TestReadScan():
     @staticmethod
     @pytest.fixture(scope='class')
     def scan():
-        class Config(dict):
-            charge_method = "cm5"
+
+        config = XtbConfig.from_questions(check_only=True)
+        config.charge_method = 'cm5'
 
         (n_atoms, coords, angles,
-         energies, point_charges) = ReadxTB().scan(Config(), xTB_default['fragments_coord'])
+         energies, point_charges) = ReadxTB(config).scan(config, xTB_default['fragments_coord'])
 
         return n_atoms, coords, angles, energies, point_charges
 

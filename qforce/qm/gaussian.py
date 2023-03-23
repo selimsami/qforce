@@ -30,6 +30,8 @@ class Gaussian(Colt):
     def __init__(self, config):
         self.required_hessian_files = {'out_file': ['.out', '.log'],
                                        'fchk_file': ['.fchk', '.fck']}
+        if config.solvent_method is None:
+            config.solvent_method = ''
         self.read = ReadGaussian(config)
         self.write = WriteGaussian(config)
 
@@ -173,7 +175,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write(f"#p ")
-        self.write_method(file, config)
+        self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
@@ -183,7 +185,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write(f"#p Opt")
-        self.write_method(file, config)
+        self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
@@ -193,7 +195,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write(f"#p Opt Freq ")
-        self.write_method(file, config)
+        self.write_method(file, self.config)
         file.write(f"pop=(CM5, ESP, NBOREAD) {self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
@@ -203,14 +205,18 @@ class WriteGaussian(WriteABC):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write(f"#p Opt=Modredundant ")
-        self.write_method(file, config)
+        self.write_method(file, self.config)
         file.write(f"pop=(CM5, ESP) {self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
 
     @staticmethod
     def write_method(file, config):
-        file.write(f" {self.config.method} {self.config.dispersion} {self.config.basis} density=current ")
+        if config.method.strip().upper() == 'MP2':
+            # no dispersion correction for mp2
+            file.write(f" {config.method} {config.basis} density=current nosym ")
+        else:
+            file.write(f" {config.method} {config.dispersion} {config.basis} density=current nosym ")
 
     @staticmethod
     def write_pop(file, string):

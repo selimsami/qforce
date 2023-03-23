@@ -1,25 +1,37 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
+from colt import Colt
 
-from qforce_examples import Orca_default
 from ase.units import Hartree, mol, kJ
 
-from qforce.qm.orca import ReadORCA
+from qforce_examples import Orca_default
+from qforce.qm.orca import ReadORCA, Orca
+from qforce.qm.qm import QM
 from .test_qm_gaussian import TestReadHessian as Gaussian_hessian
 from .test_qm_gaussian import TestReadScan as Gaussian_scan
 
+class OrcaConfig(Colt):
+
+    _user_input = Orca._user_input + QM._user_input
+
+    @classmethod
+    def from_config(cls, config):
+        config = SimpleNamespace(**config)
+        config.check_method = 'cm5'
+        config.charge = 0
+        config.multiplicity = 1
+        return config
 
 class TestReadHessian(Gaussian_hessian):
     @staticmethod
     @pytest.fixture(scope='class')
     def hessian():
-        class Config(dict):
-            charge_method = "cm5"
-            charge = 0
-            multiplicity = 1
 
+        config = OrcaConfig.from_questions(check_only=True)
         (n_atoms, charge, multiplicity, elements, coords, hessian,
-         b_orders, point_charges) = ReadORCA().hessian(Config(),
+         b_orders, point_charges) = ReadORCA(config).hessian(config,
                                                        Orca_default['out_file'],
                                                        Orca_default['hess_file'],
                                                        Orca_default['pc_file'],
@@ -58,11 +70,10 @@ class TestReadScan(Gaussian_scan):
     @staticmethod
     @pytest.fixture(scope='class')
     def scan():
-        class Config(dict):
-            charge_method = "cm5"
 
+        config = OrcaConfig.from_questions(check_only=True)
         (n_atoms, coords, angles,
-         energies, point_charges) = ReadORCA().scan(Config(), Orca_default['fragments_out'])
+         energies, point_charges) = ReadORCA(config).scan(config, Orca_default['fragments_out'])
 
         return n_atoms, coords, angles, energies, point_charges
 

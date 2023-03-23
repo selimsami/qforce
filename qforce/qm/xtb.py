@@ -67,6 +67,12 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
+    def opt(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def sp(self, *args, **kwargs):
+        raise NotImplementedError
+
 class ReadXTBGaussian(ReadGaussian):
 
     @staticmethod
@@ -158,6 +164,12 @@ class xTB(Colt):
 
 class WritexTB(WriteABC):
 
+    def opt(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def sp(self, *args, **kwargs):
+        raise NotImplementedError
+
     def hessian(self, file, job_name, config, coords, atnums):
         """ Write the input file for hessian and charge calculation.
 
@@ -246,6 +258,12 @@ class WritexTB(WriteABC):
 
 
 class ReadxTB(ReadABC):
+
+    def opt(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def sp(self, *args, **kwargs):
+        raise NotImplementedError
 
     @staticmethod
     def _read_xtb_hess(hess_file, n_atoms):
@@ -520,3 +538,9 @@ class ReadxTB(ReadABC):
 
         energies = np.array(energies) * Hartree * mol / kJ
         return n_atoms, coords, angles, energies, point_charges
+
+    def opt(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def sp(self, *args, **kwargs):
+        raise NotImplementedError
