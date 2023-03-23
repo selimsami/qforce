@@ -12,6 +12,7 @@ from qforce.qm.qm import QM
 from .test_qm_gaussian import TestReadHessian as Gaussian_hessian
 from .test_qm_gaussian import TestReadScan as Gaussian_scan
 
+
 class OrcaConfig(Colt):
 
     _user_input = Orca._user_input + QM._user_input
@@ -19,10 +20,11 @@ class OrcaConfig(Colt):
     @classmethod
     def from_config(cls, config):
         config = SimpleNamespace(**config)
-        config.check_method = 'cm5'
+        config.charge_method = 'cm5'
         config.charge = 0
         config.multiplicity = 1
         return config
+
 
 class TestReadHessian(Gaussian_hessian):
     @staticmethod
@@ -67,6 +69,7 @@ class TestReadHessian(Gaussian_hessian):
 
 
 class TestReadScan(Gaussian_scan):
+
     @staticmethod
     @pytest.fixture(scope='class')
     def scan():

@@ -18,7 +18,7 @@ class XtbConfig(Colt):
     @classmethod
     def from_config(cls, config):
         config = SimpleNamespace(**config)
-        config.check_method = 'xtb'
+        config.charge_method = 'xtb'
         config.charge = 0
         config.multiplicity = 1
         return config
