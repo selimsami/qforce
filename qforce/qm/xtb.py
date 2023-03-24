@@ -32,7 +32,6 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%chk={job_name}.chk\n")
         file.write(f"#p Opt=(Modredundant,nomicro) ")
         self.write_method(file, config)
-        self.write_pop(file, " pop=(CM5, ESP) ")
         file.write("\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
@@ -53,7 +52,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write(f"#p Opt=nomicro Freq ")
         self.write_method(file, config)
-        file.write(f"pop=(CM5, ESP, NBOREAD) {self.config.solvent_method}\n\n")
+        file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
@@ -67,11 +66,6 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
-    def opt(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def sp(self, *args, **kwargs):
-        raise NotImplementedError
 
 class ReadXTBGaussian(ReadGaussian):
 

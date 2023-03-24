@@ -38,11 +38,37 @@ class Gaussian(Colt):
 
 class ReadGaussian(ReadABC):
 
-    def opt(self, ):
-        ...
+    def opt(self, config, filename):
+        """read the log file"""
+        
+        with open(filename, "r", encoding='utf-8') as file:
+            for line in file:
+                if 'Input orientation:' in line:
+                    for _ in range(4):
+                        next(file)
+                    coords = self._get_input_orientation(file)
+        # return the last coordinates in the file
+        return coords
 
-    def sp(self, ):
-        ...
+    def sp(self, config, filename):
+        with open(filename, "r", encoding='utf-8') as file:
+            for line in file:
+                if "SCF Done:" in line:
+                    energy = round(float(line.split()[4]), 8)
+                elif "EUMP2" in line:
+                    # if mp2, read mp2 energy
+                    energy = round(float(line.split()[-1].replace('D', 'E')), 8)
+        return energy
+
+    @staticmethod
+    def _get_input_orientation(file):
+        coords = []
+        for line in file:
+            if '---------------------------' in line:
+                return coords 
+            x, y, z = line.split()[3:]
+            coords.append([float(x), float(y), float(z)])
+        raise ValueError("LogikError: end of file reached before coordinate ended")            
 
     def hessian(self, config, out_file, fchk_file):
         b_orders, point_charges = [], []
@@ -90,6 +116,10 @@ class ReadGaussian(ReadABC):
 
                 elif "SCF Done:" in line:
                     energy = round(float(line.split()[4]), 8)
+
+                elif "EUMP2" in line:
+                    # if mp2, read mp2 energy
+                    energy = round(float(line.split()[-1].replace('D', 'E')), 8)
 
                 # Get optimized energies, coords for each scan angle
                 elif "-- Stationary" in line or '-- Number of steps exceeded' in line:
