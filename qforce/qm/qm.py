@@ -1,6 +1,7 @@
 import os
 from types import SimpleNamespace
 
+from ase import Atoms
 from ase.io import read, write
 import numpy as np
 from colt import Colt
@@ -64,17 +65,23 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         self.job = job
         self.config = config
         self.softwares = self._get_qm_softwares(config)
-        self.hessian_files = self._check_hessian_output()
+        # check hessian files and if not present write the input file
         self.method = self._register_method()
 
-    def read_opt(self):
+    def _read_opt(self, opt_files):
         software = self.softwares['preopt']
-        qm_out = software.read.opt(self.config, **self.opt_files)
-        return HessianOutput(self.config.vib_scaling, *qm_out)
+        return software.read.opt(self.config, **opt_files)
 
-    def read_hessian(self):
+    def get_hessian(self):
+        """Setup hessian files, and if present read the hessian information"""
+        # check if output existed
+        hessian_files = self._check_hessian_output()
+        # if present read file
+        return self._read_hessian(hessian_files)
+
+    def _read_hessian(self, hessian_files):
         software = self.softwares['software']
-        qm_out = software.read.hessian(self.config, **self.hessian_files)
+        qm_out = software.read.hessian(self.config, **hessian_files)
         return HessianOutput(self.config.vib_scaling, *qm_out)
 
     def read_scan(self, files):
@@ -92,7 +99,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         return ScanOutput(file, n_scan_steps, *qm_out)
 
     @scriptify
-    def write_opt(self, file, coords, atnums):
+    def write_preopt(self, file, coords, atnums):
         software = self.softwares['preopt']
         software.write.opt(file, self.job.name, self.config, coords, atnums)
 
@@ -164,6 +171,64 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             chosen_point_charges = point_charges
 
         return n_atoms, all_coords, all_angles, all_energies, chosen_point_charges
+    
+
+    @property
+    def preopt_dir(self):
+        return os.path.join(self.job.dir, 'preopt')
+
+    def preopt(self):
+        molecule, coords, atnums = self._read_coord_file(self.job.coord_file)
+        software = self.softwares['preopt']
+        print("software = ", software)
+        if self.softwares['preopt'] is None:
+            self._write_xyzfile(molecule, 'init.xyz', comment=f'{self.job.name} - input geometry for hessian')
+            return
+
+        # create Preopt directory
+        preopt_dir = self.preopt_dir
+        os.makedirs(preopt_dir, exist_ok=True)
+        self._write_xyzfile(molecule, f'preopt/preopt.xyz', comment=f'{self.job.name} - input geometry for preopt')
+        # check_preopt_output
+        preopt_files = self._check_preopt_output()
+        coords = self._read_opt(preopt_files)
+        molecule.set_positions(coords)
+        self._write_xyzfile(molecule, 'init.xyz', comment=f'{self.job.name} - input geometry for hessian')
+
+    def _check_preopt_output(self):
+        software = self.softwares['preopt']
+        print("software = ", software)
+        if software is None:
+            raise ValueError("preopt cannot be None")
+        preopt_files = {}
+        folder = self.preopt_dir
+        all_files = os.listdir(folder)
+
+        for req, tails in software.required_preopt_files.items():
+            files = [file for file in all_files if any(file.endswith(f'{tail}') for tail in tails)]
+            n_files = len(files)
+
+            if n_files == 0 and self.job.coord_file:
+                _, coords, atnums = self._read_coord_file(f'{folder}/preopt.xyz')
+                file_name = f'{self.job.dir}/{self.job.name}_hessian.inp'
+                print('Required Preopt output file(s) not found in the job directory.\n'
+                      'Creating the necessary input file and exiting...\nPlease run the '
+                      'calculation and put the output files in the same directory.\n')
+                file_name = f'{self.preopt_dir}/{self.job.name}_preopt.inp'
+                with open(file_name, 'w') as file:
+                    self.write_preopt(file, coords, atnums)
+                raise SystemExit
+            elif n_files == 0:
+                print('Required Preopt output file(s) not found in the job directory\n'
+                      'and no coordinate file was provided to create input files.\nExiting...\n')
+                raise SystemExit
+            elif n_files > 1:
+                print('There are multiple files in the job directory with the expected Preopt'
+                      ' output extensions.\nPlease remove the undesired ones.\n')
+                raise SystemExit
+            else:
+                preopt_files[req] = f'{folder}/{files[0]}'
+        return preopt_files 
 
     def _check_hessian_output(self):
         software = self.softwares['software']
@@ -175,7 +240,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             n_files = len(files)
 
             if n_files == 0 and self.job.coord_file:
-                coords, atnums = self._read_coord_file()
+                _, coords, atnums = self._read_coord_file(f'{self.job.dir}/init.xyz')
                 file_name = f'{self.job.dir}/{self.job.name}_hessian.inp'
                 print('Required Hessian output file(s) not found in the job directory.\n'
                       'Creating the necessary input file and exiting...\nPlease run the '
@@ -195,29 +260,37 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
                 hessian_files[req] = f'{self.job.dir}/{files[0]}'
         return hessian_files
 
-    def _read_coord_file(self):
-        molecule = read(self.job.coord_file)
+    def _read_coord_file(self, filename):
+        molecule = read(filename)
         coords = molecule.get_positions()
         atnums = molecule.get_atomic_numbers()
-        write(f'{self.job.dir}/init.xyz', molecule, plain=True,
-              comment=f'{self.job.name} - input geometry')
-        return coords, atnums
+        return molecule, coords, atnums
+
+    def _write_xyzfile(self, molecule, filename, comment=None):
+        print(f'{self.job.dir}/{filename}')
+        write(f'{self.job.dir}/{filename}', molecule, plain=True,
+              comment=comment)
 
     def _get_qm_softwares(self, config):
         default = self._set_qm_software(config.software)
         self._print_selected(config.software.value, default.required_hessian_files)
-        softwares = {'software': default}
-        options = ['preopt', 'scan_software', 'scan_sp']
-        for option in options:
+        #
+        softwares = {}
+        defaults = {
+                'preopt': None, 
+                'software': default, 
+                'scan_software': default, 
+                'scan_sp': 'scan_software'
+        }
+        # do it twice, once load the settings, once set the defaults
+        for option, default in defaults.items():
             if getattr(config, option).value is None:
-                softwares[option] = default
+                if isinstance(default, str):
+                    softwares[option] = softwares[default]
+                else:
+                    softwares[option] = default
             else:
                 softwares[option] = self._set_qm_software(getattr(config, option))
-        
-        if getattr(config, 'scan_sp').value is None:
-            softwares['scan_sp'] = None
-        else:
-            softwares['scan_sp'] = self._set_qm_software(config.scan_sp)
 
         self._print_softwares(softwares)
 

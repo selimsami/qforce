@@ -30,6 +30,7 @@ class Gaussian(Colt):
     def __init__(self, config):
         self.required_hessian_files = {'out_file': ['.out', '.log'],
                                        'fchk_file': ['.fchk', '.fck']}
+        self.required_preopt_files = {'out_file': ['.out', '.log']}
         if config.solvent_method is None:
             config.solvent_method = ''
         self.read = ReadGaussian(config)
@@ -38,10 +39,10 @@ class Gaussian(Colt):
 
 class ReadGaussian(ReadABC):
 
-    def opt(self, config, filename):
+    def opt(self, config, out_file):
         """read the log file"""
         
-        with open(filename, "r", encoding='utf-8') as file:
+        with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
                 if 'Input orientation:' in line:
                     for _ in range(4):
@@ -50,8 +51,8 @@ class ReadGaussian(ReadABC):
         # return the last coordinates in the file
         return coords
 
-    def sp(self, config, filename):
-        with open(filename, "r", encoding='utf-8') as file:
+    def sp(self, config, out_file):
+        with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
                 if "SCF Done:" in line:
                     energy = round(float(line.split()[4]), 8)

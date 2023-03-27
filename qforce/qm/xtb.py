@@ -152,14 +152,43 @@ class xTB(Colt):
                                        'pc_file': ['charges'],
                                        'wbo_file': ['wbo'],
                                        'coord_file': ['xtbopt.xyz'], }
+        self.required_preopt_files = {'coord_file': ['xtbopt.xyz'], }
         self.read = ReadxTB(config)
         self.write = WritexTB(config)
 
 
 class WritexTB(WriteABC):
 
-    def opt(self, *args, **kwargs):
-        raise NotImplementedError
+    def opt(self, file, job_name, config, coords, atnums):
+        """ Write the input file for optimization
+
+        Parameters
+        ----------
+        file : file
+            The file object to write the command line.
+        job_name : string
+            The name of the job.
+        config : config
+            A configparser object with all the parameters.
+        coords : array
+            A coordinates array of shape (N,3), where N is the number of atoms.
+        atnums : list
+            A list of atom elements represented as atomic number.
+        """
+        name = file.name
+        base, filename = os.path.split(name)
+        # Given that the xTB input has to be given in the command line.
+        # We create the xTB command template here.
+        cmd = f'xtb {job_name}_input.xyz --opt --chrg {config.charge} ' \
+              f'--uhf {config.multiplicity - 1} ' \
+              f'--namespace {job_name}_opt --parallel {config.n_proc} ' \
+              f'{self.config.xtb_command}'
+        # Write the hessian.inp which is the command line input
+        file.write(cmd)
+        # Write the coordinates, which is the standard xyz file.
+        mol = Atoms(positions=coords, numbers=atnums)
+        write(f'{base}/{job_name}_input.xyz', mol, plain=True,
+              comment=cmd)
 
     def sp(self, *args, **kwargs):
         raise NotImplementedError
@@ -252,12 +281,6 @@ class WritexTB(WriteABC):
 
 
 class ReadxTB(ReadABC):
-
-    def opt(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def sp(self, *args, **kwargs):
-        raise NotImplementedError
 
     @staticmethod
     def _read_xtb_hess(hess_file, n_atoms):
@@ -443,7 +466,7 @@ class ReadxTB(ReadABC):
 
     def opt(self, config, coord_file):
         n_atoms, elements, coords = self._read_xtb_xyz(coord_file)
-        return n_atoms, elements, coords
+        return coords
 
     def sp(self):
         pass
@@ -533,8 +556,3 @@ class ReadxTB(ReadABC):
         energies = np.array(energies) * Hartree * mol / kJ
         return n_atoms, coords, angles, energies, point_charges
 
-    def opt(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def sp(self, *args, **kwargs):
-        raise NotImplementedError
