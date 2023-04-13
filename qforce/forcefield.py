@@ -530,12 +530,60 @@ class ForceField():
             for dihed in terms['dihedral/flexible']:
                 ids = dihed.atomids + 1
                 c = dihed.equ/2
+                fc = [1.0*c[0] + 0.5*c[2] + 0.3750*c[4],
+                      1.0*c[1] + 0.75*c[3] + 0.6250*c[5],
+                      0.5*c[2] + 0.5*c[4],
+                      0.25*c[3] + 0.3125*c[5],
+                      0.125*c[4],
+                      0.0625*c[5]]
 
+                for n in range(5, 0, -1):
+                    if n % 2 == 1:
+                        equ = 180.0
+                    else:
+                        equ = 0.00
+                    frcmod.write(f"{unique_at[ids[0]][atom_ids[ids[0]]]:<2}-")
+                    frcmod.write(f"{unique_at[ids[1]][atom_ids[ids[1]]]:<2}-")
+                    frcmod.write(f"{unique_at[ids[2]][atom_ids[ids[2]]]:<2}-")
+                    frcmod.write(f"{unique_at[ids[3]][atom_ids[ids[3]]]:<2}")
+                    frcmod.write(f" 1 {fc[n]:>15.2f} {equ:>15.2f} -{n+1}\n")
+
+                # Last term
                 frcmod.write(f"{unique_at[ids[0]][atom_ids[ids[0]]]:<2}-")
                 frcmod.write(f"{unique_at[ids[1]][atom_ids[ids[1]]]:<2}-")
                 frcmod.write(f"{unique_at[ids[2]][atom_ids[ids[2]]]:<2}-")
                 frcmod.write(f"{unique_at[ids[3]][atom_ids[ids[3]]]:<2}")
-                frcmod.write(f" 1 {c[0]:>15.2f} {180.00:>15.2f}  1\n")
+                frcmod.write(f" 1 {fc[0]:>15.2f} {0.00:>15.2f}  1\n")
+
+        # inversion dihedrals
+        if len(terms['dihedral/inversion']) > 0:
+
+            for dihed in terms['dihedral/inversion']:
+                ids = dihed.atomids + 1
+                c0, c1, c2 = convert_to_inversion_rb(dihed.fconst, dihed.equ)
+
+                fc = [1.0*c[0]/2 + 0.5*c[2]/2,
+                      1.0*c[1]/2,
+                      0.5*c[2]/2]
+
+                for n in range(3, 0, -1):
+                    if n % 2 == 1:
+                        equ = 180.0
+                    else:
+                        equ = 0.00
+                    frcmod.write(f"{unique_at[ids[0]][atom_ids[ids[0]]]:<2}-")
+                    frcmod.write(f"{unique_at[ids[1]][atom_ids[ids[1]]]:<2}-")
+                    frcmod.write(f"{unique_at[ids[2]][atom_ids[ids[2]]]:<2}-")
+                    frcmod.write(f"{unique_at[ids[3]][atom_ids[ids[3]]]:<2}")
+                    frcmod.write(f" 1 {fc[n]:>15.2f} {equ:>15.2f} -{n+1}\n")
+
+                # Last term
+                frcmod.write(f"{unique_at[ids[0]][atom_ids[ids[0]]]:<2}-")
+                frcmod.write(f"{unique_at[ids[1]][atom_ids[ids[1]]]:<2}-")
+                frcmod.write(f"{unique_at[ids[2]][atom_ids[ids[2]]]:<2}-")
+                frcmod.write(f"{unique_at[ids[3]][atom_ids[ids[3]]]:<2}")
+                frcmod.write(f" 1 {fc[0]:>15.2f} {0.00:>15.2f}  1\n")
+
 
             # improper dihedrals
             if len(terms['dihedral/improper']) > 0:
@@ -571,13 +619,13 @@ class ForceField():
 
         for i, (lj_type, a_name) in enumerate(zip(non_bonded.lj_types, self.atom_names), start=1):
             atom_ids[i] = lj_type
-            if self.n_atoms < 36:
-                if i <= 10:
-                    unique_at[i] = {atom_ids[i]: "Q{}".format(ascii_digits[i-1])}
-                elif i > 10:
-                    unique_at[i] = {atom_ids[i]: "Q{}".format(ascii_lowercase[i-11])}
+            if self.n_atoms < 35:
+                if i <= 9:
+                    unique_at[i] = {atom_ids[i]: "Q{}".format(ascii_digits[i])}
+                elif i > 9:
+                    unique_at[i] = {atom_ids[i]: "Q{}".format(ascii_lowercase[i-10])}
             else:
-                unique_at[i] = {atom_ids[i]: "{}{}".format(ascii_uppercase[i-1],
-                                ascii_lowercase[i-1])}
+                unique_at[i] = {atom_ids[i]: "{}{}".format(ascii_uppercase[i],
+                                ascii_lowercase[i])}
 
         return atom_ids, unique_at
