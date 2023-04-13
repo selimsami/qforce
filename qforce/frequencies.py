@@ -2,10 +2,11 @@ import numpy as np
 from scipy.linalg import eigh
 import seaborn as sns
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 #
 from .elements import ATOMMASS, ATOM_SYM
+
+matplotlib.use('Agg')
 
 
 def calc_qm_vs_md_frequencies(job, qm, md_hessian):

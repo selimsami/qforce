@@ -1,3 +1,6 @@
+from colt import from_commandline
+from colt.validator import Validator
+
 from .polarize import polarize
 from .initialize import initialize
 from .qm.qm import QM
@@ -10,8 +13,6 @@ from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian
 
 from .misc import check_if_file_exists, LOGO
-from colt import from_commandline
-from colt.validator import Validator
 
 
 # define new validator
@@ -53,13 +54,18 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
 
     # check molecule
     mol = Molecule(config, job, qm_hessian_out, ext_q, ext_lj)
-    md_hessian = fit_hessian(config.terms, mol, qm_hessian_out)
 
     # change the order
     fragments = None
     if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
         # get fragments with qm
         fragments = fragment(mol, qm, job, config)
+
+    # hessian fitting
+    md_hessian = fit_hessian(config.terms, mol, qm_hessian_out)
+
+    # do the scans
+    if fragments is not None:
         DihedralScan(fragments, mol, job, config)
 
     calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)

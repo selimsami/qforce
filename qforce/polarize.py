@@ -1,5 +1,4 @@
 import numpy as np
-import sys
 
 
 def polarize(inp, path):
@@ -88,7 +87,7 @@ def read_itp(itp_file):
                     max_resnr = atoms[-1]['resnr']
 
             elif in_section == "polarization":
-                p_atoms = [int(l)-1 for l in line[0:2]]
+                p_atoms = [int(char)-1 for char in line[0:2]]
                 polar_atoms[max(p_atoms)] = min(p_atoms)
 
     return atoms, len(atoms), max_resnr, polar_atoms

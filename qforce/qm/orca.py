@@ -18,13 +18,13 @@ class Orca(Colt):
     # QM method to be used for hessian calculation
     # Note: The accuracy of this method determines the accuracy of bond,
     # angle and improper dihedral.
-    method = B3LYP 
+    method = B3LYP
 
     # basis set to be used
     basis = def2-TZVP :: str
 
-    # dispersion 
-    dispersion = D4 :: str 
+    # dispersion
+    dispersion = D4 :: str
 
     # additional options
     options = def2/J RIJCOSX :: str
@@ -49,7 +49,8 @@ class WriteORCA(WriteABC):
 
     def opt(self, file, job_name, config, coords, atnums):
         self._write_coordinates_and_defaults(file, config, atnums, coords)
-        file.write(f"! opt {self.config.method} {self.config.basis} {self.config.options} {self.config.dispersion} nopop\n")
+        file.write(f"! opt {self.config.method} {self.config.basis} ")
+        file.write(f" {self.config.options} {self.config.dispersion} nopop\n")
         file.write(f'%base "{job_name}_initial"\n')
 
     def sp(self):
@@ -61,7 +62,6 @@ class WriteORCA(WriteABC):
         file.write(f"* xyz   {config.charge}   {config.multiplicity}\n")
         self._write_coords(atnums, coords, file)
         file.write(' *\n\n')
-
 
         file.write(f"%pal nprocs  {config.n_proc} end\n")
         # ORCA uses MPI parallelization and a factor of 0.75 is used to
@@ -91,15 +91,17 @@ class WriteORCA(WriteABC):
 
         # Do the hessian calculation
         file.write('New_Step\n')
-        file.write(f"! opt freq ")
-        file.write(f"! {self.config.method} {self.config.basis} {self.config.dispersion} {self.config.options}")
+        file.write("! opt freq ")
+        file.write(f"! {self.config.method} {self.config.basis} ")
+        file.write(f" {self.config.dispersion} {self.config.options}")
         file.write(" PModel nopop\n")
         file.write(f'%base "{job_name}_opt"\n')
         file.write('STEP_END\n\n')
 
         # Do the nbo calculation
         file.write('New_Step\n')
-        file.write(f"! {self.config.method} {self.config.basis} {self.config.dispersion} {self.config.options}\n")
+        file.write(f"! {self.config.method} {self.config.basis} ")
+        file.write(f" {self.config.dispersion} {self.config.options} \n")
         file.write(f'%base "{job_name}_nbo"\n')
         file.write('%method\n  MAYER_BONDORDERTHRESH 0\nend\n')
         file.write('STEP_END\n\n')
@@ -140,10 +142,12 @@ class WriteORCA(WriteABC):
         # Start compound job
         file.write('%Compound\n\n')
         """
-        M: Removed this step, as this is a follow up of the Hessian calculation, which already includes an optimization!
+        M: Removed this step, as this is a follow up of the Hessian calculation,
+        which already includes an optimization!
         # Do the initial optimisation
         file.write('New_Step\n')
-        file.write(f"! opt {self.config.method} {self.config.basis} {self.config.dispersion} {self.config.options} nopop\n")
+        file.write(f"! opt {self.config.method} {self.config.basis} ")
+        file.write(f" {self.config.dispersion} {self.config.options} nopop\n")
         file.write(f'%base "{job_name}_opt"\n')
         self._write_constrained_atoms(file, scanned_atoms)
         file.write('STEP_END\n\n')
@@ -153,13 +157,15 @@ class WriteORCA(WriteABC):
         file.write('New_Step\n')
         # PModel used for initial guess such that using XTB would not pose a
         # problem.
-        file.write(f"! {self.config.charge_method} {self.config.basis} chelpg Hirshfeld PModel nopop\n")
+        file.write(f"! {self.config.charge_method} {self.config.basis} ")
+        file.write(" chelpg Hirshfeld PModel nopop\n")
         file.write(f'%base "{job_name}_charge"\n')
         file.write('STEP_END\n\n')
 
         # Do the scan
         file.write('New_Step\n')
-        file.write(f"! opt {self.config.method} {self.config.basis} {self.config.options} {self.config.dispersion} nopop\n")
+        file.write(f"! opt {self.config.method} {self.config.basis} ")
+        file.write(f" {self.config.options} {self.config.dispersion} nopop\n")
         file.write(f'%base "{job_name}_scan"\n')
         self._write_scanned_atoms(file, scanned_atoms, start_angle, config.scan_step_size)
         file.write(f"*xyzfile {charge} {multiplicity} {job_name}_opt.xyz\n")
@@ -169,7 +175,8 @@ class WriteORCA(WriteABC):
         file.write('New_Step\n')
         # PModel used for initial guess such that using XTB would not pose a
         # problem.
-        file.write(f"! {self.config.method} {self.config.basis} {self.config.options} {self.config.dispersion} PModel nopop\n")
+        file.write(f"! {self.config.method} {self.config.basis} ")
+        file.write(f" {self.config.options} {self.config.dispersion} PModel nopop\n")
         file.write(f'%base "{job_name}_sp"\n')
         file.write(
             f"*xyzfile {charge} {multiplicity} "
@@ -466,7 +473,7 @@ class ReadORCA(ReadABC):
             A list (length: n_atoms) of list (length: n_atoms) of float.
             representing the bond order between each atom pair.
         """
-        item_match = re.compile('^\(\s*(\d+)-\w{1,2}\s*,\s*(\d+)-\w{1,2}\s*\)\s*:\s*(-?\w.+)$')
+        item_match = re.compile(r'^\(\s*(\d+)-\w{1,2}\s*,\s*(\d+)-\w{1,2}\s*\)\s*:\s*(-?\w.+)$')
         b_orders = [[0, ] * n_atoms for _ in range(n_atoms)]
 
         file = open(out_file, 'r')

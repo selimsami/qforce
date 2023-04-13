@@ -121,7 +121,7 @@ class Fragment():
         self.make_fragment_identifier(config, mol, qm)
         self.check_for_fragment(job, config, qm)
         self.check_for_qm_data(job, config, mol, qm)
-        self.make_fragment_terms(mol)
+        # self.make_fragment_terms(mol)
 
     def check_single_ring_rules(self, mol, bond, a1, a2):
         ring = [ring for ring in mol.topo.rings if {a1, a2}.issubset(ring)][0]

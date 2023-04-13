@@ -41,7 +41,7 @@ class ReadGaussian(ReadABC):
 
     def opt(self, config, out_file):
         """read the log file"""
-        
+
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
                 if 'Input orientation:' in line:
@@ -66,21 +66,23 @@ class ReadGaussian(ReadABC):
         coords = []
         for line in file:
             if '---------------------------' in line:
-                return coords 
+                return coords
             x, y, z = line.split()[3:]
             coords.append([float(x), float(y), float(z)])
-        raise ValueError("LogikError: end of file reached before coordinate ended")            
+        raise ValueError("LogikError: end of file reached before coordinate ended")
 
     def hessian(self, config, out_file, fchk_file):
         b_orders, point_charges = [], []
 
         n_atoms, charge, multiplicity, elements, coords, hessian = self._read_fchk_file(fchk_file)
 
+        charge_method = self.config.charge_method
+
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
-                if "Hirshfeld charges, spin densities" in line and self.config.charge_method == "cm5":
+                if "Hirshfeld charges, spin densities" in line and charge_method == "cm5":
                     point_charges = self._read_cm5_charges(file, n_atoms)
-                elif " ESP charges:" in line and self.config.charge_method == "esp":
+                elif " ESP charges:" in line and charge_method == "esp":
                     point_charges = self._read_esp_charges(file, n_atoms)
                 elif "N A T U R A L   B O N D   O R B I T A L" in line:
                     b_orders = self._read_bond_order_from_nbo_analysis(file, n_atoms)
@@ -205,7 +207,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
-        file.write(f"#p ")
+        file.write("#p ")
         self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
@@ -215,7 +217,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
-        file.write(f"#p Opt")
+        file.write("#p Opt")
         self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
@@ -225,7 +227,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
-        file.write(f"#p Opt Freq ")
+        file.write("#p Opt Freq ")
         self.write_method(file, self.config)
         file.write(f"pop=(CM5, ESP, NBOREAD) {self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
@@ -235,7 +237,7 @@ class WriteGaussian(WriteABC):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
-        file.write(f"#p Opt=Modredundant ")
+        file.write("#p Opt=Modredundant ")
         self.write_method(file, self.config)
         file.write(f"pop=(CM5, ESP) {self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
@@ -247,7 +249,8 @@ class WriteGaussian(WriteABC):
             # no dispersion correction for mp2
             file.write(f" {config.method} {config.basis} density=current nosym ")
         else:
-            file.write(f" {config.method} {config.dispersion} {config.basis} density=current nosym ")
+            file.write(f" {config.method} {config.dispersion} {config.basis} ")
+            file.write(" density=current nosym ")
 
     @staticmethod
     def write_pop(file, string):

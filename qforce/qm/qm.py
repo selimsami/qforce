@@ -1,7 +1,6 @@
 import os
 from types import SimpleNamespace
 
-from ase import Atoms
 from ase.io import read, write
 import numpy as np
 from colt import Colt
@@ -20,6 +19,7 @@ implemented_qm_software = {'gaussian': Gaussian,
                            'xtb': xTB,
                            'xtb-gaussian': XTBGaussian
                            }
+
 
 class QM(Colt):
     _user_input = """
@@ -137,8 +137,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         software = self.softwares['scan_software']
         if self.config.dihedral_scanner == 'relaxed_scan':
             software.write.scan(file, scan_id, self.config, coords,
-                                       atnums, scanned_atoms, start_angle,
-                                       charge, multiplicity)
+                                atnums, scanned_atoms, start_angle,
+                                charge, multiplicity)
         elif self.config.dihedral_scanner == 'xtb-torsiondrive':
             TorsiondrivexTB.write(self.config, file, self.job.frag_dir,
                                   scan_id, coords, atnums, scanned_atoms,
@@ -171,7 +171,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             chosen_point_charges = point_charges
 
         return n_atoms, all_coords, all_angles, all_energies, chosen_point_charges
-    
 
     @property
     def preopt_dir(self):
@@ -182,18 +181,21 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         software = self.softwares['preopt']
         print("software = ", software)
         if self.softwares['preopt'] is None:
-            self._write_xyzfile(molecule, 'init.xyz', comment=f'{self.job.name} - input geometry for hessian')
+            self._write_xyzfile(molecule, 'init.xyz',
+                                comment=f'{self.job.name} - input geometry for hessian')
             return
 
         # create Preopt directory
         preopt_dir = self.preopt_dir
         os.makedirs(preopt_dir, exist_ok=True)
-        self._write_xyzfile(molecule, f'preopt/preopt.xyz', comment=f'{self.job.name} - input geometry for preopt')
+        self._write_xyzfile(molecule, 'preopt/preopt.xyz',
+                            comment=f'{self.job.name} - input geometry for preopt')
         # check_preopt_output
         preopt_files = self._check_preopt_output()
         coords = self._read_opt(preopt_files)
         molecule.set_positions(coords)
-        self._write_xyzfile(molecule, 'init.xyz', comment=f'{self.job.name} - input geometry for hessian')
+        self._write_xyzfile(molecule, 'init.xyz',
+                            comment=f'{self.job.name} - input geometry for hessian')
 
     def _check_preopt_output(self):
         software = self.softwares['preopt']
@@ -228,7 +230,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
                 raise SystemExit
             else:
                 preopt_files[req] = f'{folder}/{files[0]}'
-        return preopt_files 
+        return preopt_files
 
     def _check_hessian_output(self):
         software = self.softwares['software']
@@ -277,9 +279,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         #
         softwares = {}
         defaults = {
-                'preopt': None, 
-                'software': default, 
-                'scan_software': default, 
+                'preopt': None,
+                'software': default,
+                'scan_software': default,
                 'scan_sp': 'scan_software'
         }
         # do it twice, once load the settings, once set the defaults
@@ -295,7 +297,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         self._print_softwares(softwares)
 
         return softwares
-    
+
     def _print_softwares(self, softwares):
         print('Selected Electronic Structure Softwares: "')
         for typ, software in softwares.items():

@@ -10,7 +10,6 @@ from ase.io import read
 from scipy.interpolate import interp1d as interpolate
 from numba import jit
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 #
 from colt import Colt
@@ -18,6 +17,8 @@ from colt import Colt
 from .forcefield import ForceField
 from .calculator import QForce
 from .forces import get_dihed, get_dist
+
+matplotlib.use('Agg')
 
 """
 
@@ -73,8 +74,12 @@ batch_run = False :: bool
         self.mdp_file = f'{job.md_data}/default.mdp'
         self.config = all_config.scan
         self.symmetrize = self._set_symmetrize()
-        self.scan = getattr(self, f'scan_dihed_{self.config.method.lower()}')
+        self._scan = getattr(self, f'scan_dihed_{self.config.method.lower()}')
         self.move_capping_atoms(fragments)
+
+        # generate the terms
+        for frag in fragments:
+            frag.make_fragment_terms(mol)
 
         fragments, all_dih_terms, weights = self.arrange_data(mol, fragments)
         final_energy, params = self.scan_dihedrals(fragments, mol, all_config, all_dih_terms,
@@ -172,7 +177,7 @@ batch_run = False :: bool
                 for term in frag.fit_terms:
                     term['angles'] = []
 
-                md_energy = self.scan(all_config, frag, scan_dir, mol, n_run)
+                md_energy = self._scan(all_config, frag, scan_dir, mol, n_run)
                 md_energy -= md_energy.min()
 
                 if frag.central_atoms in self.symmetrize.keys():

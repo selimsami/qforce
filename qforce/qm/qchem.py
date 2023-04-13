@@ -210,8 +210,7 @@ class WriteQChem(WriteABC):
             file.write(f'{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n')
         file.write('$end\n\n')
 
-    @staticmethod
-    def _write_job_setting(file, job_name, config, job_rem):
+    def _write_job_setting(self, file, job_name, config, job_rem):
         file.write('$rem\n')
         file.write(f'  method = {self.config.method}\n')
         if config.basis is not None:

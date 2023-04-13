@@ -1,8 +1,7 @@
-import numpy as np
 import os.path
 
-from colt import Colt
 import numpy as np
+from colt import Colt
 from ase.units import Hartree, mol, kJ, Bohr
 from ase.io import read, write
 from ase import Atoms
@@ -16,7 +15,7 @@ class WriteXTBGaussian(WriteGaussian):
 
     @staticmethod
     def write_method(file, config):
-        file.write(f'external="gauext-xtb " ')
+        file.write('external="gauext-xtb " ')
 
     @staticmethod
     def write_pop(file, string):
@@ -30,7 +29,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
-        file.write(f"#p Opt=(Modredundant,nomicro) ")
+        file.write("#p Opt=(Modredundant,nomicro) ")
         self.write_method(file, config)
         file.write("\n\n")
         file.write(f"{job_name}\n\n")
@@ -40,7 +39,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
-        file.write(f"#p Opt=(nomicro) ")
+        file.write("#p Opt=(nomicro) ")
         self.write_method(file, config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
@@ -50,7 +49,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
-        file.write(f"#p Opt=nomicro Freq ")
+        file.write("#p Opt=nomicro Freq ")
         self.write_method(file, config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
@@ -60,7 +59,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
-        file.write(f"#p ")
+        file.write("#p ")
         self.write_method(file, config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
@@ -555,4 +554,3 @@ class ReadxTB(ReadABC):
 
         energies = np.array(energies) * Hartree * mol / kJ
         return n_atoms, coords, angles, energies, point_charges
-
