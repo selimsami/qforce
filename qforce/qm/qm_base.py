@@ -113,6 +113,8 @@ def scriptify(writer):
                 job_name = f'{args[0].job.name}_hessian'
             elif writer.__name__ == 'write_scan':
                 job_name = args[2]
+            elif write.__name__ == 'write_charge':
+                job_name = f'{args[0].job.name}_hessian_charge'
             else:
                 job_name = args[0].job.name
 

@@ -298,10 +298,10 @@ class Fragment():
         if files:
             self.has_data = True
             qm_out = qm.read_scan(files)
+            qm_out = qm.do_scan_sp_calculations(self.id, qm_out, mol.elements)
             self.qm_energies = qm_out.energies
             self.qm_coords = qm_out.coords
             self.assign_frag_charge(mol, qm_out.charges)
-
             if qm_out.mismatch:
                 if config.avail_only:
                     print('"\navail_only" requested, attempting to continue with the missing '

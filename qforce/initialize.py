@@ -119,7 +119,7 @@ _ext_alpha = no :: bool
                                                    for key, software in
                                                    implemented_qm_software.items()},
                                  block='qm')
-        questions.generate_cases("scan_sp", {key: software.colt_user_input for key, software in
+        questions.generate_cases("charge_software", {key: software.colt_user_input for key, software in
                                              implemented_qm_software.items()}, block='qm')
         questions.generate_block("terms", Terms.get_questions())
 

@@ -39,6 +39,12 @@ class Gaussian(Colt):
 
 class ReadGaussian(ReadABC):
 
+    hessian_files = {'out_file': ['.out', '.log'],
+                                       'fchk_file': ['.fchk', '.fck']}
+    opt_files = {'out_file': ['.out', '.log']}
+    sp_files = {'out_file': ['.out', '.log']}
+    charge_files = {'out_file': ['.out', '.log']}
+
     def opt(self, config, out_file):
         """read the log file"""
 
@@ -88,6 +94,21 @@ class ReadGaussian(ReadABC):
                     b_orders = self._read_bond_order_from_nbo_analysis(file, n_atoms)
 
         return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges
+
+    def charges(self, file_name):
+        """read charge from file"""
+        point_charges = None
+        with open(out_file, "r", encoding='utf-8') as file:
+            for line in file:
+                if "Hirshfeld charges, spin densities" in line and charge_method == "cm5":
+                    point_charges = self._read_cm5_charges(file, n_atoms)
+                elif " ESP charges:" in line and charge_method == "esp":
+                    point_charges = self._read_esp_charges(file, n_atoms)
+                # elif "N A T U R A L   B O N D   O R B I T A L" in line:
+                #    b_orders = self._read_bond_order_from_nbo_analysis(file, n_atoms)
+        if point_charges is None:
+            raise ValueError("Charge not found")
+        return point_charges
 
     def scan(self, config, file_name):
         n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
@@ -166,13 +187,19 @@ class ReadGaussian(ReadABC):
 
 class WriteGaussian(WriteABC):
 
+
     def opt(self, file, job_name, config, coords, atnums):
         self._write_opt_job_setting(job_name, config, file)
         self._write_coords(atnums, coords, file)
         file.write("\n\n\n")
 
     def sp(self, file, job_name, config, coords, atnums):
-        self._write_opt_job_setting(job_name, config, file)
+        self._write_sp_job_setting(job_name, config, file)
+        self._write_coords(atnums, coords, file)
+        file.write("\n\n\n")
+
+    def charges(self, file, job_name, config, coords, atnums):
+        self._write_charge_job_setting(job_name, config, file)
         self._write_coords(atnums, coords, file)
         file.write("\n\n\n")
 
@@ -206,10 +233,20 @@ class WriteGaussian(WriteABC):
     def _write_sp_job_setting(self, job_name, config, file):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
-        file.write(f"%chk={job_name}_hessian.chk\n")
+        file.write(f"%chk={job_name}_sp.chk\n")
         file.write("#p ")
         self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
+        file.write(f"{job_name}\n\n")
+        file.write(f"{config.charge} {config.multiplicity}\n")
+
+    def _write_charge_job_setting(self, job_name, config, file):
+        file.write(f"%nprocshared={config.n_proc}\n")
+        file.write(f"%mem={config.memory}MB\n")
+        file.write(f"%chk={job_name}_hessian.chk\n")
+        file.write("#p ")
+        self.write_method(file, self.config)
+        file.write(f" pop=(CM5, ESP) {self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 

@@ -35,13 +35,23 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
 
+    def _write_charge_job_setting(self, job_name, config, file, charge, multiplicity):
+        file.write(f"%nprocshared={config.n_proc}\n")
+        file.write(f"%mem={config.memory}MB\n")
+        file.write(f"%chk={job_name}.chk\n")
+        file.write("#p ")
+        self.write_method(file, config)
+        file.write("\n\n")
+        file.write(f"{job_name}\n\n")
+        file.write(f"{charge} {multiplicity}\n")
+
     def _write_opt_job_setting(self, job_name, config, file):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p Opt=(nomicro) ")
         self.write_method(file, config)
-        file.write(f"{self.config.solvent_method}\n\n")
+        file.write(f"\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
@@ -61,7 +71,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p ")
         self.write_method(file, config)
-        file.write(f"{self.config.solvent_method}\n\n")
+        file.write(f"\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
@@ -189,9 +199,6 @@ class WritexTB(WriteABC):
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,
               comment=cmd)
 
-    def sp(self, *args, **kwargs):
-        raise NotImplementedError
-
     def hessian(self, file, job_name, config, coords, atnums):
         """ Write the input file for hessian and charge calculation.
 
@@ -216,6 +223,38 @@ class WritexTB(WriteABC):
               f'--uhf {config.multiplicity - 1} ' \
               f'--namespace {job_name}_hessian --parallel {config.n_proc} ' \
               f'{self.config.xtb_command}'
+        # Write the hessian.inp which is the command line input
+        file.write(cmd)
+        # Write the coordinates, which is the standard xyz file.
+        mol = Atoms(positions=coords, numbers=atnums)
+        write(f'{base}/{job_name}_input.xyz', mol, plain=True,
+              comment=cmd)
+
+    def sp(self, file, job_name, config, coords, atnums):    
+        name = file.name
+        base, filename = os.path.split(name)
+        # Given that the xTB input has to be given in the command line.
+        # We create the xTB command template here.
+        cmd = f'xtb {job_name}_input.xyz --chrg {config.charge} ' \
+              f'--uhf {config.multiplicity - 1} ' \
+              f'--namespace {job_name}_sp --parallel {config.n_proc} ' \
+              f'{self.config.xtb_command} > {job_name}.sp.inp.out'
+        # Write the hessian.inp which is the command line input
+        file.write(cmd)
+        # Write the coordinates, which is the standard xyz file.
+        mol = Atoms(positions=coords, numbers=atnums)
+        write(f'{base}/{job_name}_input.xyz', mol, plain=True,
+              comment=cmd)
+
+    def charges(self, file, job_name, config, coords, atnums):    
+        name = file.name
+        base, filename = os.path.split(name)
+        # Given that the xTB input has to be given in the command line.
+        # We create the xTB command template here.
+        cmd = f'xtb {job_name}_input.xyz --chrg {config.charge} ' \
+              f'--uhf {config.multiplicity - 1} ' \
+              f'--namespace {job_name}_hessian_charge --parallel {config.n_proc} ' \
+              f'{self.config.xtb_command} > {job_name}.sp.inp.out'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
@@ -280,6 +319,119 @@ class WritexTB(WriteABC):
 
 
 class ReadxTB(ReadABC):
+
+
+    hessian_files = {'hess_file': ['hessian'],
+                     'pc_file': ['charges'],
+                     'wbo_file': ['wbo'],
+                     'coord_file': ['xtbopt.xyz'], 
+                     }
+
+    opt_files = {'coord_file': ['xtbopt.xyz'], }
+
+    sp_files = {'sp_file': ['sp.inp.out'], }
+
+    charge_files = {'pc_file': ['charges']}
+
+    def opt(self, config, coord_file):
+        n_atoms, elements, coords = self._read_xtb_xyz(coord_file)
+        return coords
+
+    def sp(self, config, sp_file):
+        with open(sp_file, 'r') as fh:
+            for line in fh:
+                if 'TOTAL ENERGY' in line:
+                    energy = float(line.split()[3])
+        return energy 
+
+    def charges(self, config, pc_file):
+        n_atoms, point_charges = self._read_xtb_charge(pc_file)
+        return point_charges
+
+    def hessian(self, config, hess_file, pc_file, coord_file, wbo_file):
+        """ Extract hessian information from all the relevant files.
+
+        Parameters
+        ----------
+        config : config
+            A configparser object with all the parameters.
+        hess_file : string
+            File name of the xTB hess file for hessian information.
+        pc_file : string
+            File name of the xTB point charge file.
+        coord_file : string
+            File name of the xTB geometry optimised coordinate file.
+
+        Returns
+        -------
+        n_atoms : int
+            The number of atoms in the molecule.
+        charge : int
+            The total charge of the molecule.
+        multiplicity : int
+            The multiplicity of the molecule.
+        elements : array
+            A np.array of integer of the atomic number of the atoms.
+        coords : array
+            An array of float of the shape (n_atoms, 3).
+        out_hessian : array
+            An array of float of the size of ((n_atoms*3)**2+n_atoms*3)/2),
+            which is the lower triangle of the hessian matrix. Unit： kJ/mol
+        b_orders : list
+            A list (length: n_atoms) of list (length: n_atoms) of float.
+            representing the bond order between each atom pair.
+        point_charges : float
+            A list of float of the size of n_atoms.
+        """
+        n_atoms, point_charges = self._read_xtb_charge(pc_file)
+        n_atoms, elements, coords = self._read_xtb_xyz(coord_file)
+        charge = config.charge
+        multiplicity = config.multiplicity
+        b_orders = self._read_xtb_wbo_analysis(wbo_file, elements)
+        hessian = self._read_xtb_hess(hess_file, n_atoms)
+        return (n_atoms, charge, multiplicity, elements, coords, hessian,
+                b_orders, point_charges)
+
+    def scan(self, config, file_name):
+        """ Read data from the scan file.
+
+        Parameters
+        ----------
+        config : config
+            A configparser object with all the parameters.
+        file_name : string
+            File name of the ORCA log file.
+
+        Returns
+        -------
+        n_atoms : int
+            The number of atoms in the molecule.
+        coords : list
+            A list of array of float. The list has the length of the number
+            of steps and the array has the shape of (n_atoms, 3).
+        angles : list
+            A list (length: steps) of the angles that is being scanned.
+        energies : list
+            A list (length: steps) of the energy.
+        point_charges : dict
+            A dictionary with key in charge_method and the value to be a
+            list of float of the size of n_atoms.
+        """
+        file_name_base, ext = os.path.splitext(file_name)
+        base, name = os.path.split(file_name_base)
+        name = name.split('.')[0]
+
+        point_charges = {}
+        n_atoms, charges = self._read_xtb_charge(
+                '{}.charges'.format(os.path.join(base, name)))
+        point_charges["xtb"] = charges
+        elements, energies, coords = self._read_xtb_scan_log(
+            '{}.xtbscan.log'.format(os.path.join(base, name)))
+        angles = self._read_xtb_input_angle(
+            '{}.dat'.format(os.path.join(base, name)))
+
+        energies = np.array(energies) * Hartree * mol / kJ
+        return n_atoms, coords, angles, energies, point_charges
 
     @staticmethod
     def _read_xtb_hess(hess_file, n_atoms):
@@ -463,94 +615,3 @@ class ReadxTB(ReadABC):
         start, end, step_num = angle_range.split(',')
         return np.linspace(float(start), float(end), int(step_num))
 
-    def opt(self, config, coord_file):
-        n_atoms, elements, coords = self._read_xtb_xyz(coord_file)
-        return coords
-
-    def sp(self):
-        pass
-
-    def hessian(self, config, hess_file, pc_file, coord_file, wbo_file):
-        """ Extract hessian information from all the relevant files.
-
-        Parameters
-        ----------
-        config : config
-            A configparser object with all the parameters.
-        hess_file : string
-            File name of the xTB hess file for hessian information.
-        pc_file : string
-            File name of the xTB point charge file.
-        coord_file : string
-            File name of the xTB geometry optimised coordinate file.
-
-        Returns
-        -------
-        n_atoms : int
-            The number of atoms in the molecule.
-        charge : int
-            The total charge of the molecule.
-        multiplicity : int
-            The multiplicity of the molecule.
-        elements : array
-            A np.array of integer of the atomic number of the atoms.
-        coords : array
-            An array of float of the shape (n_atoms, 3).
-        out_hessian : array
-            An array of float of the size of ((n_atoms*3)**2+n_atoms*3)/2),
-            which is the lower triangle of the hessian matrix. Unit： kJ/mol
-        b_orders : list
-            A list (length: n_atoms) of list (length: n_atoms) of float.
-            representing the bond order between each atom pair.
-        point_charges : float
-            A list of float of the size of n_atoms.
-        """
-        n_atoms, point_charges = self._read_xtb_charge(pc_file)
-        n_atoms, elements, coords = self._read_xtb_xyz(coord_file)
-        charge = config.charge
-        multiplicity = config.multiplicity
-        b_orders = self._read_xtb_wbo_analysis(wbo_file, elements)
-        hessian = self._read_xtb_hess(hess_file, n_atoms)
-        return (n_atoms, charge, multiplicity, elements, coords, hessian,
-                b_orders, point_charges)
-
-    def scan(self, config, file_name):
-        """ Read data from the scan file.
-
-        Parameters
-        ----------
-        config : config
-            A configparser object with all the parameters.
-        file_name : string
-            File name of the ORCA log file.
-
-        Returns
-        -------
-        n_atoms : int
-            The number of atoms in the molecule.
-        coords : list
-            A list of array of float. The list has the length of the number
-            of steps and the array has the shape of (n_atoms, 3).
-        angles : list
-            A list (length: steps) of the angles that is being scanned.
-        energies : list
-            A list (length: steps) of the energy.
-        point_charges : dict
-            A dictionary with key in charge_method and the value to be a
-            list of float of the size of n_atoms.
-        """
-        file_name_base, ext = os.path.splitext(file_name)
-        base, name = os.path.split(file_name_base)
-        name = name.split('.')[0]
-
-        point_charges = {}
-        n_atoms, charges = self._read_xtb_charge(
-                '{}.charges'.format(os.path.join(base, name)))
-        point_charges["xtb"] = charges
-        elements, energies, coords = self._read_xtb_scan_log(
-            '{}.xtbscan.log'.format(os.path.join(base, name)))
-        angles = self._read_xtb_input_angle(
-            '{}.dat'.format(os.path.join(base, name)))
-
-        energies = np.array(energies) * Hartree * mol / kJ
-        return n_atoms, coords, angles, energies, point_charges
