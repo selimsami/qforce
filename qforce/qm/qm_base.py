@@ -1,9 +1,13 @@
 import math
-import numpy as np
 import sys
-from ase.units import Hartree, mol, kJ, Bohr
+import json
 from abc import ABC, abstractmethod
+from pathlib import Path
+from string import Template
 from warnings import warn
+
+import numpy as np
+from ase.units import Hartree, mol, kJ, Bohr
 
 
 class WriteABC(ABC):
@@ -101,41 +105,6 @@ class ReadABC(ABC):
                 return b_orders
 
 
-def scriptify(writer):
-    def wrapper(*args, **kwargs):
-        pre_input_script, post_input_script = [], []
-        job_script = args[0].config.job_script
-
-        if job_script:
-            file = args[1]
-
-            if writer.__name__ == 'write_hessian':
-                job_name = f'{args[0].job.name}_hessian'
-            elif writer.__name__ == 'write_scan':
-                job_name = args[2]
-            elif write.__name__ == 'write_charge':
-                job_name = f'{args[0].job.name}_hessian_charge'
-            else:
-                job_name = args[0].job.name
-
-            job_script = job_script.replace('<jobname>', f'{job_name}')
-            job_script = job_script.split('\n')
-            if '<input>' in job_script:
-                inp_line = job_script.index('<input>')
-            else:
-                inp_line = len(job_script)
-
-            pre_input_script = job_script[:inp_line]
-            post_input_script = job_script[inp_line+1:]
-
-        for line in pre_input_script:
-            file.write(f'{line}\n')
-        writer(*args, **kwargs)
-        for line in post_input_script:
-            file.write(f'{line}\n')
-    return wrapper
-
-
 class HessianOutput():
     def __init__(self, vib_scaling, n_atoms, charge, multiplicity, elements, coords, hessian,
                  b_orders, point_charges, lone_e=None, n_bonds=None):
@@ -222,3 +191,157 @@ class ScanOutput():
             energies = energies[order]
             energies -= energies.min()
         return angles, energies, coords
+
+
+class CalculationIncompleteError(SystemExit):
+    """Indicates that a calculation is incomplete and still files are missing"""
+    pass
+
+
+class Calculation:
+    """Hold information of a calculation"""
+
+    def __init__(self, inputfile, required_output_files, *, folder=None):
+        self.folder = Path(folder) if folder is not None else Path("")
+        self.required_output_files = required_output_files
+        self.inputfile = self.folder / Path(inputfile)
+        self._base = self.inputfile.name[:-len(self.inputfile.suffix)]
+        # register itself
+        SubmitKeeper.add(self)
+
+    def _render(self, option):
+        if '$' in option:
+            option = Template(option)
+            return option.substitute(base=self._base)
+        return self._base + option
+
+    def as_pycode(self):
+        return f'Calculation("{self.inputfile.name}", {json.dumps(self.required_output_files)}, folder="{str(self.folder)}")'
+
+    def input_exists(self):
+        """check if the inputfile is already present"""
+        return self.inputfile.exists()
+    
+    def check(self):
+        """Checks if all required files are present, if not raises CalculationIncompleteError"""
+
+        outfiles = {}
+
+        for name, options in self.required_output_files.items():
+            outfiles[name] = None
+            for option in options:
+                option = self._render(option)
+                filename = self.folder / option
+                if filename.exists():
+                    outfiles[name] = filename
+                    break
+    
+        error = ""
+        for name, value in outfiles.items():
+            if value is None:
+                options = self.required_output_files[name]
+                error += f"    Missing file '{name}': {self._render(options[0])}"
+                for option in options[1:]:
+                    error += f", {self._render(option)}"
+                error += '\n'
+        if error != '':
+            raise CalculationIncompleteError(f"For folder: '{str(self.folder)}' following files missing:\n{error}")
+        return outfiles
+
+
+def check(calculations):
+    """Check multiple calculations, if false Raises CalculationIncompleteError"""
+    files = []
+    error = ""
+    for i, calc in enumerate(calculations):
+        try:
+            files.append(calc.check())
+        except CalculationIncompleteError as e:
+            error += e.code + "\n\n"
+    if error != "":            
+        raise CalculationIncompleteError(error)
+    return files
+
+class SubmitKeeper:
+    """Singleton that keeps track over all calculations that need to be submitted"""
+
+    calculations = []
+
+    @classmethod
+    def add(self, calculation):
+        assert isinstance(calculation, Calculation)
+        self.calculations.append(calculation)
+
+    @classmethod
+    def clear(self):
+        self.calculations = []
+
+    @classmethod
+    def check(self):
+        check(self.calculations)
+
+    @classmethod
+    def write_check(self, filename, only_incomplete=False):
+        """Write check function to check if calculations are there"""
+
+        if only_incomplete is False:
+            calculations = ',\n'.join(calc.as_pycode() for calc in self.calculations)
+        else:
+            calculations = []
+            for calc in self.calculations:
+                try:
+                    calc.check()
+                except CalculationIncompleteError:
+                    calculations.append(calc)
+            calculations = ',\n'.join(calc.as_pycode() for calc in calculations)
+            
+
+        out = f"""from qforce.cli import Calculation, Option
+        
+
+# currently missing calculations
+calculations = [{calculations}]
+
+
+if __name__ == '__main__':
+    option = Option.from_commandline(calculations)
+    option.run()
+        """
+
+        with open(filename, 'w') as fh:
+            fh.write(out)
+
+
+def scriptify(writer):
+    def wrapper(self, *args, **kwargs):
+        pre_input_script, post_input_script = [], []
+        job_script = self.config.job_script
+
+        if job_script:
+            file = args[0]
+
+            if writer.__name__ == 'write_hessian':
+                job_name = f'{self.job.name}_hessian'
+            elif writer.__name__ == 'write_scan':
+                job_name = args[1]
+            elif write.__name__ == 'write_charge':
+                job_name = f'{self.job.name}_hessian_charge'
+            else:
+                job_name = self.job.name
+
+            job_script = job_script.replace('<jobname>', f'{job_name}')
+            job_script = job_script.split('\n')
+            if '<input>' in job_script:
+                inp_line = job_script.index('<input>')
+            else:
+                inp_line = len(job_script)
+
+            pre_input_script = job_script[:inp_line]
+            post_input_script = job_script[inp_line+1:]
+
+        for line in pre_input_script:
+            file.write(f'{line}\n')
+        writer(self, *args, **kwargs)
+        for line in post_input_script:
+            file.write(f'{line}\n')
+    return wrapper

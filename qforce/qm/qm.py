@@ -10,6 +10,7 @@ from .qchem import QChem
 from .orca import Orca
 from .xtb import xTB, XTBGaussian
 from .qm_base import scriptify, HessianOutput, ScanOutput
+from .qm_base import Calculation, CalculationIncompleteError, check
 from .torsiondrive_xtb import TorsiondrivexTB
 
 
@@ -71,24 +72,69 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         # check hessian files and if not present write the input file
         self.method = self._register_method()
 
-    def _read_opt(self, opt_files):
-        software = self.softwares['preopt']
-        return software.read.opt(self.config, **opt_files)
+    def preopt_dir(self, only=False):
+        path = '0_preopt'
+        if only is True:
+            return path
+        return os.path.join(self.job.dir, path)
+
+    def hessian_dir(self, only=False):
+        path = '1_hessian'
+        if only is True:
+            return path
+        return os.path.join(self.job.dir, path)
+
+    def hessian_charge_dir(self, only=False):
+        path = '1_hessian_charge'
+        if only is True:
+            return path
+        return os.path.join(self.job.dir, path)
+
+    def fragment_dir(self, only=False):
+        path = '2_fragments'
+        if only is True:
+            return path
+        return os.path.join(self.job.dir, path)
 
     def get_hessian(self):
         """Setup hessian files, and if present read the hessian information"""
-        hessian_files = self._check_hessian_output()
+
+        software = self.softwares['software']
+        folder = self.hessian_dir()
+        os.makedirs(folder, exist_ok=True)
+        calculation = Calculation(f'{self.job.name}_hessian.inp', software.read.hessian_files, folder=folder)
+        if not calculation.input_exists():
+            _, coords, atnums = self._read_coord_file(f'{self.job.dir}/init.xyz')
+            with open(calculation.inputfile, 'w') as file:
+                self.write_hessian(file, coords, atnums)
+            raise CalculationIncompleteError(
+                        f"Required Hessian output file(s) not found in '{folder}' .\n"
+                        'Creating the necessary input file and exiting...\nPlease run the '
+                        'calculation and put the output files in the same directory.\n')
+
+        hessian_files = calculation.check()
         output = self._read_hessian(hessian_files)
+        # update output with charge calculation if necessary
         charge_software = self.softwares['charge_software']
         if charge_software is None:
             return output
-
-        os.makedirs(f'{self.job.dir}/hessian_charge', exist_ok=True)
-
-        with open(f'{self.job.dir}/hessian_charge/{self.job.name}_hessian_charge.inp', 'w') as file: 
-            filename = self.write_charge(file, output.coords, output.elements, charge_software)
         #
-        charge_files = self._check_hessian_charge_output()
+        folder = self.hessian_charge_dir()
+        os.makedirs(folder, exist_ok=True)
+
+        calculation = Calculation(f'{self.job.name}_hessian_charge.inp',
+                                  charge_software.read.charge_files, folder=folder)
+
+        if not calculation.input_exists():
+            with open(calculation.inputfile, 'w') as file:
+                filename = self.write_charge(file, output.coords, output.elements, charge_software)
+            raise CalculationIncompleteError(
+                        f"Required Hessian Charge output file(s) not found in '{folder}' .\n"
+                        'Creating the necessary input file and exiting...\nPlease run the '
+                        'calculation and put the output files in the same directory.\n')
+        # if files exist
+        charge_files = calculation.check()
+        #
         point_charges = charge_software.read.charges(self.config, **charge_files)
         #
         output.point_charges = output.check_type_and_shape(point_charges, 'point_charges', float,
@@ -96,62 +142,65 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         #
         return output
 
-    def _read_hessian(self, hessian_files):
-        software = self.softwares['software']
-        qm_out = software.read.hessian(self.config, **hessian_files)
-        return HessianOutput(self.config.vib_scaling, *qm_out)
-
-    def read_scan(self, files):
+    def read_scan(self, folder, files):
         software = self.softwares['scan_software']
         qm_outs = []
         n_scan_steps = int(np.ceil(360/self.config.scan_step_size))
 
         for file in files:
             if self.config.dihedral_scanner == 'relaxed_scan':
-                qm_outs.append(software.read.scan(self.config, f'{self.job.frag_dir}/{file}'))
+                qm_outs.append(software.read.scan(self.config, f'{folder}/{file}'))
             elif self.config.dihedral_scanner == 'xtb-torsiondrive':
-                qm_outs.append(TorsiondrivexTB.read(f'{self.job.frag_dir}/{file}'))
+                qm_outs.append(TorsiondrivexTB.read(f'{folder}/{file}'))
         qm_out = self._get_unique_scan_points(qm_outs, n_scan_steps)
 
         return ScanOutput(file, n_scan_steps, *qm_out)
 
-
-    def do_scan_sp_calculations(self, scan_id, scan_out, atnums):
+    def do_scan_sp_calculations(self, parent, scan_id, scan_out, atnums):
         """do scan sp calculations if necessary and update the scan out"""
         software = self.softwares['software']
         scan_software = self.softwares['scan_software']
         # check if sp should be computed 
         do_sp = not (scan_software is software)
         charge_software = self.softwares['charge_software']
+        charge_calc = None
         #
         if charge_software is None and do_sp is True:
             charge_software = software
             
         # setup charge calculations
         if charge_software is not None:
-            folder = f'{self.job.frag_dir}/{scan_id}/charge'
+            folder = f'{parent}/charge'
+            charge_calc = Calculation(f'{scan_id}.inp', charge_software.read.charge_files, folder=folder)
             os.makedirs(folder, exist_ok=True)
-            with open(f'{folder}/{self.job.name}_{scan_id}.inp', 'w') as file: 
+            with open(charge_calc.inputfile, 'w') as file: 
                 filename = self.write_charge(file, scan_out.coords[0], atnums, charge_software)
         # setup sp calculations
         if do_sp is True:
-            folder = f'{self.job.frag_dir}/{scan_id}'
+            software = self.softwares['software']
+            folder = parent
             os.makedirs(folder, exist_ok=True)
+            calculations = [Calculation(f'{self.job.name}.inp', software.read.sp_files, folder=f'{folder}/step_{i}')
+                            for i in range(scan_out.n_steps)]
+
+            # setup files
+            for i, calc in enumerate(calculations):
+                if not calc.input_exists():
+                    os.makedirs(calc.folder, exist_ok=True)
+                    with open(calc.inputfile, 'w') as file:
+                        self.write_sp(file, scan_out.coords[i], atnums)
             #
-            for i in range(scan_out.n_steps):
-                os.makedirs(f'{folder}/step_{i}', exist_ok=True)
-                with open(f'{folder}/step_{i}/{self.job.name}.inp', 'w') as file:
-                    self.write_sp(file, scan_out.coords[i], atnums)
-            #
-            scan_sp_files = self._check_scan_sp_output(f'{self.job.frag_dir}/{scan_id}')
+            if charge_calc is not None:
+                out_files = check(calculations + [charge_calc])[:-1]
+            else:
+                out_files = check(calculations)
             energies = []
-            for i in range(scan_out.n_steps):
-                files = scan_sp_files[f'step_{i}']
+            # do not do che charge
+            for files in out_files:
                 energies.append(charge_software.read.sp(self.config, **files))
             scan_out.energies = np.array(energies, dtype=np.float64)
         # check and read charge software
         if charge_software is not None:
-            charge_files = self._check_hessian_charge_output(f'{self.job.frag_dir}/{scan_id}/charge')
             point_charges = charge_software.read.charges(self.config, **charge_files)
             scan_out.charges = {self.config.charge_method: list(point_charges)}
 
@@ -212,6 +261,15 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
                                   scan_id, coords, atnums, scanned_atoms,
                                   charge, multiplicity)
 
+    def _read_hessian(self, hessian_files):
+        software = self.softwares['software']
+        qm_out = software.read.hessian(self.config, **hessian_files)
+        return HessianOutput(self.config.vib_scaling, *qm_out)
+    
+    def _read_opt(self, opt_files):
+        software = self.softwares['preopt']
+        return software.read.opt(self.config, **opt_files)
+
     def _get_unique_scan_points(self, qm_outs, n_scan_steps):
         all_angles, all_energies, all_coords, chosen_point_charges, final_e = [], [], [], {}, 0
         all_angles_rounded = []
@@ -240,10 +298,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
 
         return n_atoms, all_coords, all_angles, all_energies, chosen_point_charges
 
-    @property
-    def preopt_dir(self):
-        return os.path.join(self.job.dir, 'preopt')
-
     def preopt(self):
         molecule, coords, atnums = self._read_coord_file(self.job.coord_file)
         software = self.softwares['preopt']
@@ -251,52 +305,27 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             self._write_xyzfile(molecule, 'init.xyz',
                                 comment=f'{self.job.name} - input geometry for hessian')
             return
-
         # create Preopt directory
-        preopt_dir = self.preopt_dir
-        os.makedirs(preopt_dir, exist_ok=True)
-        self._write_xyzfile(molecule, 'preopt/preopt.xyz',
+        folder = self.preopt_dir()
+        os.makedirs(folder, exist_ok=True)
+        self._write_xyzfile(molecule, f'{self.preopt_dir(True)}/preopt.xyz',
                             comment=f'{self.job.name} - input geometry for preopt')
+        # setup calculation
+        calculation = Calculation(f"{self.job.name}_opt.inp", software.read.opt_files, folder=folder)
+        if not calculation.input_exists():
+            _, coords, atnums = self._read_coord_file(f'{folder}/preopt.xyz')
+            with open(calculation.inputfile, 'w') as file:
+                self.write_preopt(file, coords, atnums)
+                raise CalculationIncompleteError(
+                        'Required Preopt output file(s) not found in the job directory.\n'
+                        'Creating the necessary input file and exiting...\nPlease run the '
+                        'calculation and put the output files in the same directory.\n')
         # check_preopt_output
-        preopt_files = self._check_preopt_output()
+        preopt_files = calculation.check()
         coords = self._read_opt(preopt_files)
         molecule.set_positions(coords)
         self._write_xyzfile(molecule, 'init.xyz',
                             comment=f'{self.job.name} - input geometry for hessian')
-
-    def _check_preopt_output(self):
-        software = self.softwares['preopt']
-        if software is None:
-            raise ValueError("preopt cannot be None")
-        preopt_files = {}
-        folder = self.preopt_dir
-        all_files = os.listdir(folder)
-
-        for req, tails in software.required_preopt_files.items():
-            files = [file for file in all_files if any(file.endswith(f'{tail}') for tail in tails)]
-            n_files = len(files)
-
-            if n_files == 0 and self.job.coord_file:
-                _, coords, atnums = self._read_coord_file(f'{folder}/preopt.xyz')
-                file_name = f'{self.job.dir}/{self.job.name}_hessian.inp'
-                print('Required Preopt output file(s) not found in the job directory.\n'
-                      'Creating the necessary input file and exiting...\nPlease run the '
-                      'calculation and put the output files in the same directory.\n')
-                file_name = f'{self.preopt_dir}/{self.job.name}_preopt.inp'
-                with open(file_name, 'w') as file:
-                    self.write_preopt(file, coords, atnums)
-                raise SystemExit
-            elif n_files == 0:
-                print('Required Preopt output file(s) not found in the job directory\n'
-                      'and no coordinate file was provided to create input files.\nExiting...\n')
-                raise SystemExit
-            elif n_files > 1:
-                print('There are multiple files in the job directory with the expected Preopt'
-                      ' output extensions.\nPlease remove the undesired ones.\n')
-                raise SystemExit
-            else:
-                preopt_files[req] = f'{folder}/{files[0]}'
-        return preopt_files
 
     def _check_scan_sp_output(self, folder):
         software = self.softwares['software']
@@ -333,58 +362,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             raise SystemExit(msg)
 
         return scan_sp_files
-
-    def _check_hessian_charge_output(self, folder=None):
-        software = self.softwares['charge_software']
-        charge_files = {}
-        if folder is None:
-            all_files = os.listdir(f'{self.job.dir}/hessian_charge')
-        else:
-            all_files = os.listdir(folder)
-
-        for name, tails in software.read.charge_files.items():
-            files = [file for file in all_files if any(file.endswith(f'{tail}') for tail in tails)]
-            n_files = len(files)
-            if n_files == 0:
-                raise SystemExit('Required Hessian Charge output file(s) not found in the job directory.\n'
-                            'Creating the necessary input file and exiting...\nPlease run the '
-                            'calculation and put the output files in the same directory.\n')
-            elif n_files > 1: 
-                raise SystemExit('There are multiple files in the job directory with the expected Hessian'
-                                 ' output extensions.\nPlease remove the undesired ones.\n')
-
-            else:
-                charge_files[name] = f'{self.job.dir}/hessian_charge/{files[0]}'
-        return charge_files
-
-    def _check_hessian_output(self):
-        software = self.softwares['software']
-        hessian_files = {}
-        all_files = os.listdir(self.job.dir)
-
-        for req, tails in software.required_hessian_files.items():
-            files = [file for file in all_files if any(file.endswith(f'{tail}') for tail in tails)]
-            n_files = len(files)
-
-            if n_files == 0 and self.job.coord_file:
-                _, coords, atnums = self._read_coord_file(f'{self.job.dir}/init.xyz')
-                file_name = f'{self.job.dir}/{self.job.name}_hessian.inp'
-                with open(file_name, 'w') as file:
-                    self.write_hessian(file, coords, atnums)
-                raise SystemExit('Required Hessian output file(s) not found in the job directory.\n'
-                      'Creating the necessary input file and exiting...\nPlease run the '
-                      'calculation and put the output files in the same directory.\n')
-            elif n_files == 0:
-                print('Required Hessian output file(s) not found in the job directory\n'
-                      'and no coordinate file was provided to create input files.\nExiting...\n')
-                raise SystemExit
-            elif n_files > 1:
-                print('There are multiple files in the job directory with the expected Hessian'
-                      ' output extensions.\nPlease remove the undesired ones.\n')
-                raise SystemExit
-            else:
-                hessian_files[req] = f'{self.job.dir}/{files[0]}'
-        return hessian_files
 
     def _read_coord_file(self, filename):
         molecule = read(filename)

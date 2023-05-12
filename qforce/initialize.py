@@ -158,7 +158,7 @@ def _get_job_info(filename):
         job['name'] = base.split('_qforce')[0]
 
     job['dir'] = f'{path}{job["name"]}_qforce'
-    job['frag_dir'] = f'{job["dir"]}/fragments'
+    job['frag_dir'] = f'{job["dir"]}/2_fragments'
     job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
     os.makedirs(job['dir'], exist_ok=True)
     return SimpleNamespace(**job)

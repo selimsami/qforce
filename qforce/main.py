@@ -4,7 +4,7 @@ from colt.validator import Validator
 from .polarize import polarize
 from .initialize import initialize
 from .qm.qm import QM
-from .qm.qm_base import HessianOutput
+from .qm.qm_base import HessianOutput, SubmitKeeper, CalculationIncompleteError
 from .forcefield import ForceField
 from .molecule import Molecule
 from .fragment import fragment
@@ -35,13 +35,15 @@ options = :: file, optional, alias=o
         },
 })
 def run(file, options):
-    run_qforce(input_arg=file, config=options)
+    config, job = initialize(file, options, None)
+    try:
+        _run(config, job)
+    except CalculationIncompleteError as e:
+        SubmitKeeper.write_check(f'{job.name}_helper.py', only_incomplete=True)
+        raise e from None
 
 
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
-    # setup system
-    config, job = initialize(input_arg, config, presets)
-
+def _run(config, job, ext_q=None, ext_lj=None):
     if config.ff._polarize:
         polarize(job, config.ff)
 
@@ -73,6 +75,12 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
 
     print_outcome(job.dir)
+
+
+def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
+    # setup system
+    config, job = initialize(input_arg, config, presets)
+    _run(config, job, ext_q=ext_q, ext_lj=ext_lj)
 
 
 def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,

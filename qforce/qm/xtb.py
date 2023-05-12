@@ -321,17 +321,17 @@ class WritexTB(WriteABC):
 class ReadxTB(ReadABC):
 
 
-    hessian_files = {'hess_file': ['hessian'],
-                     'pc_file': ['charges'],
-                     'wbo_file': ['wbo'],
-                     'coord_file': ['xtbopt.xyz'], 
+    hessian_files = {'hess_file': ['.hessian'],
+                     'pc_file': ['.charges'],
+                     'wbo_file': ['.wbo'],
+                     'coord_file': ['.xtbopt.xyz'], 
                      }
 
-    opt_files = {'coord_file': ['xtbopt.xyz'], }
+    opt_files = {'coord_file': ['.xtbopt.xyz'], }
 
-    sp_files = {'sp_file': ['sp.inp.out'], }
+    sp_files = {'sp_file': ['.sp.inp.out'], }
 
-    charge_files = {'pc_file': ['charges']}
+    charge_files = {'pc_file': ['.charges']}
 
     def opt(self, config, coord_file):
         n_atoms, elements, coords = self._read_xtb_xyz(coord_file)

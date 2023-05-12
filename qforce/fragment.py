@@ -6,9 +6,11 @@ import networkx.algorithms.isomorphism as iso
 import numpy as np
 import json
 import pickle
+from pathlib import Path
 #
 from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
 from .forces import get_dihed
+from .qm.qm_base import Calculation, CalculationIncompleteError
 
 """
 
@@ -35,12 +37,18 @@ def fragment(mol, qm, job, config):
             unique_dihedrals[name] = term.atomids
 
     generated = []  # Number of fragments generated but not computed
+    error = ''
     for name, atomids in unique_dihedrals.items():
-        frag = Fragment(job, config, mol, qm, atomids, name)
-        if frag.has_data:
-            fragments.append(frag)
-        elif config.scan.batch_run and frag.has_inp:
-            generated.append(frag)
+        try:
+            frag = Fragment(job, config, mol, qm, atomids, name)
+            if frag.has_data:
+                fragments.append(frag)
+            elif config.scan.batch_run and frag.has_inp:
+                generated.append(frag)
+        except CalculationIncompleteError as e:
+            error += e.code + '\n\n'
+    if error != '':
+        raise CalculationIncompleteError(error)
 
     check_and_notify(job, config.scan, len(unique_dihedrals), len(fragments), len(generated))
 
@@ -77,7 +85,7 @@ def check_and_notify(job, config, n_unique, n_have, n_generated):
                 raise SystemExit
 
 
-class Fragment():
+class Fragment:
     """
     Issue: using capping categorization is not ideal - different capped fragments can be identical
     For now necessary because of the mapping - but should be fixed at some point
@@ -120,6 +128,9 @@ class Fragment():
         self.make_fragment_graph(mol)
         self.make_fragment_identifier(config, mol, qm)
         self.check_for_fragment(job, config, qm)
+        self.folder = Path(job.frag_dir) / self.id
+        os.makedirs(self.folder, exist_ok=True)
+        self.calc = Calculation(f'{self.id}.inp', {}, folder=self.folder)
         self.check_for_qm_data(job, config, mol, qm)
         # self.make_fragment_terms(mol)
 
@@ -292,16 +303,19 @@ class Fragment():
         self.id = f'{self.hash}~{self.hash_idx}'
 
     def check_new_scan_data(self, job, mol, config, qm):
-        files = [f for f in os.listdir(job.frag_dir) if f.startswith(self.id) and
+        files = [f for f in os.listdir(self.folder) if f.startswith(self.id) and
                  f.endswith(('log', 'out'))]
 
         if files:
             self.has_data = True
-            qm_out = qm.read_scan(files)
-            qm_out = qm.do_scan_sp_calculations(self.id, qm_out, mol.elements)
+            qm_out = qm.read_scan(self.folder, files)
+            qm_out = qm.do_scan_sp_calculations(self.folder, self.id, qm_out, mol.elements)
+            # get qm out energies
             self.qm_energies = qm_out.energies
             self.qm_coords = qm_out.coords
+            #
             self.assign_frag_charge(mol, qm_out.charges)
+            #
             if qm_out.mismatch:
                 if config.avail_only:
                     print('"\navail_only" requested, attempting to continue with the missing '
@@ -416,7 +430,7 @@ class Fragment():
         coords = np.array(coords)
         start_angle = np.degrees(get_dihed(coords[self.scanned_atomids])[0])
 
-        with open(f'{job.frag_dir}/{self.id}.inp', 'w') as file:
+        with open(self.calc.inputfile, 'w') as file:
             qm.write_scan(file, self.id, coords, atnums, self.graph.graph['scan'], start_angle,
                           self.graph.graph['qm_method']['charge'],
                           self.graph.graph['qm_method']['multiplicity'])
