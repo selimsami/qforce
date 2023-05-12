@@ -395,6 +395,9 @@ class ForceField():
         return q
 
     def write_amber(self, directory, mol, coords):
+        if self.urey == True:
+            print(f'NOTE: AMBERs parameters file does not support Urey-Bradley terms.')
+            print(f'      Set urey to False! \n')
         j2cal = 0.2390057361
         self.write_mol2(directory, mol, coords)
         self.write_frcmod(directory, mol, coords, j2cal)
