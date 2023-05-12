@@ -9,12 +9,16 @@ from colt import Colt
 from .qm.qm import QM, implemented_qm_software
 from .molecule.terms import Terms
 from .dihedral_scan import DihedralScan
-from .misc import LOGO
+from .misc import get_logo
 
 
 class Initialize(Colt):
     _user_input = """
 [ff]
+# MD software to use
+# Currently amber supports only gaff2 atom types
+output_software = gromacs :: str :: gromacs, amber
+
 # Number of n equivalent neighbors needed to consider two atoms equivalent
 # Negative values turns off equivalence, 0 makes same elements equivalent
 n_equiv = 4 :: int
@@ -164,7 +168,7 @@ def _check_and_copy_settings_file(job_dir, config_file):
 
 
 def initialize(filename, config_file, presets=None):
-    print(LOGO)
+    print(get_logo())
 
     job_info = _get_job_info(filename)
     settings_file = _check_and_copy_settings_file(job_info.dir, config_file)

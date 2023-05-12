@@ -9,7 +9,7 @@ from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian
 
-from .misc import check_if_file_exists, LOGO
+from .misc import check_if_file_exists, get_logo
 from colt import from_commandline
 from colt.validator import Validator
 
@@ -26,7 +26,7 @@ file = :: file
 # File name for the optional options.
 options = :: file, optional, alias=o
 """, description={
-    'logo': LOGO,
+    'logo': get_logo(),
     'alias': 'qforce',
     'arg_format': {
         'name': 12,
@@ -56,9 +56,9 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
 
     calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
     ff = ForceField(job.name, config, mol, mol.topo.neighbors)
-    ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
+    ff.write_ff(job.dir, mol, qm_hessian_out.coords)
 
-    print_outcome(job.dir)
+    print_outcome(job.dir, config.ff.output_software)
 
 
 def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
@@ -73,17 +73,17 @@ def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
     calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
 
     ff = ForceField(job.name, config, mol, mol.topo.neighbors)
-    ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
+    ff.write_ff(job.dir, mol, qm_hessian_out.coords)
 
-    print_outcome(job.dir)
+    print_outcome(job.dir, config.ff.output_software)
 
     return mol.terms
 
 
-def print_outcome(job_dir):
+def print_outcome(job_dir, output_software):
     print(f'Output files can be found in the directory: {job_dir}.')
-    print('- Q-Force force field parameters in GROMACS format (gas.gro, gas.itp, gas.top).')
+    print(f'- Q-Force force field parameters in {output_software.upper()} format.')
     print('- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,'
           ' frequencies.pdf).')
     print('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
-    print('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.')
+    print('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.\n')
