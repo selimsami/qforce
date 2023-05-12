@@ -395,9 +395,9 @@ class ForceField():
         return q
 
     def write_amber(self, directory, mol, coords):
-    #    atom_ids, unique_at = self.get_atom_types(mol.topo, mol.non_bonded)
+        j2cal = 0.2390057361
         self.write_mol2(directory, mol, coords)
-        self.write_frcmod(directory, mol, coords)
+        self.write_frcmod(directory, mol, coords, j2cal)
 
     def write_mol2(self, directory, mol, coords):
         with open(f"{directory}/{self.mol_name}_qforce{self.polar_title}.mol2", "w") as mol2:
@@ -406,12 +406,12 @@ class ForceField():
             self.write_mol2_atom(mol2, mol.topo, coords, mol.non_bonded)
             self.write_mol2_bond(mol2, mol.topo, mol.terms)
 
-    def write_frcmod(self, directory, mol, coords):
+    def write_frcmod(self, directory, mol, coords, j2cal):
         with open(f"{directory}/{self.mol_name}_qforce{self.polar_title}.frcmod", "w") as frcmod:
             self.write_frcmod_mass(frcmod, mol.non_bonded)
-            self.write_frcmod_bonds(frcmod, mol.terms, mol.non_bonded.alpha_map)
-            self.write_frcmod_angles(frcmod, mol.terms)
-            self.write_frcmod_dihedrals(frcmod, mol.terms)
+            self.write_frcmod_bonds(frcmod, mol.terms, mol.non_bonded.alpha_map, j2cal)
+            self.write_frcmod_angles(frcmod, mol.terms, j2cal)
+            self.write_frcmod_dihedrals(frcmod, mol.terms, j2cal)
             self.write_frcmod_nonbond(frcmod, mol.non_bonded)
 
     def write_mol2_title(self, mol2):
@@ -453,11 +453,11 @@ class ForceField():
         for i, mass in enumerate((self.masses), start=1):
             frcmod.write(f"{i} {mass}\n")
 
-    def write_frcmod_bonds(self, frcmod, terms, alpha_map):
+    def write_frcmod_bonds(self, frcmod, terms, alpha_map, j2cal):
         frcmod.write("\nBOND\n")
         for bond in terms['bond']:
             ids = bond.atomids + 1
-            fconst = bond.fconst * (0.2390057361)/2  # kJ -> kcal
+            fconst = bond.fconst * j2cal/2  # kJ -> kcal
             equ = bond.equ
             frcmod.write(f"{ids[0]:<2}-{ids[1]:<2} {fconst:>10.2f} {equ:>10.2f}\n")
 
@@ -470,15 +470,15 @@ class ForceField():
                 None
             else:
                 urey_equ = urey[0].equ
-                urey_fconst = urey[0].fconst * (0.2390057361)/2
+                urey_fconst = urey[0].fconst * j2cal/2
                 frcmod.write(f"{ids[0]:<2}-{ids[2]:<2}{urey_fconst:>10.2f}{urey_equ:>10.2f}\n")
 
 
-    def write_frcmod_angles(self, frcmod, terms):
+    def write_frcmod_angles(self, frcmod, terms, j2cal):
         frcmod.write("\nANGLE\n")
         for angle in terms['angle']:
             ids = angle.atomids + 1
-            fconst = angle.fconst * (0.2390057361)/2
+            fconst = angle.fconst * j2cal/2
             equ = np.degrees(angle.equ)
 
             if self.urey:
@@ -492,7 +492,7 @@ class ForceField():
                 frcmod.write(f"{fconst:>10.2f}{equ:>10.2f} \n")
 
 
-    def write_frcmod_dihedrals(self, frcmod, terms):
+    def write_frcmod_dihedrals(self, frcmod, terms, j2cal):
         if len(terms['dihedral']) > 0:
             frcmod.write("\nDIHE\n")
 
@@ -506,7 +506,7 @@ class ForceField():
                 if dihed.equ == 0.00 or dihed.equ == 3.141592653589793:
                     equ = 180.0
 
-                fconst = dihed.fconst * (0.2390057361)
+                fconst = dihed.fconst * j2cal
 
                 fconstAmb = (2*fconst/(2**2))
                 frcmod.write(f"{ids[0]:<2}-{ids[1]:<2}-{ids[2]:<2}-{ids[3]:<2}")
@@ -517,7 +517,7 @@ class ForceField():
             # flexible dihedrals
             for dihed in terms['dihedral/flexible']:
                 ids = dihed.atomids + 1
-                c = dihed.equ
+                c = dihed.equ * j2cal
                 fc = [1.0*c[0] + 0.5*c[2] + 0.3750*c[4],
                       1.0*c[1] + 0.75*c[3] + 0.6250*c[5],
                       0.5*c[2] + 0.5*c[4],
@@ -544,9 +544,9 @@ class ForceField():
                 ids = dihed.atomids + 1
                 c0, c1, c2 = convert_to_inversion_rb(dihed.fconst, dihed.equ)
 
-                fc = [1.0*c[0]/2 + 0.5*c[2]/2,
-                      1.0*c[1]/2,
-                      0.5*c[2]/2]
+                fc = [(1.0*c0/2 + 0.5*c2/2)* j2cal,
+                      1.0*c1/2* j2cal,
+                      0.5*c2/2* j2cal]
 
                 for n in range(3, 0, -1):
                     if n % 2 == 1:
@@ -567,7 +567,7 @@ class ForceField():
                 for dihed in terms['dihedral/improper']:
                     ids = dihed.atomids + 1
                     equ = np.degrees(dihed.equ)
-                    fconst = dihed.fconst * (0.2390057361)/2
+                    fconst = dihed.fconst * j2cal/2
                     frcmod.write(f"{ids[0]:<2}-{ids[1]:<2}-{ids[2]:<2}-{ids[3]:<2}")
                     frcmod.write(f" 1 {fconst:>15.2f} {equ:>15.2f} 2\n")
 
