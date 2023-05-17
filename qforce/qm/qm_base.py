@@ -222,9 +222,8 @@ class Calculation:
         """check if the inputfile is already present"""
         return self.inputfile.exists()
     
-    def check(self):
-        """Checks if all required files are present, if not raises CalculationIncompleteError"""
-
+    def _get_files_dct(self):
+        """gets a basic dictionary with all setted and missing files"""
         outfiles = {}
 
         for name, options in self.required_output_files.items():
@@ -235,17 +234,23 @@ class Calculation:
                 if filename.exists():
                     outfiles[name] = filename
                     break
+        return outfiles
+
+    def missing_as_string(self):
+        outfiles = self._get_files_dct()
+        return "\n".join(f'    - {req}: {self.required_output_files[req]}' for req, ext in outfiles.items()
+                         if ext is None)
+
     
-        error = ""
-        for name, value in outfiles.items():
-            if value is None:
-                options = self.required_output_files[name]
-                error += f"    Missing file '{name}': {self._render(options[0])}"
-                for option in options[1:]:
-                    error += f", {self._render(option)}"
-                error += '\n'
+    def check(self):
+        """Checks if all required files are present, if not raises CalculationIncompleteError"""
+
+        outfiles = self._get_files_dct()
+    
+        error = self.missing_as_string()
+
         if error != '':
-            raise CalculationIncompleteError(f"For folder: '{str(self.folder)}' following files missing:\n{error}")
+            raise CalculationIncompleteError(f"For folder: '{str(self.folder)}' following files missing:\n{error}\n\n")
         return outfiles
 
 

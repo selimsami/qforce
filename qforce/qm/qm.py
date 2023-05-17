@@ -96,6 +96,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             return path
         return os.path.join(self.job.dir, path)
 
+    def inputname(self, software):
+        return f'{self.job.name}_{software.hash()}.inp'
+
     def get_hessian(self):
         """Setup hessian files, and if present read the hessian information"""
 
@@ -110,7 +113,11 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             raise CalculationIncompleteError(
                         f"Required Hessian output file(s) not found in '{folder}' .\n"
                         'Creating the necessary input file and exiting...\nPlease run the '
-                        'calculation and put the output files in the same directory.\n')
+                        'calculation and put the output files in the same directory.\n'
+                        f'Selected QM Software: "{self.config.software}"\n'
+                        'Necessary Hessian output files and the corresponding extensions are:\n'
+                        f"{calculation.missing_as_string()}"
+                            )
 
         hessian_files = calculation.check()
         output = self._read_hessian(hessian_files)
@@ -131,7 +138,11 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             raise CalculationIncompleteError(
                         f"Required Hessian Charge output file(s) not found in '{folder}' .\n"
                         'Creating the necessary input file and exiting...\nPlease run the '
-                        'calculation and put the output files in the same directory.\n')
+                        'calculation and put the output files in the same directory.\n'
+                        f'Selected QM Software: "{self.config.software}"\n'
+                        'Necessary Hessian output files and the corresponding extensions are:\n'
+                        f"{calculation.missing_as_string()}"
+                            )
         # if files exist
         charge_files = calculation.check()
         #
@@ -144,6 +155,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
 
     def read_scan(self, folder, files):
         software = self.softwares['scan_software']
+        if software is None:
+            software = self.softwares['software']
         qm_outs = []
         n_scan_steps = int(np.ceil(360/self.config.scan_step_size))
 
@@ -161,7 +174,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         software = self.softwares['software']
         scan_software = self.softwares['scan_software']
         # check if sp should be computed 
-        do_sp = not (scan_software is software)
+        do_sp = scan_software is not None
         charge_software = self.softwares['charge_software']
         charge_calc = None
         #
@@ -201,6 +214,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             scan_out.energies = np.array(energies, dtype=np.float64)
         # check and read charge software
         if charge_software is not None:
+            charge_files = charge_calc.check()
             point_charges = charge_software.read.charges(self.config, **charge_files)
             scan_out.charges = {self.config.charge_method: list(point_charges)}
 
@@ -370,20 +384,20 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         return molecule, coords, atnums
 
     def _write_xyzfile(self, molecule, filename, comment=None):
-        print(f'{self.job.dir}/{filename}')
         write(f'{self.job.dir}/{filename}', molecule, plain=True,
               comment=comment)
 
     def _get_qm_softwares(self, config):
         default = self._set_qm_software(config.software)
-        self._print_selected(config.software.value, default.required_hessian_files)
         #
-        softwares = {}
+        softwares = {
+                'software': default,
+        }
+
         defaults = {
                 'preopt': None,
-                'software': default,
                 'charge_software': None,
-                'scan_software': default,
+                'scan_software': None,
         }
         # do it twice, once load the settings, once set the defaults
         for option, default in defaults.items():
