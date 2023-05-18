@@ -96,8 +96,20 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             return path
         return os.path.join(self.job.dir, path)
 
-    def inputname(self, software):
-        return f'{self.job.name}_{software.hash()}.inp'
+    def _basename(self, software):
+        return f'{self.job.name}_{software.hash(self.config.charge, self.config.multiplicity)}'
+
+    def hessian_name(self, software):
+        return f'{self._basename(software)}_hessian'
+
+    def hessian_charge_name(self, software):
+        return f'{self._basename(software)}_hessian_charge'
+
+    def charge_name(self, software):
+        return f'{self._basename(software)}_charge'
+
+    def scan_sp_name(self, software, i):
+        return f'{self._basename(software)}_sp_step_{i:02d}'
 
     def get_hessian(self):
         """Setup hessian files, and if present read the hessian information"""
@@ -105,11 +117,11 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         software = self.softwares['software']
         folder = self.hessian_dir()
         os.makedirs(folder, exist_ok=True)
-        calculation = Calculation(f'{self.job.name}_hessian.inp', software.read.hessian_files, folder=folder)
+        calculation = Calculation(f'{self.hessian_name(software)}.inp', software.read.hessian_files, folder=folder)
         if not calculation.input_exists():
             _, coords, atnums = self._read_coord_file(f'{self.job.dir}/init.xyz')
             with open(calculation.inputfile, 'w') as file:
-                self.write_hessian(file, coords, atnums)
+                self.write_hessian(file, calculation.base, coords, atnums)
             raise CalculationIncompleteError(
                         f"Required Hessian output file(s) not found in '{folder}' .\n"
                         'Creating the necessary input file and exiting...\nPlease run the '
@@ -129,12 +141,12 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         folder = self.hessian_charge_dir()
         os.makedirs(folder, exist_ok=True)
 
-        calculation = Calculation(f'{self.job.name}_hessian_charge.inp',
+        calculation = Calculation(f'{self.hessian_charge_name(charge_software)}.inp',
                                   charge_software.read.charge_files, folder=folder)
 
         if not calculation.input_exists():
             with open(calculation.inputfile, 'w') as file:
-                filename = self.write_charge(file, output.coords, output.elements, charge_software)
+                filename = self.write_charge(file, calculation.base, output.coords, output.elements, charge_software)
             raise CalculationIncompleteError(
                         f"Required Hessian Charge output file(s) not found in '{folder}' .\n"
                         'Creating the necessary input file and exiting...\nPlease run the '
@@ -155,8 +167,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
 
     def read_scan(self, folder, files):
         software = self.softwares['scan_software']
-        if software is None:
-            software = self.softwares['software']
         qm_outs = []
         n_scan_steps = int(np.ceil(360/self.config.scan_step_size))
 
@@ -174,7 +184,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         software = self.softwares['software']
         scan_software = self.softwares['scan_software']
         # check if sp should be computed 
-        do_sp = scan_software is not None
+        do_sp = not (scan_software is software)
         charge_software = self.softwares['charge_software']
         charge_calc = None
         #
@@ -184,16 +194,16 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         # setup charge calculations
         if charge_software is not None:
             folder = f'{parent}/charge'
-            charge_calc = Calculation(f'{scan_id}.inp', charge_software.read.charge_files, folder=folder)
+            charge_calc = Calculation(f'{self.charge_name(charge_software)}.inp', charge_software.read.charge_files, folder=folder)
             os.makedirs(folder, exist_ok=True)
             with open(charge_calc.inputfile, 'w') as file: 
-                filename = self.write_charge(file, scan_out.coords[0], atnums, charge_software)
+                filename = self.write_charge(file, charge_calc.base, scan_out.coords[0], atnums, charge_software)
         # setup sp calculations
         if do_sp is True:
             software = self.softwares['software']
             folder = parent
             os.makedirs(folder, exist_ok=True)
-            calculations = [Calculation(f'{self.job.name}.inp', software.read.sp_files, folder=f'{folder}/step_{i}')
+            calculations = [Calculation(f'{self.scan_sp_name(software, i)}.inp', software.read.sp_files, folder=f'{folder}/step_{i}')
                             for i in range(scan_out.n_steps)]
 
             # setup files
@@ -201,7 +211,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
                 if not calc.input_exists():
                     os.makedirs(calc.folder, exist_ok=True)
                     with open(calc.inputfile, 'w') as file:
-                        self.write_sp(file, scan_out.coords[i], atnums)
+                        self.write_scan_sp(file, calc.base, scan_out.coords[i], atnums)
             #
             if charge_calc is not None:
                 out_files = check(calculations + [charge_calc])[:-1]
@@ -221,23 +231,28 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         return scan_out
 
     @scriptify
-    def write_preopt(self, file, coords, atnums):
+    def write_preopt(self, file, job_name, coords, atnums):
         software = self.softwares['preopt']
-        software.write.opt(file, self.job.name, self.config, coords, atnums)
+        software.write.opt(file, job_name, self.config, coords, atnums)
 
     @scriptify
-    def write_sp(self, file, coords, atnums):
+    def write_sp(self, file, job_name, coords, atnums):
         software = self.softwares['software']
-        software.write.sp(file, self.job.name, self.config, coords, atnums)
+        software.write.sp(file, job_name, self.config, coords, atnums)
 
     @scriptify
-    def write_charge(self, file, coords, atnums, software):
-        software.write.charges(file, self.job.name, self.config, coords, atnums)
-
-    @scriptify
-    def write_hessian(self, file, coords, atnums):
+    def write_scan_sp(self, file, job_name, coords, atnums):
         software = self.softwares['software']
-        software.write.hessian(file, self.job.name, self.config, coords, atnums)
+        software.write.sp(file, job_name, self.config, coords, atnums)
+
+    @scriptify
+    def write_charge(self, file, job_name, coords, atnums, software):
+        software.write.charges(file, job_name, self.config, coords, atnums)
+
+    @scriptify
+    def write_hessian(self, file, job_name, coords, atnums):
+        software = self.softwares['software']
+        software.write.hessian(file, job_name, self.config, coords, atnums)
 
     @scriptify
     def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge,
@@ -329,7 +344,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         if not calculation.input_exists():
             _, coords, atnums = self._read_coord_file(f'{folder}/preopt.xyz')
             with open(calculation.inputfile, 'w') as file:
-                self.write_preopt(file, coords, atnums)
+                self.write_preopt(file, calculation.base, coords, atnums)
                 raise CalculationIncompleteError(
                         'Required Preopt output file(s) not found in the job directory.\n'
                         'Creating the necessary input file and exiting...\nPlease run the '
@@ -397,7 +412,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         defaults = {
                 'preopt': None,
                 'charge_software': None,
-                'scan_software': None,
+                'scan_software': default,
         }
         # do it twice, once load the settings, once set the defaults
         for option, default in defaults.items():

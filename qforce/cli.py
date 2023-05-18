@@ -4,8 +4,10 @@ from .qm.qm_base import Calculation, check
 
 
 class Option(Plugin):
+    """helper options"""
     _is_plugin_factory = True
     _plugins_storage = 'options'
+
     _user_input = """
     option = 
     """
@@ -27,6 +29,7 @@ class Check(Option):
 
     name = 'check'
     _user_input = ""
+    _colt_description = 'Check if all the coords'
     __slots__ = ['calculations']
 
     def __init__(self, calculations):
@@ -43,6 +46,7 @@ class Check(Option):
 class Bash(Option):
         
     name = 'bash'
+    _colt_description = 'Generate a bash'
     _user_input = """
     # basic bash file that will be written
     filename = :: str

@@ -5,9 +5,11 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from string import Template
 from warnings import warn
+import hashlib
 
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
+from colt import Colt
 
 
 class WriteABC(ABC):
@@ -103,6 +105,44 @@ class ReadABC(ABC):
                         order = [float(line_cut) for line_cut in line[2:]]
                         b_orders[atom].extend(order)
                 return b_orders
+
+
+class QMInterface(Colt):
+    """Basic Logic for an QM Interface"""
+
+    def __init__(self, config, read, write):
+        self.read = read
+        # get required files
+        self.required_hessian_files = read.hessian_files
+        self.required_opt_files = read.opt_files
+        self.required_sp_files = read.sp_files
+        self.required_charge_files = read.charge_files
+        #
+        self.write = write
+        self.config = config
+
+    def hash(self, charge, mult):
+        """Returns a unique hash for the given interface"""
+        return self._dct_to_hash(self.settings(charge, mult))
+
+    def _settings(self):
+        """Every QMInterface needs this, it defines the unique keys
+        should not contain information like number of cores or size of memory
+        but only relevant information for the calculation (basisset, functional etc.)
+        """
+        raise NotImplementedError("Please provide settings method")
+
+    def settings(self, charge, mult):
+        """Returns the unique settings of the qm interface"""
+        settings = self._settings()
+        settings['charge'] = charge
+        settings['multiplicity'] = mult
+        return settings
+
+    @staticmethod
+    def _dct_to_hash(settings):
+        return hashlib.md5(''.join(f'{key.lower()}:{str(value).lower()}' for key, value in settings.items()).encode()).hexdigest()
+
 
 
 class HessianOutput():
@@ -205,15 +245,15 @@ class Calculation:
         self.folder = Path(folder) if folder is not None else Path("")
         self.required_output_files = required_output_files
         self.inputfile = self.folder / Path(inputfile)
-        self._base = self.inputfile.name[:-len(self.inputfile.suffix)]
+        self.base = self.inputfile.name[:-len(self.inputfile.suffix)]
         # register itself
         SubmitKeeper.add(self)
 
     def _render(self, option):
         if '$' in option:
             option = Template(option)
-            return option.substitute(base=self._base)
-        return self._base + option
+            return option.substitute(base=self.base)
+        return self.base + option
 
     def as_pycode(self):
         return f'Calculation("{self.inputfile.name}", {json.dumps(self.required_output_files)}, folder="{str(self.folder)}")'

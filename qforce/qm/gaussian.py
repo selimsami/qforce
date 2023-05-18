@@ -2,11 +2,11 @@ from colt import Colt
 import numpy as np
 from ase.units import Hartree, mol, kJ
 #
-from .qm_base import WriteABC, ReadABC
+from .qm_base import WriteABC, ReadABC, QMInterface
 from ..elements import ATOM_SYM
 
 
-class Gaussian(Colt):
+class Gaussian(QMInterface):
     _user_input = """
 
     charge_method = cm5 :: str :: [cm5, esp]
@@ -28,13 +28,17 @@ class Gaussian(Colt):
     _method = ['method', 'dispersion', 'basis', 'solvent_method']
 
     def __init__(self, config):
-        self.required_hessian_files = {'out_file': ['.out', '.log'],
-                                       'fchk_file': ['.fchk', '.fck']}
-        self.required_preopt_files = {'out_file': ['.out', '.log']}
         if config.solvent_method is None:
             config.solvent_method = ''
-        self.read = ReadGaussian(config)
-        self.write = WriteGaussian(config)
+        super().__init__(config, ReadGaussian(config), WriteGaussian(config))
+
+    def _settings(self):
+        return {'method': self.config.method,
+                'charge_method': self.config.charge_method, 
+                'dispersion': self.config.dispersion,
+                'basis': self.config.basis,
+                'solvent_method': self.config.solvent_method,
+                }
 
 
 class ReadGaussian(ReadABC):
@@ -233,7 +237,7 @@ class WriteGaussian(WriteABC):
     def _write_sp_job_setting(self, job_name, config, file):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
-        file.write(f"%chk={job_name}_sp.chk\n")
+        file.write(f"%chk={job_name}.chk\n")
         file.write("#p ")
         self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
@@ -243,7 +247,7 @@ class WriteGaussian(WriteABC):
     def _write_charge_job_setting(self, job_name, config, file):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
-        file.write(f"%chk={job_name}_hessian.chk\n")
+        file.write(f"%chk={job_name}.chk\n")
         file.write("#p ")
         self.write_method(file, self.config)
         file.write(f" pop=(CM5, ESP) {self.config.solvent_method}\n\n")
@@ -253,7 +257,7 @@ class WriteGaussian(WriteABC):
     def _write_opt_job_setting(self, job_name, config, file):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
-        file.write(f"%chk={job_name}_hessian.chk\n")
+        file.write(f"%chk={job_name}.chk\n")
         file.write("#p Opt")
         self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
@@ -263,7 +267,7 @@ class WriteGaussian(WriteABC):
     def _write_hessian_job_setting(self, job_name, config, file):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
-        file.write(f"%chk={job_name}_hessian.chk\n")
+        file.write(f"%chk={job_name}.chk\n")
         file.write("#p Opt Freq ")
         self.write_method(file, self.config)
         file.write(f"pop=(CM5, ESP, NBOREAD) {self.config.solvent_method}\n\n")

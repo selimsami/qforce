@@ -6,7 +6,7 @@ from ase.units import Hartree, mol, kJ, Bohr
 from ase.io import read, write
 from ase import Atoms
 #
-from .qm_base import WriteABC, ReadABC
+from .qm_base import WriteABC, ReadABC, QMInterface
 #
 from .gaussian import Gaussian, ReadGaussian, WriteGaussian
 
@@ -144,7 +144,7 @@ class XTBGaussian(Gaussian):
         self.write = WriteXTBGaussian(config)
 
 
-class xTB(Colt):
+class xTB(QMInterface):
     _user_input = """
     # xTB only allows Mulliken charge.
     charge_method = xtb :: str ::
@@ -157,13 +157,17 @@ class xTB(Colt):
     _method = []
 
     def __init__(self, config):
+
+        super().__init__(config, ReadxTB(config), WritexTB(config))
         self.required_hessian_files = {'hess_file': ['hessian'],
                                        'pc_file': ['charges'],
                                        'wbo_file': ['wbo'],
                                        'coord_file': ['xtbopt.xyz'], }
         self.required_preopt_files = {'coord_file': ['xtbopt.xyz'], }
-        self.read = ReadxTB(config)
-        self.write = WritexTB(config)
+
+    def _settings(self):
+        return {'xtb_command': self.config.xtb_command,
+                'charge_method': self.config.charge_method}
 
 
 class WritexTB(WriteABC):
@@ -190,7 +194,7 @@ class WritexTB(WriteABC):
         # We create the xTB command template here.
         cmd = f'xtb {job_name}_input.xyz --opt --chrg {config.charge} ' \
               f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name}_opt --parallel {config.n_proc} ' \
+              f'--namespace {job_name} --parallel {config.n_proc} ' \
               f'{self.config.xtb_command}'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
@@ -221,7 +225,7 @@ class WritexTB(WriteABC):
         # We create the xTB command template here.
         cmd = f'xtb {job_name}_input.xyz --ohess --chrg {config.charge} ' \
               f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name}_hessian --parallel {config.n_proc} ' \
+              f'--namespace {job_name} --parallel {config.n_proc} ' \
               f'{self.config.xtb_command}'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
@@ -237,7 +241,7 @@ class WritexTB(WriteABC):
         # We create the xTB command template here.
         cmd = f'xtb {job_name}_input.xyz --chrg {config.charge} ' \
               f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name}_sp --parallel {config.n_proc} ' \
+              f'--namespace {job_name} --parallel {config.n_proc} ' \
               f'{self.config.xtb_command} > {job_name}.sp.inp.out'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
@@ -253,8 +257,8 @@ class WritexTB(WriteABC):
         # We create the xTB command template here.
         cmd = f'xtb {job_name}_input.xyz --chrg {config.charge} ' \
               f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name}_hessian_charge --parallel {config.n_proc} ' \
-              f'{self.config.xtb_command} > {job_name}.sp.inp.out'
+              f'--namespace {job_name} --parallel {config.n_proc} ' \
+              f'{self.config.xtb_command} > {job_name}_sp.out'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
@@ -320,7 +324,6 @@ class WritexTB(WriteABC):
 
 class ReadxTB(ReadABC):
 
-
     hessian_files = {'hess_file': ['.hessian'],
                      'pc_file': ['.charges'],
                      'wbo_file': ['.wbo'],
@@ -329,7 +332,7 @@ class ReadxTB(ReadABC):
 
     opt_files = {'coord_file': ['.xtbopt.xyz'], }
 
-    sp_files = {'sp_file': ['.sp.inp.out'], }
+    sp_files = {'sp_file': ['_sp.out'], }
 
     charge_files = {'pc_file': ['.charges']}
 
