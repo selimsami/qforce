@@ -141,8 +141,9 @@ class QMInterface(Colt):
 
     @staticmethod
     def _dct_to_hash(settings):
-        return hashlib.md5(''.join(f'{key.lower()}:{str(value).lower()}' for key, value in settings.items()).encode()).hexdigest()
-
+        return hashlib.md5(''.join(f'{key.lower()}:{str(value).lower()}'
+                                   for key, value in settings.items()
+                                   ).encode()).hexdigest()
 
 
 class HessianOutput():
@@ -256,12 +257,14 @@ class Calculation:
         return self.base + option
 
     def as_pycode(self):
-        return f'Calculation("{self.inputfile.name}", {json.dumps(self.required_output_files)}, folder="{str(self.folder)}")'
+        return (f'Calculation("{self.inputfile.name}", '
+                f'{json.dumps(self.required_output_files)}, '
+                f'folder="{str(self.folder)}")')
 
     def input_exists(self):
         """check if the inputfile is already present"""
         return self.inputfile.exists()
-    
+
     def _get_files_dct(self):
         """gets a basic dictionary with all setted and missing files"""
         outfiles = {}
@@ -278,19 +281,20 @@ class Calculation:
 
     def missing_as_string(self):
         outfiles = self._get_files_dct()
-        return "\n".join(f'    - {req}: {self.required_output_files[req]}' for req, ext in outfiles.items()
+        return "\n".join(f'    - {req}: {self.required_output_files[req]}'
+                         for req, ext in outfiles.items()
                          if ext is None)
 
-    
     def check(self):
         """Checks if all required files are present, if not raises CalculationIncompleteError"""
 
         outfiles = self._get_files_dct()
-    
+
         error = self.missing_as_string()
 
         if error != '':
-            raise CalculationIncompleteError(f"For folder: '{str(self.folder)}' following files missing:\n{error}\n\n")
+            raise CalculationIncompleteError((f"For folder: '{str(self.folder)}' following "
+                                              f" files missing:\n{error}\n\n"))
         return outfiles
 
 
@@ -303,9 +307,10 @@ def check(calculations):
             files.append(calc.check())
         except CalculationIncompleteError as e:
             error += e.code + "\n\n"
-    if error != "":            
+    if error != "":
         raise CalculationIncompleteError(error)
     return files
+
 
 class SubmitKeeper:
     """Singleton that keeps track over all calculations that need to be submitted"""
@@ -339,10 +344,9 @@ class SubmitKeeper:
                 except CalculationIncompleteError:
                     calculations.append(calc)
             calculations = ',\n'.join(calc.as_pycode() for calc in calculations)
-            
 
         out = f"""from qforce.cli import Calculation, Option
-        
+
 
 # currently missing calculations
 calculations = [{calculations}]
@@ -369,7 +373,7 @@ def scriptify(writer):
                 job_name = f'{self.job.name}_hessian'
             elif writer.__name__ == 'write_scan':
                 job_name = args[1]
-            elif write.__name__ == 'write_charge':
+            elif writer.__name__ == 'write_charge':
                 job_name = f'{self.job.name}_hessian_charge'
             else:
                 job_name = self.job.name
