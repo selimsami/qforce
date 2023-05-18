@@ -13,6 +13,7 @@ from colt import Colt
 
 
 class WriteABC(ABC):
+    """Abstract baseclass of QM Interface Write classes"""
 
     def __init__(self, config):
         self.config = config
@@ -35,6 +36,7 @@ class WriteABC(ABC):
 
 
 class ReadABC(ABC):
+    """Abstract baseclass of QM Interface Read classes"""
 
     def __init__(self, config):
         self.config = config
@@ -68,18 +70,18 @@ class ReadABC(ABC):
                     n_atoms = int(line.split()[4])
                 if "Atomic numbers  " in line:
                     n_line = math.ceil(n_atoms/6)
-                    for i in range(n_line):
+                    for _ in range(n_line):
                         line = file.readline()
                         ids = [int(i) for i in line.split()]
                         elements.extend(ids)
                 if "Current cartesian coordinates   " in line:
                     n_line = math.ceil(3*n_atoms/5)
-                    for i in range(n_line):
+                    for _ in range(n_line):
                         line = file.readline()
                         coords.extend(line.split())
                 if "Cartesian Force Constants  " in line:
                     n_line = math.ceil(3*n_atoms*(3*n_atoms+1)/10)
-                    for i in range(n_line):
+                    for _ in range(n_line):
                         line = file.readline()
                         hessian.extend(line.split())
 
@@ -105,6 +107,7 @@ class ReadABC(ABC):
                         order = [float(line_cut) for line_cut in line[2:]]
                         b_orders[atom].extend(order)
                 return b_orders
+        return None
 
 
 class QMInterface(Colt):
@@ -188,14 +191,31 @@ class HessianOutput():
         return value
 
 
-class ScanOutput():
+class ScanOutput:
+    """Store the output of a scan calculation"""
+
     def __init__(self, file,  n_steps, n_atoms, coords, angles, energies, charges):
         self.n_atoms = n_atoms
         self.n_steps = n_steps
         angles, energies, coords, self.charges, self.mismatch = self.check_shape(angles, energies,
                                                                                  coords, charges,
                                                                                  file)
-        self.angles, self.energies, self.coords = self._rearrange(angles, energies, coords)
+        self._angles, self._energies, self.coords = self._rearrange(angles, energies, coords)
+
+    @property
+    def angles(self):
+        return self._angles
+
+    @property
+    def energies(self):
+        return self._energies
+
+    @energies.setter
+    def energies(self, energies):
+        energies = np.asarray(energies, dtype=self._energies.dtype)
+        if energies.size != self.n_steps:
+            raise ValueError("Number of energies incomplete!")
+        self._energies = energies
 
     def check_shape(self, angles, energies, coords, charges, file):
         mismatched = []
@@ -236,7 +256,6 @@ class ScanOutput():
 
 class CalculationIncompleteError(SystemExit):
     """Indicates that a calculation is incomplete and still files are missing"""
-    pass
 
 
 class Calculation:
@@ -302,11 +321,11 @@ def check(calculations):
     """Check multiple calculations, if false Raises CalculationIncompleteError"""
     files = []
     error = ""
-    for i, calc in enumerate(calculations):
+    for calc in calculations:
         try:
             files.append(calc.check())
-        except CalculationIncompleteError as e:
-            error += e.code + "\n\n"
+        except CalculationIncompleteError as err:
+            error += err.code + "\n\n"
     if error != "":
         raise CalculationIncompleteError(error)
     return files
@@ -318,32 +337,54 @@ class SubmitKeeper:
     calculations = []
 
     @classmethod
-    def add(self, calculation):
+    def add(cls, calculation):
+        """Add a new Calculation"""
         assert isinstance(calculation, Calculation)
-        self.calculations.append(calculation)
+        cls.calculations.append(calculation)
 
     @classmethod
-    def clear(self):
-        self.calculations = []
+    def clear(cls, clear_all=False):
+        """Remove all calculations from the list
+
+        Args:
+            clear_all: bool, optional
+                default: False
+                True: remove all calculations
+                False: remove all incomplete calculations
+        """
+        if clear_all is False:
+            cls.calculations = cls._get_incomplete()
+        else:
+            cls.calculations = []
 
     @classmethod
-    def check(self):
-        check(self.calculations)
+    def check(cls):
+        """Check if calculations need to be performed
+
+        Raises:
+            CalculationIncompleteError in case some calculations are still missing
+        """
+        check(cls.calculations)
 
     @classmethod
-    def write_check(self, filename, only_incomplete=False):
-        """Write check function to check if calculations are there"""
+    def write_check(cls, filename, *, only_incomplete=True):
+        """Write check function to check if calculations are there
+
+        Args:
+            filename: str/Path
+                name of the python file to be written
+            only_incomplete: bool, optional
+                default: True
+                True: write out only the incomplete calculations
+                False: write out all created calculations
+        """
 
         if only_incomplete is False:
-            calculations = ',\n'.join(calc.as_pycode() for calc in self.calculations)
+            calculations = cls.calculations
         else:
-            calculations = []
-            for calc in self.calculations:
-                try:
-                    calc.check()
-                except CalculationIncompleteError:
-                    calculations.append(calc)
-            calculations = ',\n'.join(calc.as_pycode() for calc in calculations)
+            calculations = cls._get_incomplete()
+
+        calculations = ',\n'.join(calc.as_pycode() for calc in cls.calculations)
 
         out = f"""from qforce.cli import Calculation, Option
 
@@ -359,6 +400,17 @@ if __name__ == '__main__':
 
         with open(filename, 'w') as fh:
             fh.write(out)
+
+    @classmethod
+    def _get_incomplete(cls):
+        """Return a list of all incompleted calculations"""
+        calculations = []
+        for calc in cls.calculations:
+            try:
+                calc.check()
+            except CalculationIncompleteError:
+                calculations.append(calc)
+        return calculations
 
 
 def scriptify(writer):
