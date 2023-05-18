@@ -117,7 +117,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         software = self.softwares['software']
         folder = self.hessian_dir()
         os.makedirs(folder, exist_ok=True)
-        calculation = Calculation(f'{self.hessian_name(software)}.inp', software.read.hessian_files, folder=folder)
+        calculation = Calculation(f'{self.hessian_name(software)}.inp',
+                                  software.read.hessian_files, folder=folder)
         if not calculation.input_exists():
             _, coords, atnums = self._read_coord_file(f'{self.job.dir}/init.xyz')
             with open(calculation.inputfile, 'w') as file:
@@ -146,7 +147,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
 
         if not calculation.input_exists():
             with open(calculation.inputfile, 'w') as file:
-                filename = self.write_charge(file, calculation.base, output.coords, output.elements, charge_software)
+                self.write_charge(file, calculation.base, output.coords,
+                                  output.elements, charge_software)
             raise CalculationIncompleteError(
                         f"Required Hessian Charge output file(s) not found in '{folder}' .\n"
                         'Creating the necessary input file and exiting...\nPlease run the '
@@ -183,27 +185,31 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         """do scan sp calculations if necessary and update the scan out"""
         software = self.softwares['software']
         scan_software = self.softwares['scan_software']
-        # check if sp should be computed 
+        # check if sp should be computed
         do_sp = not (scan_software is software)
         charge_software = self.softwares['charge_software']
         charge_calc = None
         #
         if charge_software is None and do_sp is True:
             charge_software = software
-            
+
         # setup charge calculations
         if charge_software is not None:
             folder = f'{parent}/charge'
-            charge_calc = Calculation(f'{self.charge_name(charge_software)}.inp', charge_software.read.charge_files, folder=folder)
+            charge_calc = Calculation(f'{self.charge_name(charge_software)}.inp',
+                                      charge_software.read.charge_files, folder=folder)
             os.makedirs(folder, exist_ok=True)
-            with open(charge_calc.inputfile, 'w') as file: 
-                filename = self.write_charge(file, charge_calc.base, scan_out.coords[0], atnums, charge_software)
+            with open(charge_calc.inputfile, 'w') as file:
+                self.write_charge(file, charge_calc.base, scan_out.coords[0],
+                                  atnums, charge_software)
         # setup sp calculations
         if do_sp is True:
             software = self.softwares['software']
             folder = parent
             os.makedirs(folder, exist_ok=True)
-            calculations = [Calculation(f'{self.scan_sp_name(software, i)}.inp', software.read.sp_files, folder=f'{folder}/step_{i}')
+            calculations = [Calculation(f'{self.scan_sp_name(software, i)}.inp',
+                                        software.read.sp_files,
+                                        folder=f'{folder}/step_{i}')
                             for i in range(scan_out.n_steps)]
 
             # setup files
@@ -294,7 +300,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         software = self.softwares['software']
         qm_out = software.read.hessian(self.config, **hessian_files)
         return HessianOutput(self.config.vib_scaling, *qm_out)
-    
+
     def _read_opt(self, opt_files):
         software = self.softwares['preopt']
         return software.read.opt(self.config, **opt_files)
@@ -340,7 +346,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         self._write_xyzfile(molecule, f'{self.preopt_dir(True)}/preopt.xyz',
                             comment=f'{self.job.name} - input geometry for preopt')
         # setup calculation
-        calculation = Calculation(f"{self.job.name}_opt.inp", software.read.opt_files, folder=folder)
+        calculation = Calculation(f"{self.job.name}_opt.inp",
+                                  software.read.opt_files, folder=folder)
         if not calculation.input_exists():
             _, coords, atnums = self._read_coord_file(f'{folder}/preopt.xyz')
             with open(calculation.inputfile, 'w') as file:
@@ -361,22 +368,25 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         scan_sp_files = {}
         folders = [folder for folder in os.listdir(folder)
                    if folder.startswith('step_')]
-        
 
         for subfolder in folders:
             files = {}
             scan_sp_files[subfolder] = files
             all_files = os.listdir(f'{folder}/{subfolder}')
             for name, tails in software.read.sp_files.items():
-                found_files = [file for file in all_files if any(file.endswith(f'{tail}') for tail in tails)]
+                found_files = [file for file in all_files
+                               if any(file.endswith(f'{tail}') for tail in tails)]
                 n_files = len(found_files)
                 if n_files == 0:
-                    scan_sp_files[subfolder] = SystemExit('Required Scan SP output file(s) not found in the job directory.\n'
+                    scan_sp_files[subfolder] = SystemExit(
+                                'Required Scan SP output file(s) not found in the job directory.\n'
                                 'Creating the necessary input file and exiting...\nPlease run the '
                                 'calculation and put the output files in the same directory.\n')
-                elif n_files > 1: 
-                    scan_sp_files[subfolder] = SystemExit('There are multiple files in the job directory with the expected Hessian'
-                                     ' output extensions.\nPlease remove the undesired ones.\n')
+                elif n_files > 1:
+                    scan_sp_files[subfolder] = SystemExit(
+                                    'There are multiple files in the job directory '
+                                    'with the expected Hessian output extensions.\n'
+                                    'Please remove the undesired ones.\n')
 
                 else:
                     files[name] = f'{folder}/{subfolder}/{found_files[0]}'
@@ -386,7 +396,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             if isinstance(error, SystemExit):
                 msg += f'\n---------------------\nError in {folder}:\n---------------------\n\n'
                 msg += error.code
-                
+
         if msg != '':
             raise SystemExit(msg)
 

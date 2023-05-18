@@ -1,7 +1,6 @@
 import os.path
 
 import numpy as np
-from colt import Colt
 from ase.units import Hartree, mol, kJ, Bohr
 from ase.io import read, write
 from ase import Atoms
@@ -51,7 +50,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p Opt=(nomicro) ")
         self.write_method(file, config)
-        file.write(f"\n\n")
+        file.write("\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
@@ -71,7 +70,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p ")
         self.write_method(file, config)
-        file.write(f"\n\n")
+        file.write("\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
@@ -81,7 +80,7 @@ class ReadXTBGaussian(ReadGaussian):
     @staticmethod
     def _read_charges(file, n_atoms):
         point_charges = []
-        for i in range(n_atoms):
+        for _ in range(n_atoms):
             line = file.readline()
             point_charges.append(float(line))
         return point_charges
@@ -234,7 +233,7 @@ class WritexTB(WriteABC):
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,
               comment=cmd)
 
-    def sp(self, file, job_name, config, coords, atnums):    
+    def sp(self, file, job_name, config, coords, atnums):
         name = file.name
         base, filename = os.path.split(name)
         # Given that the xTB input has to be given in the command line.
@@ -250,9 +249,9 @@ class WritexTB(WriteABC):
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,
               comment=cmd)
 
-    def charges(self, file, job_name, config, coords, atnums):    
+    def charges(self, file, job_name, config, coords, atnums):
         name = file.name
-        base, filename = os.path.split(name)
+        base, _ = os.path.split(name)
         # Given that the xTB input has to be given in the command line.
         # We create the xTB command template here.
         cmd = f'xtb {job_name}_input.xyz --chrg {config.charge} ' \
@@ -327,7 +326,7 @@ class ReadxTB(ReadABC):
     hessian_files = {'hess_file': ['.hessian'],
                      'pc_file': ['.charges'],
                      'wbo_file': ['.wbo'],
-                     'coord_file': ['.xtbopt.xyz'], 
+                     'coord_file': ['.xtbopt.xyz'],
                      }
 
     opt_files = {'coord_file': ['.xtbopt.xyz'], }
@@ -337,7 +336,7 @@ class ReadxTB(ReadABC):
     charge_files = {'pc_file': ['.charges']}
 
     def opt(self, config, coord_file):
-        n_atoms, elements, coords = self._read_xtb_xyz(coord_file)
+        _, elements, coords = self._read_xtb_xyz(coord_file)
         return coords
 
     def sp(self, config, sp_file):
@@ -345,10 +344,10 @@ class ReadxTB(ReadABC):
             for line in fh:
                 if 'TOTAL ENERGY' in line:
                     energy = float(line.split()[3])
-        return energy 
+        return energy
 
     def charges(self, config, pc_file):
-        n_atoms, point_charges = self._read_xtb_charge(pc_file)
+        _, point_charges = self._read_xtb_charge(pc_file)
         return point_charges
 
     def hessian(self, config, hess_file, pc_file, coord_file, wbo_file):
@@ -617,4 +616,3 @@ class ReadxTB(ReadABC):
         _, _, angle_range = angle_line.split()
         start, end, step_num = angle_range.split(',')
         return np.linspace(float(start), float(end), int(step_num))
-

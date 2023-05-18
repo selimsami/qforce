@@ -1,4 +1,3 @@
-from colt import Colt
 import numpy as np
 from ase.units import Hartree, mol, kJ
 #
@@ -34,7 +33,7 @@ class Gaussian(QMInterface):
 
     def _settings(self):
         return {'method': self.config.method,
-                'charge_method': self.config.charge_method, 
+                'charge_method': self.config.charge_method,
                 'dispersion': self.config.dispersion,
                 'basis': self.config.basis,
                 'solvent_method': self.config.solvent_method,
@@ -44,7 +43,7 @@ class Gaussian(QMInterface):
 class ReadGaussian(ReadABC):
 
     hessian_files = {'out_file': ['.out', '.log'],
-                                       'fchk_file': ['.fchk', '.fck']}
+                     'fchk_file': ['.fchk', '.fck']}
     opt_files = {'out_file': ['.out', '.log']}
     sp_files = {'out_file': ['.out', '.log']}
     charge_files = {'out_file': ['.out', '.log']}
@@ -99,10 +98,16 @@ class ReadGaussian(ReadABC):
 
         return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges
 
-    def charges(self, file_name):
+    def charges(self, out_file):
         """read charge from file"""
         point_charges = None
+        charge_method = self.config.charge_method
         with open(out_file, "r", encoding='utf-8') as file:
+            for line in file:
+                if line.startswith(" NAtoms= "):
+                    n_atoms = int(line.split()[1])
+                    break
+
             for line in file:
                 if "Hirshfeld charges, spin densities" in line and charge_method == "cm5":
                     point_charges = self._read_cm5_charges(file, n_atoms)
@@ -190,7 +195,6 @@ class ReadGaussian(ReadABC):
 
 
 class WriteGaussian(WriteABC):
-
 
     def opt(self, file, job_name, config, coords, atnums):
         self._write_opt_job_setting(job_name, config, file)
