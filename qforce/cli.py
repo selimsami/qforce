@@ -9,16 +9,16 @@ class Option(Plugin):
     _plugins_storage = 'options'
 
     _user_input = """
-    option = 
+    option =
     """
 
     @classmethod
     def _extend_user_input(cls, questions):
         cls.options = {value.name: value for key, value in cls.options.items()}
         questions.add_branching("option", {option.name: option.colt_user_input
-                                             for name, option in cls.options.items()})
+                                           for name, option in cls.options.items()})
 
-    def run(self):            
+    def run(self):
         raise NotImplementedError("Method currently not available")
 
     def from_config(cls, config, calculations):
@@ -44,7 +44,7 @@ class Check(Option):
 
 
 class Bash(Option):
-        
+
     name = 'bash'
     _colt_description = 'Generate a bash'
     _user_input = """
