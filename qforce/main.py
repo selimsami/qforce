@@ -35,12 +35,42 @@ options = :: file, optional, alias=o
         },
 })
 def run(file, options):
+    """Main entrypoint for QForce"""
     config, job = initialize(file, options, None)
     try:
         _run(config, job)
-    except CalculationIncompleteError as e:
+    except CalculationIncompleteError as err:
         SubmitKeeper.write_check(f'{job.name}_helper.py', only_incomplete=True)
-        raise e from None
+        raise err from None
+
+
+@from_commandline("""
+# Input coordinate file mol.ext (ext: pdb, xyz, gro, ...)
+# or directory (mol or mol_qforce) name.
+file = :: file
+
+# File name for the optional options.
+options = :: file, optional, alias=o
+""", description={
+    'logo': LOGO,
+    'alias': 'qforce',
+    'arg_format': {
+        'name': 12,
+        'comment': 60,
+        },
+})
+def run_complete(file, options):
+    config, job = initialize(file, options, None)
+    running = True
+
+    while running:
+        try:
+            _run(config, job)
+            running = False
+        except CalculationIncompleteError:
+            SubmitKeeper.do_calculations()
+        except SystemExit:
+            SubmitKeeper.do_calculations()
 
 
 def _run(config, job, ext_q=None, ext_lj=None):
@@ -78,8 +108,9 @@ def _run(config, job, ext_q=None, ext_lj=None):
 
 
 def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
-    # setup system
+    """Execute Qforce from python directly """
     config, job = initialize(input_arg, config, presets)
+    #
     _run(config, job, ext_q=ext_q, ext_lj=ext_lj)
 
 

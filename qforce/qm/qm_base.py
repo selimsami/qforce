@@ -1,15 +1,65 @@
 import math
+import os
 import sys
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
 from string import Template
 from warnings import warn
+from contextlib import contextmanager
 import hashlib
+import subprocess
 
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
 from colt import Colt
+
+
+class QMInterface(Colt):
+    """Basic Logic for an QM Interface"""
+
+    # Please specify the name of the qm interface
+    name = None
+
+    def __init__(self, config, read, write):
+        self._setup(config, read, write)
+
+    def hash(self, charge, mult):
+        """Returns a unique hash for the given interface"""
+        return self._dct_to_hash(self.settings(charge, mult))
+
+    def _settings(self):
+        """Every QMInterface needs this, it defines the unique keys
+        should not contain information like number of cores or size of memory
+        but only relevant information for the calculation (basisset, functional etc.)
+        """
+        raise NotImplementedError("Please provide settings method")
+
+    def settings(self, charge, mult):
+        """Returns the unique settings of the qm interface"""
+        settings = self._settings()
+        settings['charge'] = charge
+        settings['multiplicity'] = mult
+        return settings
+
+    @staticmethod
+    def _dct_to_hash(settings):
+        return hashlib.md5(''.join(f'{key.lower()}:{str(value).lower()}'
+                                   for key, value in settings.items()
+                                   ).encode()).hexdigest()
+
+    def _setup(self, config, read, write):
+        """Setup qm interface"""
+        self.read = read
+        # get required files
+        self.required_hessian_files = read.hessian_files
+        self.required_opt_files = read.opt_files
+        self.required_sp_files = read.sp_files
+        self.required_charge_files = read.charge_files
+        self.required_scan_files = read.scan_files
+        #
+        self.write = write
+        self.config = config
 
 
 class WriteABC(ABC):
@@ -108,45 +158,6 @@ class ReadABC(ABC):
                         b_orders[atom].extend(order)
                 return b_orders
         return None
-
-
-class QMInterface(Colt):
-    """Basic Logic for an QM Interface"""
-
-    def __init__(self, config, read, write):
-        self.read = read
-        # get required files
-        self.required_hessian_files = read.hessian_files
-        self.required_opt_files = read.opt_files
-        self.required_sp_files = read.sp_files
-        self.required_charge_files = read.charge_files
-        #
-        self.write = write
-        self.config = config
-
-    def hash(self, charge, mult):
-        """Returns a unique hash for the given interface"""
-        return self._dct_to_hash(self.settings(charge, mult))
-
-    def _settings(self):
-        """Every QMInterface needs this, it defines the unique keys
-        should not contain information like number of cores or size of memory
-        but only relevant information for the calculation (basisset, functional etc.)
-        """
-        raise NotImplementedError("Please provide settings method")
-
-    def settings(self, charge, mult):
-        """Returns the unique settings of the qm interface"""
-        settings = self._settings()
-        settings['charge'] = charge
-        settings['multiplicity'] = mult
-        return settings
-
-    @staticmethod
-    def _dct_to_hash(settings):
-        return hashlib.md5(''.join(f'{key.lower()}:{str(value).lower()}'
-                                   for key, value in settings.items()
-                                   ).encode()).hexdigest()
 
 
 class HessianOutput():
@@ -261,13 +272,18 @@ class CalculationIncompleteError(SystemExit):
 class Calculation:
     """Hold information of a calculation"""
 
-    def __init__(self, inputfile, required_output_files, *, folder=None):
+    def __init__(self, inputfile, required_output_files, *, folder=None, software=None):
         self.folder = Path(folder) if folder is not None else Path("")
         self.required_output_files = required_output_files
         self.inputfile = self.folder / Path(inputfile)
         self.base = self.inputfile.name[:-len(self.inputfile.suffix)]
+        self.software = software
         # register itself
         SubmitKeeper.add(self)
+
+    @property
+    def filename(self):
+        return self.inputfile.name
 
     def _render(self, option):
         if '$' in option:
@@ -278,7 +294,16 @@ class Calculation:
     def as_pycode(self):
         return (f'Calculation("{self.inputfile.name}", '
                 f'{json.dumps(self.required_output_files)}, '
-                f'folder="{str(self.folder)}")')
+                f'folder="{str(self.folder)}", '
+                f'software="{str(self.software)}")')
+
+    @contextmanager
+    def within(self):
+        """Perform a set of option within the folder of the system"""
+        current = os.getcwd()
+        os.chdir(self.folder)
+        yield
+        os.chdir(current)
 
     def input_exists(self):
         """check if the inputfile is already present"""
@@ -331,6 +356,41 @@ def check(calculations):
     return files
 
 
+class CalculationFailed(SystemExit):
+    """Error passed if the direct calculation failed"""
+
+
+def do_xtb(calculation):
+    """Perform a xtb calculation, raises CalculationFailed error in case of an error"""
+    with calculation.within():
+        name = calculation.filename
+        try:
+            subprocess.run(f"bash {name} > {name}.shellout", shell=True, check=True)
+        except subprocess.CalledProcessError as err:
+            raise CalculationFailed(f"subprocess registered error '{err.code}'") from None
+
+    try:
+        calculation.check()
+    except CalculationIncompleteError:
+        raise CalculationFailed("Not all necessary files could be generated for calculation"
+                                f" '{calculation.inputfile}'"
+                                ) from None
+
+
+def perform_calculations(calculations):
+
+    methods = {'xtb': do_xtb, }
+
+    for calculation in calculations:
+        method = methods.get(calculation.software)
+        if method is None:
+            raise ValueError("Software not suppored")
+        try:
+            method(calculation)
+        except CalculationFailed:
+            raise SystemExit("Calculation failed!") from None
+
+
 class SubmitKeeper:
     """Singleton that keeps track over all calculations that need to be submitted"""
 
@@ -356,6 +416,11 @@ class SubmitKeeper:
             cls.calculations = cls._get_incomplete()
         else:
             cls.calculations = []
+
+    @classmethod
+    def do_calculations(cls):
+        calculations = cls._get_incomplete()
+        perform_calculations(calculations)
 
     @classmethod
     def check(cls):

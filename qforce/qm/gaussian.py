@@ -6,6 +6,9 @@ from ..elements import ATOM_SYM
 
 
 class Gaussian(QMInterface):
+
+    name = 'gaussian'
+
     _user_input = """
 
     charge_method = cm5 :: str :: [cm5, esp]
@@ -47,6 +50,7 @@ class ReadGaussian(ReadABC):
     opt_files = {'out_file': ['.out', '.log']}
     sp_files = {'out_file': ['.out', '.log']}
     charge_files = {'out_file': ['.out', '.log']}
+    scan_files = {'file_name': ['.out', '.log']}
 
     def opt(self, config, out_file):
         """read the log file"""

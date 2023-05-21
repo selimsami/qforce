@@ -21,7 +21,9 @@ class Option(Plugin):
     def run(self):
         raise NotImplementedError("Method currently not available")
 
+    @classmethod
     def from_config(cls, config, calculations):
+        assert all(isinstance(cal, Calculation) for cal in calculations)
         return cls.plugin_from_config(config['option'], calculations)
 
 

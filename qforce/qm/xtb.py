@@ -127,6 +127,8 @@ class ReadXTBGaussian(ReadGaussian):
 
 class XTBGaussian(Gaussian):
 
+    name = 'gaussian'
+
     _user_input = """
 
     charge_method = cm5 :: str :: [cm5, esp]
@@ -137,13 +139,13 @@ class XTBGaussian(Gaussian):
     """
 
     def __init__(self, config):
-        self.required_hessian_files = {'out_file': ['.out', '.log'],
-                                       'fchk_file': ['.fchk', '.fck']}
-        self.read = ReadXTBGaussian(config)
-        self.write = WriteXTBGaussian(config)
+        read = ReadXTBGaussian(config)
+        write = WriteXTBGaussian(config)
+        self._setup(config, read, write)
 
 
 class xTB(QMInterface):
+
     _user_input = """
     # xTB only allows Mulliken charge.
     charge_method = xtb :: str ::
@@ -152,6 +154,8 @@ class xTB(QMInterface):
     xtb_command = --gfn 2 :: str ::
 
     """
+
+    name = 'xtb'
 
     _method = []
 
@@ -334,6 +338,8 @@ class ReadxTB(ReadABC):
     sp_files = {'sp_file': ['_sp.out'], }
 
     charge_files = {'pc_file': ['.charges']}
+
+    scan_files = {'file_name': ['.xtbscan.log']}
 
     def opt(self, config, coord_file):
         _, elements, coords = self._read_xtb_xyz(coord_file)

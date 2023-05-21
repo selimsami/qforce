@@ -72,6 +72,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         # check hessian files and if not present write the input file
         self.method = self._register_method()
 
+    def get_scan_software(self):
+        return self.softwares['scan_software']
+
     def preopt_dir(self, only=False):
         path = '0_preopt'
         if only is True:
@@ -118,7 +121,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         folder = self.hessian_dir()
         os.makedirs(folder, exist_ok=True)
         calculation = Calculation(f'{self.hessian_name(software)}.inp',
-                                  software.read.hessian_files, folder=folder)
+                                  software.read.hessian_files,
+                                  folder=folder,
+                                  software=software.name)
         if not calculation.input_exists():
             _, coords, atnums = self._read_coord_file(f'{self.job.dir}/init.xyz')
             with open(calculation.inputfile, 'w') as file:
@@ -143,7 +148,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         os.makedirs(folder, exist_ok=True)
 
         calculation = Calculation(f'{self.hessian_charge_name(charge_software)}.inp',
-                                  charge_software.read.charge_files, folder=folder)
+                                  charge_software.read.charge_files,
+                                  folder=folder,
+                                  software=charge_software.name)
 
         if not calculation.input_exists():
             with open(calculation.inputfile, 'w') as file:
@@ -197,7 +204,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         if charge_software is not None:
             folder = f'{parent}/charge'
             charge_calc = Calculation(f'{self.charge_name(charge_software)}.inp',
-                                      charge_software.read.charge_files, folder=folder)
+                                      charge_software.read.charge_files, folder=folder,
+                                      software=charge_software.name)
             os.makedirs(folder, exist_ok=True)
             with open(charge_calc.inputfile, 'w') as file:
                 self.write_charge(file, charge_calc.base, scan_out.coords[0],
@@ -209,7 +217,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             os.makedirs(folder, exist_ok=True)
             calculations = [Calculation(f'{self.scan_sp_name(software, i)}.inp',
                                         software.read.sp_files,
-                                        folder=f'{folder}/step_{i}')
+                                        folder=f'{folder}/step_{i}',
+                                        software=software.name)
                             for i in range(scan_out.n_steps)]
 
             # setup files
@@ -347,7 +356,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
                             comment=f'{self.job.name} - input geometry for preopt')
         # setup calculation
         calculation = Calculation(f"{self.job.name}_opt.inp",
-                                  software.read.opt_files, folder=folder)
+                                  software.read.opt_files, folder=folder,
+                                  software=software.name)
         if not calculation.input_exists():
             _, coords, atnums = self._read_coord_file(f'{folder}/preopt.xyz')
             with open(calculation.inputfile, 'w') as file:

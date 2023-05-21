@@ -1,7 +1,6 @@
 import networkx as nx
 import os
 import hashlib
-import sys
 import networkx.algorithms.isomorphism as iso
 import numpy as np
 import json
@@ -82,7 +81,7 @@ def check_and_notify(job, config, n_unique, n_have, n_generated):
                 print('Continuing without the missing dihedrals...\n')
             else:
                 print('Exiting...\n')
-                raise SystemExit
+                raise CalculationIncompleteError
 
 
 class Fragment:
@@ -130,7 +129,9 @@ class Fragment:
         self.check_for_fragment(job, config, qm)
         self.folder = Path(job.frag_dir) / self.id
         os.makedirs(self.folder, exist_ok=True)
-        self.calc = Calculation(f'{self.id}.inp', {}, folder=self.folder)
+        software = qm.get_scan_software()
+        self.calc = Calculation(f'{self.id}.inp', software.required_scan_files,
+                                folder=self.folder, software=software.name)
         self.check_for_qm_data(job, config, mol, qm)
         # self.make_fragment_terms(mol)
 
@@ -321,7 +322,7 @@ class Fragment:
                     print('"\navail_only" requested, attempting to continue with the missing '
                           'points...\n\n')
                 else:
-                    sys.exit('Exiting...\n\n')
+                    raise SystemExit('Exiting...\n\n')
             else:
                 with open(f'{self.dir}/scandata_{self.hash_idx}', 'w') as data:
                     for angle, energy in zip(qm_out.angles, qm_out.energies):
@@ -377,6 +378,7 @@ class Fragment:
                                           map_mol_to_db[neigh] < self.n_atoms])
 
     def check_for_qm_data(self, job, config, mol, qm):
+
         if self.has_data:
             self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}', unpack=True)[1]
             self.qm_coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')
@@ -396,7 +398,9 @@ class Fragment:
             self.write_xyz()
             with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
                 if not isinstance(self.graph.graph['qm_method']['software'], str):
-                    self.graph.graph['qm_method']['software'] = self.graph.graph['qm_method']['software'].value
+                    self.graph.graph['qm_method']['software'] = (self.graph
+                                                                 .graph['qm_method']['software']
+                                                                 .value)
                 json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)
 
             if not (self.has_data or (config.batch_run and self.has_inp)):
