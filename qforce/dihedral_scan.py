@@ -39,6 +39,9 @@ avail_only = no :: bool
 # Number of neighbors after bonds can be fragmented (0 or smaller means no fragmentation)
 frag_threshold = 3 :: int
 
+# Do not cut bonds for making fragments for conjugated bonds with bond orders larger than conj_bo_cutoff
+conj_bo_cutoff = 1.4 :: float
+
 # Break C-O type of bonds while creating fragments (O-C is never broken)
 break_co_bond = no :: bool
 

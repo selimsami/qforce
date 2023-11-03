@@ -148,7 +148,7 @@ class Fragment():
                     pass
                 elif (config.frag_threshold < 1 or  # fragmentation turned off
                       n_neigh < config.frag_threshold  # don't break first n neighbors
-                      or bond['order'] >= 1.4  # don't break bonds conjugated more than 1.4
+                      or bond['order'] >= config.conj_bo_cutoff  # don't break bonds conjugated more than 1.4 (default)
                       or ELE_ENEG[mol.elements[a]] > 3  # don't break if very electronegative
                       or (config.break_co_bond and ELE_ENEG[mol.elements[n]] > 3)
                       or mol.topo.n_neighbors[n] == 1  # don't break terminal atoms
