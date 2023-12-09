@@ -83,6 +83,7 @@ class ReadQChem(ReadABC):
                 if not found_n_atoms and " NAtoms, " in line:
                     line = file.readline()
                     n_atoms = int(line.split()[0])
+                    found_n_atoms = True
 
                 elif "OPTIMIZATION CONVERGED" in line:
                     coord = []
