@@ -37,9 +37,10 @@ frag_lib = {}/qforce_fragments
             pass
 
         cwd = os.getcwd()
-        os.chdir(outdir / 'propane_qforce')
-        run_hessian = outdir / 'propane_qforce' / 'propane_hessian.inp'
+        os.chdir(outdir / 'propane_qforce' / '1_hessian')
+        run_hessian = outdir / 'propane_qforce' / '1_hessian' / 'propane_a7d7b98c1b9fc86c0ef4eb7905829efa_hessian.inp'
         call(run_hessian.read_text(), shell=True)
+        os.chdir(outdir) 
 
         # Generate the fragments
         try:
@@ -48,9 +49,10 @@ frag_lib = {}/qforce_fragments
         except SystemExit:
             pass
 
-        os.chdir('fragments')
-        run_fragment = outdir / 'propane_qforce' / 'fragments' / 'CC_H8C3_d91b46644317dee9c2b868166c66a18c~1.inp'
+        os.chdir(outdir / 'propane_qforce' / '2_fragments' / 'CC_H8C3_d91b46644317dee9c2b868166c66a18c~1')
+        run_fragment = outdir / 'propane_qforce' / '2_fragments' / 'CC_H8C3_d91b46644317dee9c2b868166c66a18c~1' / 'CC_H8C3_d91b46644317dee9c2b868166c66a18c~1.inp'
         call(run_fragment.read_text(), shell=True)
+        os.chdir(outdir) 
 
         # Generate the topology
         try:
