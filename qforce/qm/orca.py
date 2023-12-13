@@ -13,7 +13,7 @@ from ..elements import ATOM_SYM
 class Orca(Colt):
     _user_input = """
 
-    charge_method = esp :: str :: [cm5, esp]
+    charge_method = cm5 :: str :: [cm5, esp]
 
     # QM method to be used for geometry optimisation
     qm_method_opt = r2SCAN-3c :: str
