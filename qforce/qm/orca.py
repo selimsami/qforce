@@ -476,26 +476,25 @@ class ReadORCA(ReadABC):
         item_match = re.compile(r'^\(\s*(\d+)-\w{1,2}\s*,\s*(\d+)-\w{1,2}\s*\)\s*:\s*(-?\w.+)$')
         b_orders = [[0, ] * n_atoms for _ in range(n_atoms)]
 
-        file = open(out_file, 'r')
-        line = file.readline()
-        # Skip to the step after geometry optimisation
-        while 'Mayer bond orders larger than' not in line:
+        with open(out_file, 'r') as file:
             line = file.readline()
-
-        line = file.readline()
-        while "-------" not in line:
-            items = line.split('B')
-            for item in items:
-                if item.strip():
-                    _m = re.match(item_match, item)
-                    i = int(_m.group(1))
-                    j = int(_m.group(2))
-                    bond_order = float(_m.group(3))
-                    b_orders[i][j] = bond_order
-                    b_orders[j][i] = bond_order
+            # Skip to the step after geometry optimisation
+            while 'Mayer bond orders larger than' not in line:
+                line = file.readline()
+    
             line = file.readline()
+            while "-------" not in line:
+                items = line.split('B')
+                for item in items:
+                    if item.strip():
+                        _m = re.match(item_match, item)
+                        i = int(_m.group(1))
+                        j = int(_m.group(2))
+                        bond_order = float(_m.group(3))
+                        b_orders[i][j] = bond_order
+                        b_orders[j][i] = bond_order
+                line = file.readline()
 
-        file.close()
         return b_orders
 
     @staticmethod
