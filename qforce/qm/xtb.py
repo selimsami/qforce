@@ -163,6 +163,7 @@ class xTB(QMInterface):
     """
 
     name = 'xtb'
+    has_torsiondrive = True
 
     _method = []
 

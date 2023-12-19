@@ -21,6 +21,7 @@ class QMInterface(Colt):
 
     # Please specify the name of the qm interface
     name = None
+    has_torsiondrive = False
 
     def __init__(self, config, read, write):
         self._setup(config, read, write)
@@ -86,7 +87,6 @@ class WriteABC(ABC):
     def sp(self, ):
         ...
 
-    @abstractmethod
     def scan_torsiondrive(self, ):
         ...
 

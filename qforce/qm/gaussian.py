@@ -9,6 +9,7 @@ from ..elements import ATOM_SYM
 class Gaussian(QMInterface):
 
     name = 'gaussian'
+    has_torsiondrive = True
 
     _user_input = """
 

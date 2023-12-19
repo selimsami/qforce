@@ -452,6 +452,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             selection = xTB.generate_user_input().get_answers()
             softwares['scan_software'] = implemented_qm_software['xtb'](SimpleNamespace(**selection))
 
+        if config.dihedral_scanner == 'torsiondrive' and softwares['scan_software'].has_torsiondrive is False:
+            raise SystemExit("Error: TorsionDrive not supported for scan_software '{softwares['scan_software'].name}'")
         self._print_softwares(softwares)
 
         return softwares
