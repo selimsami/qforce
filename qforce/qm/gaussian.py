@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from ase.units import Hartree, mol, kJ
 #
@@ -51,6 +52,7 @@ class ReadGaussian(ReadABC):
     sp_files = {'out_file': ['.out', '.log']}
     charge_files = {'out_file': ['.out', '.log']}
     scan_files = {'file_name': ['.out', '.log']}
+    scan_torsiondrive_files = {'xyz': ['scan.xyz']}
 
     def opt(self, config, out_file):
         """read the log file"""
@@ -230,6 +232,17 @@ class WriteGaussian(WriteABC):
         self._write_coords(atnums, coords, file)
         self._write_scanned_atoms(file, scanned_atoms, config.scan_step_size)
 
+    def scan_torsiondrive(self, file, job_name, config, coords, atnums,
+                          scanned_atoms, start_angle, charge, multiplicity):
+
+        base, _ = os.path.split(file.name)
+        self._scan_torsiondrive_helper(file, job_name, config, scanned_atoms, 'gaussian')
+
+        with open(f'{base}/{job_name}_input.xyz', 'w') as fh:
+            self._write_scan_torsiondrive_job_settings(job_name, config, fh, charge, multiplicity)
+            self._write_coords(atnums, coords, fh)
+            fh.write("\n\n\n")
+
     @staticmethod
     def _write_scanned_atoms(file, scanned_atoms, step_size):
         a1, a2, a3, a4 = scanned_atoms
@@ -282,6 +295,15 @@ class WriteGaussian(WriteABC):
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
+    def _write_scan_torsiondrive_job_settings(self, job_name, config, file, charge, multiplicity):
+        file.write(f"%nprocshared={config.n_proc}\n")
+        file.write(f"%mem={config.memory}MB\n")
+        file.write(f"%chk={job_name}.chk\n")
+        file.write("#p Opt=ModRedundant ")
+        self.write_method(file, self.config)
+        file.write(f"\n\n{job_name}\n\n")
+        file.write(f"{charge} {multiplicity}\n")
+
     def _write_scan_job_setting(self, job_name, config, file, charge, multiplicity):
         file.write(f"%nprocshared={config.n_proc}\n")
         file.write(f"%mem={config.memory}MB\n")
@@ -300,7 +322,3 @@ class WriteGaussian(WriteABC):
         else:
             file.write(f" {config.method} {config.dispersion} {config.basis} ")
             file.write(" density=current nosym ")
-
-    @staticmethod
-    def write_pop(file, string):
-        file.write(string)

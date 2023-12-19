@@ -120,9 +120,9 @@ class Fragment:
         self.use_ext_charges_for_frags = config.ff.use_ext_charges_for_frags
         self.charge_method = config.qm.charge_method
 
-        self.check_fragment(job, config.scan, mol, qm)
+        self.check_fragment(job, config.scan, mol, qm, config.qm.dihedral_scanner)
 
-    def check_fragment(self, job, config, mol, qm):
+    def check_fragment(self, job, config, mol, qm, scanner):
         self.identify_fragment(mol, config)
         self.make_fragment_graph(mol)
         self.make_fragment_identifier(config, mol, qm)
@@ -130,8 +130,14 @@ class Fragment:
         self.folder = Path(job.frag_dir) / self.id
         os.makedirs(self.folder, exist_ok=True)
         software = qm.get_scan_software()
-        self.calc = Calculation(f'{self.id}.inp', software.required_scan_files,
-                                folder=self.folder, software=software.name)
+        if scanner == 'torsiondrive':
+            self.calc = Calculation(f'{self.id}.inp', software.required_scan_torsiondrive_files,
+                                    folder=self.folder, software=software.name)
+        elif scanner == 'relaxed_scan':
+            self.calc = Calculation(f'{self.id}.inp', software.required_scan_files,
+                                    folder=self.folder, software=software.name)
+        else:
+            raise ValueError("scanner can only be 'torsiondrive' or 'relaxed_scan'")
         self.check_for_qm_data(job, config, mol, qm)
         # self.make_fragment_terms(mol)
 

@@ -43,7 +43,7 @@ charge_software = :: str, optional
 job_script = :: literal
 
 # Step size for the dihedral scan (360 should be divisible by this number ideally)
-scan_step_size = 15.0 :: float
+scan_step_size = 15 :: int
 
 # Total charge of the system
 charge = 0 :: int
@@ -61,7 +61,7 @@ n_proc = 1 :: int
 vib_scaling = 1.0 :: float
 
 # Use the internal relaxed scan method of the QM software or the Torsiondrive method using xTB
-dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
+dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
 """
     _method = ['scan_step_size']
 
@@ -182,8 +182,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         for file in files:
             if self.config.dihedral_scanner == 'relaxed_scan':
                 qm_outs.append(software.read.scan(self.config, f'{folder}/{file}'))
-            elif self.config.dihedral_scanner == 'xtb-torsiondrive':
-                qm_outs.append(TorsiondrivexTB.read(f'{folder}/{file}'))
+            elif self.config.dihedral_scanner == 'torsiondrive':
+                qm_outs.append(software.read.scan_torsiondrive(f'{folder}/{file}'))
         qm_out = self._get_unique_scan_points(qm_outs, n_scan_steps)
 
         return ScanOutput(file, n_scan_steps, *qm_out)
@@ -198,6 +198,10 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
         charge_calc = None
         #
         if charge_software is None and do_sp is True:
+            charge_software = software
+
+        if charge_software is None and self.config.dihedral_scanner == 'torsiondrive':
+            # always do charge calculations in case of torsiondrive!
             charge_software = software
 
         # setup charge calculations
@@ -300,10 +304,10 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
             software.write.scan(file, scan_id, self.config, coords,
                                 atnums, scanned_atoms, start_angle,
                                 charge, multiplicity)
-        elif self.config.dihedral_scanner == 'xtb-torsiondrive':
-            TorsiondrivexTB.write(self.config, file, self.job.frag_dir,
-                                  scan_id, coords, atnums, scanned_atoms,
-                                  charge, multiplicity)
+        elif self.config.dihedral_scanner == 'torsiondrive':
+            software.write.scan_torsiondrive(file, scan_id, self.config, coords,
+                                             atnums, scanned_atoms, start_angle,
+                                             charge, multiplicity)
 
     def _read_hessian(self, hessian_files):
         software = self.softwares['software']
@@ -443,6 +447,10 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
                     softwares[option] = default
             else:
                 softwares[option] = self._set_qm_software(getattr(config, option))
+
+        if config.dihedral_scanner == 'torsiondrive' and softwares['scan_software'] is default:
+            selection = xTB.generate_user_input().get_answers()
+            softwares['scan_software'] = implemented_qm_software['xtb'](SimpleNamespace(**selection))
 
         self._print_softwares(softwares)
 

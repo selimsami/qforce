@@ -9,6 +9,7 @@ from ase.units import Hartree, mol, kJ
 
 
 class TorsiondrivexTB():
+
     @staticmethod
     def read(log_file):
         '''Read the TorsionDrive output.

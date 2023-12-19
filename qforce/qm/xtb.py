@@ -74,6 +74,13 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
 
+    def _write_scan_torsiondrive_job_settings(self, job_name, config, file, charge, multiplicity):
+        file.write(f"%nprocshared={config.n_proc}\n")
+        file.write(f"%mem={config.memory}MB\n")
+        file.write(f"%chk={job_name}.chk\n")
+        file.write("#p Opt=ModRedundant nosym ")
+        self.write_method(file, self.config)
+
 
 class ReadXTBGaussian(ReadGaussian):
 
@@ -131,7 +138,7 @@ class XTBGaussian(Gaussian):
 
     _user_input = """
 
-    charge_method = cm5 :: str :: [cm5, esp]
+    charge_method = xtb :: str :: xtb
 
     # QM method to be used
     method = gnf2 :: str :: gnf2
@@ -148,7 +155,7 @@ class xTB(QMInterface):
 
     _user_input = """
     # xTB only allows Mulliken charge.
-    charge_method = xtb :: str ::
+    charge_method = xtb :: str :: xtb
 
     # Extra command line passed to the xtb executable
     xtb_command = --gfn 2 :: str ::
@@ -324,6 +331,42 @@ class WritexTB(WriteABC):
 
         file.write(cmd)
 
+    def scan_torsiondrive(self, file, job_name, config, coords, atnums, scanned_atoms,
+             start_angle, charge, multiplicity):
+        """ Write the input file for the dihedral scan and charge calculation.
+
+        Parameters
+        ----------
+        file : file
+            The file object to write the input.
+        job_name : string
+            The name of the job.
+        config : config
+            A configparser object with all the parameters.
+        coords : array
+            A coordinates array of shape (N,3), where N is the number of atoms.
+        atnums : list
+            A list of atom elements represented as atomic number.
+        scanned_atoms : list
+            A list of 4 integer (one-based index) of the dihedral
+        start_angle : float
+            The starting angle in degree.
+        charge : int
+            The total charge of the molecule.
+        multiplicity : int
+            The multiplicity of the molecule.
+        """
+        base, _ = os.path.split(file.name)
+
+        self._scan_torsiondrive_helper(file, job_name, config, scanned_atoms, 'xtb')
+
+        cmd = (f'xTB arguments: --opt --chrg {config.charge} --uhf 0 ' 
+               f'{config.xtb_command} --parallel {config.n_proc} ')
+
+        mol = Atoms(positions=coords, numbers=atnums)
+        write(f'{base}/{job_name}_input.xyz', mol, plain=True,
+              comment=cmd)
+
 
 class ReadxTB(ReadABC):
 
@@ -335,7 +378,7 @@ class ReadxTB(ReadABC):
 
     opt_files = {'coord_file': ['.xtbopt.xyz'], }
 
-    sp_files = {'sp_file': ['_sp.out'], }
+    sp_files = {'sp_file': ['.sp.inp.out'], }
 
     charge_files = {'pc_file': ['.charges']}
 

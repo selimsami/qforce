@@ -12,6 +12,7 @@ import subprocess
 
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
+from ase.io import read
 from colt import Colt
 
 
@@ -57,6 +58,7 @@ class QMInterface(Colt):
         self.required_sp_files = read.sp_files
         self.required_charge_files = read.charge_files
         self.required_scan_files = read.scan_files
+        self.required_scan_torsiondrive_files = read.scan_torsiondrive_files
         #
         self.write = write
         self.config = config
@@ -84,9 +86,44 @@ class WriteABC(ABC):
     def sp(self, ):
         ...
 
+    @abstractmethod
+    def scan_torsiondrive(self, ):
+        ...
+
+    def _scan_torsiondrive_helper(self, file, job_name, config, scanned_atoms, engine):
+        """ Write the input file for the dihedral scan and charge calculation.
+
+        Parameters
+        ----------
+        file : file
+            The file object to write the submission.
+        job_name : string
+            The name of the job.
+        config : config
+            A configparser object with all the parameters.
+        coords : array
+            A coordinates array of shape (N,3), where N is the number of atoms.
+        atnums : list
+            A list of atom elements represented as atomic number.
+        scanned_atoms : list
+            A list of 4 integer (one-based index) of the dihedral
+        engine: str
+            The engine to use in torsion-drive
+        """
+        base, _ = os.path.split(file.name)
+        # Given that the xTB input has to be given in the command line.
+        # We create the xTB command template here.
+        # Write the hessian.inp which is the command line input
+        file.write(f"torsiondrive-launch {job_name}_input.xyz {job_name}_dihedrals.txt -g {int(config.scan_step_size)} -e {engine} --native_opt -v > {job_name}.log ")
+        # Write the coordinates, which is the standard xyz file.
+        with open(f'{base}/{job_name}_dihedrals.txt', 'w') as fh:
+            fh.write('{} {} {} {}'.format(*scanned_atoms))
+
 
 class ReadABC(ABC):
     """Abstract baseclass of QM Interface Read classes"""
+
+    scan_torsiondrive_files = {'xyz': ['scan.xyz']}
 
     def __init__(self, config):
         self.config = config
@@ -99,6 +136,47 @@ class ReadABC(ABC):
     def scan(self, ):
         ...
 
+    def scan_torsiondrive(self, log_file):
+        '''Read the TorsionDrive output.
+
+        Parameters
+        ----------
+        config : config
+            A configparser object with all the parameters.
+
+        Returns
+        -------
+        n_atoms : int
+            The number of atoms in the molecule.
+        coords : list
+            A list of array of float. The list has the length of the number
+            of steps and the array has the shape of (n_atoms, 3).
+        angles : list
+            A list (length: steps) of the angles that is being scanned.
+        energies : list
+            A list (length: steps) of the energy.
+        point_charges : dict
+            A dictionary with key in charge_method and the value to be a
+            list of float of the size of n_atoms.
+        '''
+        folder, _ = os.path.split(log_file)
+        frames = read(os.path.join(folder, 'scan.xyz'), index=':', format='extxyz')
+        n_atoms = len(frames[0])
+        energy_list = []
+        coord_list = []
+        angle_list = []
+        # load energies
+        for frame in frames:
+            coord_list.append(frame.positions)
+            _, angle, _, energy = list(frame.info.keys())
+            angle = float(angle[1:-2])
+            angle_list.append(angle)
+            energy = float(energy)
+            energy_list.append(energy)
+        # convert to gromacs units
+        energies = np.array(energy_list) * Hartree * mol / kJ
+        return n_atoms, coord_list, angle_list, energies, {}
+
     @abstractmethod
     def opt(self, ):
         ...
@@ -106,7 +184,6 @@ class ReadABC(ABC):
     @abstractmethod
     def sp(self, ):
         ...
-
     @staticmethod
     def _read_fchk_file(fchk_file):
         n_atoms, charge, multiplicity, elements, coords, hessian = None, None, None, [], [], []
