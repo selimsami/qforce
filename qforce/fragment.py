@@ -131,7 +131,8 @@ class Fragment:
         os.makedirs(self.folder, exist_ok=True)
         software = qm.get_scan_software()
         if scanner == 'torsiondrive':
-            self.calc = Calculation(f'{self.id}.inp', software.required_scan_torsiondrive_files,
+            self.calc = Calculation(f'{self.id}_torsiondrive.inp',
+                                    software.required_scan_torsiondrive_files,
                                     folder=self.folder, software=software.name)
         elif scanner == 'relaxed_scan':
             self.calc = Calculation(f'{self.id}.inp', software.required_scan_files,
