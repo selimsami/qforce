@@ -170,11 +170,6 @@ class xTB(QMInterface):
     def __init__(self, config):
 
         super().__init__(config, ReadxTB(config), WritexTB(config))
-        self.required_hessian_files = {'hess_file': ['hessian'],
-                                       'pc_file': ['charges'],
-                                       'wbo_file': ['wbo'],
-                                       'coord_file': ['xtbopt.xyz'], }
-        self.required_preopt_files = {'coord_file': ['xtbopt.xyz'], }
 
 
 class WritexTB(WriteABC):
@@ -367,19 +362,19 @@ class WritexTB(WriteABC):
 
 class ReadxTB(ReadABC):
 
-    hessian_files = {'hess_file': ['.hessian'],
-                     'pc_file': ['.charges'],
-                     'wbo_file': ['.wbo'],
-                     'coord_file': ['.xtbopt.xyz'],
+    hessian_files = {'hess_file': ['${base}.hessian'],
+                     'pc_file': ['${base}.charges'],
+                     'wbo_file': ['${base}.wbo'],
+                     'coord_file': ['${base}.xtbopt.xyz'],
                      }
 
-    opt_files = {'coord_file': ['.xtbopt.xyz'], }
+    opt_files = {'coord_file': ['${base}.xtbopt.xyz'], }
 
-    sp_files = {'sp_file': ['.sp.inp.out'], }
+    sp_files = {'sp_file': ['${base}.sp.inp.out'], }
 
-    charge_files = {'pc_file': ['.charges']}
+    charge_files = {'pc_file': ['${base}.charges']}
 
-    scan_files = {'file_name': ['.xtbscan.log']}
+    scan_files = {'file_name': ['${base}.xtbscan.log']}
 
     def opt(self, config, coord_file):
         _, elements, coords = self._read_xtb_xyz(coord_file)
