@@ -214,7 +214,8 @@ def run():
     Option.from_commandline(description={'logo': LOGO,
                                          'alias': 'qforce',
                                          'arg_format': {'name': 18,
-                                                        'comment': 60,
+                                                        'comment': 62,
                                                         },
+                                         'subparser_format': {'name': 18, 'comment': 62},
                                          }
                             ).run()
