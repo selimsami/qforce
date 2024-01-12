@@ -9,7 +9,6 @@ from colt import Colt
 from .qm.qm import QM, implemented_qm_software
 from .molecule.terms import Terms
 from .dihedral_scan import DihedralScan
-from .misc import LOGO
 from .pathkeeper import Pathways
 
 
@@ -197,8 +196,6 @@ def _check_and_copy_settings_file(job_dir, config_file):
 
 
 def initialize(filename, config_file, presets=None):
-    print(LOGO)
-
     job_info = _get_job_info(filename)
     settings_file = _check_and_copy_settings_file(job_info.dir, config_file)
 
