@@ -39,12 +39,12 @@ class Gaussian(QMInterface):
 
 class ReadGaussian(ReadABC):
 
-    hessian_files = {'out_file': ['.out', '.log'],
-                     'fchk_file': ['.fchk', '.fck']}
-    opt_files = {'out_file': ['.out', '.log']}
-    sp_files = {'out_file': ['.out', '.log']}
-    charge_files = {'out_file': ['.out', '.log']}
-    scan_files = {'file_name': ['.out', '.log']}
+    hessian_files = {'out_file': ['${base}.out', '${base}.log'],
+                     'fchk_file': ['${base}.fchk', '${base}.fck']}
+    opt_files = {'out_file': ['${base}.out', '${base}.log']}
+    sp_files = {'out_file': ['${base}.out', '${base}.log']}
+    charge_files = {'out_file': ['${base}.out', '${base}.log']}
+    scan_files = {'file_name': ['${base}.out', '${base}.log']}
     scan_torsiondrive_files = {'xyz': ['scan.xyz']}
 
     def opt(self, config, out_file):
