@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-
-from qforce.main import run
+from qforce.cli import run
 
 
 if __name__ == '__main__':
