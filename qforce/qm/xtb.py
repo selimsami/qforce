@@ -165,7 +165,7 @@ class xTB(QMInterface):
     name = 'xtb'
     has_torsiondrive = True
 
-    _method = []
+    _method = ['xtb_command', 'charge_method']
 
     def __init__(self, config):
 
@@ -175,10 +175,6 @@ class xTB(QMInterface):
                                        'wbo_file': ['wbo'],
                                        'coord_file': ['xtbopt.xyz'], }
         self.required_preopt_files = {'coord_file': ['xtbopt.xyz'], }
-
-    def _settings(self):
-        return {'xtb_command': self.config.xtb_command,
-                'charge_method': self.config.charge_method}
 
 
 class WritexTB(WriteABC):
@@ -333,7 +329,7 @@ class WritexTB(WriteABC):
         file.write(cmd)
 
     def scan_torsiondrive(self, file, job_name, config, coords, atnums, scanned_atoms,
-             start_angle, charge, multiplicity):
+                          start_angle, charge, multiplicity):
         """ Write the input file for the dihedral scan and charge calculation.
 
         Parameters
@@ -361,7 +357,7 @@ class WritexTB(WriteABC):
 
         self._scan_torsiondrive_helper(file, job_name, config, scanned_atoms, 'xtb')
 
-        cmd = (f'xTB arguments: --opt --chrg {config.charge} --uhf 0 ' 
+        cmd = (f'xTB arguments: --opt --chrg {config.charge} --uhf 0 '
                f'{config.xtb_command} --parallel {config.n_proc} ')
 
         mol = Atoms(positions=coords, numbers=atnums)

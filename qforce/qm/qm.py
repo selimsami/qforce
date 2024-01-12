@@ -11,7 +11,6 @@ from .orca import Orca
 from .xtb import xTB, XTBGaussian
 from .qm_base import scriptify, HessianOutput, ScanOutput
 from .qm_base import Calculation, CalculationIncompleteError, check
-from .torsiondrive_xtb import TorsiondrivexTB
 
 
 implemented_qm_software = {'gaussian': Gaussian,
@@ -23,6 +22,18 @@ implemented_qm_software = {'gaussian': Gaussian,
 
 
 class QM(Colt):
+
+    pathways = {
+        # folders
+        'preopt': '0_preopt',
+        'hessian': '1_hessian',
+        'hessian_charge': '1_hessian/charge',
+        'fragments': '2_fragments',
+        # files
+        'init.xyz': 'init.xyz',
+        'preopt.xyz': '0_preopt/preopt.xyz',
+    }
+
     _user_input = """
 
 # QM software to use for the hessian calculation
@@ -76,25 +87,25 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         return self.softwares['scan_software']
 
     def preopt_dir(self, only=False):
-        path = '0_preopt'
+        path = self.pathways['preopt']
         if only is True:
             return path
         return os.path.join(self.job.dir, path)
 
     def hessian_dir(self, only=False):
-        path = '1_hessian'
+        path = self.pathways['hessian']
         if only is True:
             return path
         return os.path.join(self.job.dir, path)
 
     def hessian_charge_dir(self, only=False):
-        path = '1_hessian_charge'
+        path = self.pathways['hessian_charge']
         if only is True:
             return path
         return os.path.join(self.job.dir, path)
 
     def fragment_dir(self, only=False):
-        path = '2_fragments'
+        path = self.pathways['fragments']
         if only is True:
             return path
         return os.path.join(self.job.dir, path)
@@ -132,9 +143,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                         f"Required Hessian output file(s) not found in '{folder}' .\n"
                         'Creating the necessary input file and exiting...\nPlease run the '
                         'calculation and put the output files in the same directory.\n'
-                        f'Selected QM Software: "{self.config.software}"\n'
                         'Necessary Hessian output files and the corresponding extensions are:\n'
-                        f"{calculation.missing_as_string()}"
+                        f"{calculation.missing_as_string()}\n\n\n"
                             )
 
         hessian_files = calculation.check()
@@ -160,10 +170,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                         f"Required Hessian Charge output file(s) not found in '{folder}' .\n"
                         'Creating the necessary input file and exiting...\nPlease run the '
                         'calculation and put the output files in the same directory.\n'
-                        f'Selected QM Software: "{self.config.software}"\n'
                         'Necessary Hessian output files and the corresponding extensions are:\n'
                         f"{calculation.missing_as_string()}"
-                            )
+                        )
         # if files exist
         charge_files = calculation.check()
         #
@@ -356,14 +365,16 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         # create Preopt directory
         folder = self.preopt_dir()
         os.makedirs(folder, exist_ok=True)
-        self._write_xyzfile(molecule, f'{self.preopt_dir(True)}/preopt.xyz',
+        self._write_xyzfile(molecule, f'{folder}/preopt.xyz',
                             comment=f'{self.job.name} - input geometry for preopt')
         # setup calculation
         calculation = Calculation(f"{self.job.name}_opt.inp",
                                   software.read.opt_files, folder=folder,
                                   software=software.name)
+        #
         if not calculation.input_exists():
             _, coords, atnums = self._read_coord_file(f'{folder}/preopt.xyz')
+            #
             with open(calculation.inputfile, 'w') as file:
                 self.write_preopt(file, calculation.base, coords, atnums)
                 raise CalculationIncompleteError(
@@ -438,6 +449,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                 'charge_software': None,
                 'scan_software': default,
         }
+        scanner = config.dihedral_scanner
         # do it twice, once load the settings, once set the defaults
         for option, default in defaults.items():
             if getattr(config, option).value is None:
@@ -448,21 +460,28 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             else:
                 softwares[option] = self._set_qm_software(getattr(config, option))
 
-        if config.dihedral_scanner == 'torsiondrive' and softwares['scan_software'] is default:
+        if scanner == 'torsiondrive' and softwares['scan_software'] is default:
             selection = xTB.generate_user_input().get_answers()
-            softwares['scan_software'] = implemented_qm_software['xtb'](SimpleNamespace(**selection))
+            xtbsoftware = implemented_qm_software['xtb']
+            softwares['scan_software'] = xtbsoftware(SimpleNamespace(**selection))
 
-        if config.dihedral_scanner == 'torsiondrive' and softwares['scan_software'].has_torsiondrive is False:
-            raise SystemExit("Error: TorsionDrive not supported for scan_software '{softwares['scan_software'].name}'")
-        self._print_softwares(softwares)
+        if scanner == 'torsiondrive' and softwares['scan_software'].has_torsiondrive is False:
+            raise SystemExit("Error: TorsionDrive not supported for scan_software "
+                             f"'{softwares['scan_software'].name}'")
+        print(self._get_software_text(softwares))
 
         return softwares
 
-    def _print_softwares(self, softwares):
-        print('Selected Electronic Structure Softwares: "')
+    def _get_software_text(self, softwares):
+        delim = " -------------------------------------------------\n"
+        txt = (delim + "    Selected Electronic Structure Softwares\n" + delim)
+
         for typ, software in softwares.items():
             if software is not None:
-                print("%s: %s" % (typ, software.name))
+                txt += "    %15s | %15s\n" % (typ, software.name)
+        txt += delim
+        txt += "\n\n"
+        return txt
 
     def _set_qm_software(self, selection):
         try:
@@ -471,14 +490,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             raise KeyError(f'"{selection.value}" software is not implemented.')
         software.name = selection.value
         return software
-
-    @staticmethod
-    def _print_selected(selection, required_hessian_files):
-        print(f'Selected QM Software: "{selection}"\n'
-              'Necessary Hessian output files and the corresponding extensions are:')
-        for req, ext in required_hessian_files.items():
-            print(f'- {req}: {ext}')
-        print()
 
     def _register_method(self):
         software = self.softwares['software']

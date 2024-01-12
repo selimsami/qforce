@@ -22,6 +22,8 @@ class QMInterface(Colt):
     # Please specify the name of the qm interface
     name = None
     has_torsiondrive = False
+    # please implement methods
+    _method = []
 
     def __init__(self, config, read, write):
         self._setup(config, read, write)
@@ -31,17 +33,14 @@ class QMInterface(Colt):
         return self._dct_to_hash(self.settings(charge, mult))
 
     def _settings(self):
-        """Every QMInterface needs this, it defines the unique keys
-        should not contain information like number of cores or size of memory
-        but only relevant information for the calculation (basisset, functional etc.)
-        """
-        raise NotImplementedError("Please provide settings method")
+        return {key: getattr(self.config, key) for key in self._method}
 
     def settings(self, charge, mult):
         """Returns the unique settings of the qm interface"""
         settings = self._settings()
         settings['charge'] = charge
         settings['multiplicity'] = mult
+        settings['_qmsoftwarename'] = self.name
         return settings
 
     @staticmethod
@@ -184,6 +183,7 @@ class ReadABC(ABC):
     @abstractmethod
     def sp(self, ):
         ...
+
     @staticmethod
     def _read_fchk_file(fchk_file):
         n_atoms, charge, multiplicity, elements, coords, hessian = None, None, None, [], [], []

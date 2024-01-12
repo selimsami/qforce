@@ -481,7 +481,7 @@ class ReadORCA(ReadABC):
             # Skip to the step after geometry optimisation
             while 'Mayer bond orders larger than' not in line:
                 line = file.readline()
-    
+
             line = file.readline()
             while "-------" not in line:
                 items = line.split('B')

@@ -10,6 +10,7 @@ from .qm.qm import QM, implemented_qm_software
 from .molecule.terms import Terms
 from .dihedral_scan import DihedralScan
 from .misc import LOGO
+from .pathkeeper import Pathways
 
 
 class Initialize(Colt):
@@ -98,12 +99,7 @@ _ext_alpha = no :: bool
 
     @classmethod
     def _set_config(cls, config):
-        # cls._to_simplenamespace(config['qm'], 'preopt')
-        # cls._to_simplenamespace(config['qm'], 'software')
-        # cls._to_simplenamespace(config['qm'], 'scan_software')
-        # cls._to_simplenamespace(config['qm'], 'scan_sp')
         config['qm'].update(config['qm']['software'])
-        # config['qm'].update({'software': config['qm']['software'].value})
         config.update({key: SimpleNamespace(**val) for key, val in config.items()})
         return SimpleNamespace(**config)
 
@@ -119,8 +115,10 @@ _ext_alpha = no :: bool
                                                    for key, software in
                                                    implemented_qm_software.items()},
                                  block='qm')
-        questions.generate_cases("charge_software", {key: software.colt_user_input for key, software in
-                                             implemented_qm_software.items()}, block='qm')
+        questions.generate_cases("charge_software", {key: software.colt_user_input
+                                                     for key, software
+                                                     in implemented_qm_software.items()},
+                                 block='qm')
         questions.generate_block("terms", Terms.get_questions())
 
     @classmethod
@@ -158,7 +156,22 @@ def _get_job_info(filename):
         job['name'] = base.split('_qforce')[0]
 
     job['dir'] = f'{path}{job["name"]}_qforce'
-    job['frag_dir'] = f'{job["dir"]}/2_fragments'
+    pathways = Pathways(job['dir'])
+    job['pathways'] = pathways
+    job['frag_dir'] = str(pathways["fragments"])
+    #
+    if job['coord_file'] is False:
+        init = pathways['init.xyz']
+        if init.exists():
+            job['coord_file'] = init
+        else:
+            preopt = pathways['preopt.xyz']
+            if preopt.exists():
+                job['coord_file'] = preopt
+            else:
+                raise SystemExit(f"Either '{pathways['init.xyz']}' "
+                                 f"or '{pathways['preopt.xyz']}' need to be present")
+
     job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
     os.makedirs(job['dir'], exist_ok=True)
     return SimpleNamespace(**job)

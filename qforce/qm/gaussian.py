@@ -36,14 +36,6 @@ class Gaussian(QMInterface):
             config.solvent_method = ''
         super().__init__(config, ReadGaussian(config), WriteGaussian(config))
 
-    def _settings(self):
-        return {'method': self.config.method,
-                'charge_method': self.config.charge_method,
-                'dispersion': self.config.dispersion,
-                'basis': self.config.basis,
-                'solvent_method': self.config.solvent_method,
-                }
-
 
 class ReadGaussian(ReadABC):
 
