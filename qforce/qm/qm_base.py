@@ -1,15 +1,12 @@
 import math
 import os
 import sys
-import json
 from abc import ABC, abstractmethod
-from pathlib import Path
-from string import Template
 from warnings import warn
-from contextlib import contextmanager
 import hashlib
 import subprocess
 
+from calkeeper import CalculationKeeper, CalculationIncompleteError, CalculationFailed
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
 from ase.io import read
@@ -113,7 +110,9 @@ class WriteABC(ABC):
         # Given that the xTB input has to be given in the command line.
         # We create the xTB command template here.
         # Write the hessian.inp which is the command line input
-        file.write(f"torsiondrive-launch {job_name}_input.xyz {job_name}_dihedrals.txt -g {int(config.scan_step_size)} -e {engine} --native_opt -v > {job_name}.log ")
+        file.write(f"torsiondrive-launch {job_name}_input.xyz "
+                   "{job_name}_dihedrals.txt -g {int(config.scan_step_size)} "
+                   "-e {engine} --native_opt -v > {job_name}.log ")
         # Write the coordinates, which is the standard xyz file.
         with open(f'{base}/{job_name}_dihedrals.txt', 'w') as fh:
             fh.write('{} {} {} {}'.format(*scanned_atoms))
@@ -342,101 +341,6 @@ class ScanOutput:
         return angles, energies, coords
 
 
-class CalculationIncompleteError(SystemExit):
-    """Indicates that a calculation is incomplete and still files are missing"""
-
-
-class Calculation:
-    """Hold information of a calculation"""
-
-    def __init__(self, inputfile, required_output_files, *, folder=None, software=None):
-        self.folder = Path(folder) if folder is not None else Path("")
-        self.required_output_files = required_output_files
-        self.inputfile = self.folder / Path(inputfile)
-        self.base = self.inputfile.name[:-len(self.inputfile.suffix)]
-        self.software = software
-        # register itself
-        SubmitKeeper.add(self)
-
-    @property
-    def filename(self):
-        return self.inputfile.name
-
-    def _render(self, option):
-        if '$' in option:
-            option = Template(option)
-            return option.substitute(base=self.base)
-        return self.base + option
-
-    def as_pycode(self):
-        return (f'Calculation("{self.inputfile.name}", '
-                f'{json.dumps(self.required_output_files)}, '
-                f'folder="{str(self.folder)}", '
-                f'software="{str(self.software)}")')
-
-    @contextmanager
-    def within(self):
-        """Perform a set of option within the folder of the system"""
-        current = os.getcwd()
-        os.chdir(self.folder)
-        yield
-        os.chdir(current)
-
-    def input_exists(self):
-        """check if the inputfile is already present"""
-        return self.inputfile.exists()
-
-    def _get_files_dct(self):
-        """gets a basic dictionary with all setted and missing files"""
-        outfiles = {}
-
-        for name, options in self.required_output_files.items():
-            outfiles[name] = None
-            for option in options:
-                option = self._render(option)
-                filename = self.folder / option
-                if filename.exists():
-                    outfiles[name] = filename
-                    break
-        return outfiles
-
-    def missing_as_string(self):
-        outfiles = self._get_files_dct()
-        return "\n".join(f'    - {req}: {self.required_output_files[req]}'
-                         for req, ext in outfiles.items()
-                         if ext is None)
-
-    def check(self):
-        """Checks if all required files are present, if not raises CalculationIncompleteError"""
-
-        outfiles = self._get_files_dct()
-
-        error = self.missing_as_string()
-
-        if error != '':
-            raise CalculationIncompleteError((f"For folder: '{str(self.folder)}' following "
-                                              f" files missing:\n{error}\n\n"))
-        return outfiles
-
-
-def check(calculations):
-    """Check multiple calculations, if false Raises CalculationIncompleteError"""
-    files = []
-    error = ""
-    for calc in calculations:
-        try:
-            files.append(calc.check())
-        except CalculationIncompleteError as err:
-            error += err.code + "\n\n"
-    if error != "":
-        raise CalculationIncompleteError(error)
-    return files
-
-
-class CalculationFailed(SystemExit):
-    """Error passed if the direct calculation failed"""
-
-
 def do_xtb(calculation):
     """Perform a xtb calculation, raises CalculationFailed error in case of an error"""
     with calculation.within():
@@ -452,107 +356,6 @@ def do_xtb(calculation):
         raise CalculationFailed("Not all necessary files could be generated for calculation"
                                 f" '{calculation.inputfile}'"
                                 ) from None
-
-
-def perform_calculations(calculations):
-
-    methods = {'xtb': do_xtb, }
-
-    for calculation in calculations:
-        method = methods.get(calculation.software)
-        if method is None:
-            raise ValueError("Software not suppored")
-        try:
-            method(calculation)
-        except CalculationFailed:
-            raise SystemExit("Calculation failed!") from None
-
-
-class SubmitKeeper:
-    """Singleton that keeps track over all calculations that need to be submitted"""
-
-    calculations = []
-
-    @classmethod
-    def add(cls, calculation):
-        """Add a new Calculation"""
-        assert isinstance(calculation, Calculation)
-        cls.calculations.append(calculation)
-
-    @classmethod
-    def clear(cls, clear_all=False):
-        """Remove all calculations from the list
-
-        Args:
-            clear_all: bool, optional
-                default: False
-                True: remove all calculations
-                False: remove all incomplete calculations
-        """
-        if clear_all is False:
-            cls.calculations = cls._get_incomplete()
-        else:
-            cls.calculations = []
-
-    @classmethod
-    def do_calculations(cls):
-        calculations = cls._get_incomplete()
-        perform_calculations(calculations)
-
-    @classmethod
-    def check(cls):
-        """Check if calculations need to be performed
-
-        Raises:
-            CalculationIncompleteError in case some calculations are still missing
-        """
-        check(cls.calculations)
-
-    @classmethod
-    def write_check(cls, filename, *, only_incomplete=True):
-        """Write check function to check if calculations are there
-
-        Args:
-            filename: str/Path
-                name of the python file to be written
-            only_incomplete: bool, optional
-                default: True
-                True: write out only the incomplete calculations
-                False: write out all created calculations
-        """
-
-        if only_incomplete is False:
-            calculations = cls.calculations
-        else:
-            calculations = cls._get_incomplete()
-
-        calculations = ',\n'.join(calc.as_pycode() for calc in cls.calculations)
-
-        out = f"""from qforce.cli import Calculation, Option
-
-
-# currently missing calculations
-calculations = [{calculations}]
-
-
-if __name__ == '__main__':
-    option = Option.from_commandline(calculations)
-    option.run()
-        """
-
-        with open(filename, 'w') as fh:
-            fh.write(out)
-
-    @classmethod
-    def _get_incomplete(cls):
-        """Return a list of all incompleted calculations"""
-        calculations = []
-        for calc in cls.calculations:
-            try:
-                calc.check()
-            except CalculationIncompleteError:
-                calculations.append(calc)
-        return calculations
 
 
 def scriptify(writer):
@@ -588,3 +391,7 @@ def scriptify(writer):
         for line in post_input_script:
             file.write(f'{line}\n')
     return wrapper
+
+
+KEEPER = CalculationKeeper()
+Calculation = KEEPER.get_calcls()
