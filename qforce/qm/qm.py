@@ -4,13 +4,14 @@ from types import SimpleNamespace
 from ase.io import read, write
 import numpy as np
 from colt import Colt
+from calkeeper import check
 
 from .gaussian import Gaussian
 from .qchem import QChem
 from .orca import Orca
 from .xtb import xTB, XTBGaussian
 from .qm_base import scriptify, HessianOutput, ScanOutput
-from .qm_base import Calculation, CalculationIncompleteError, check
+from .qm_base import Calculation, CalculationIncompleteError
 
 
 implemented_qm_software = {'gaussian': Gaussian,
@@ -22,17 +23,6 @@ implemented_qm_software = {'gaussian': Gaussian,
 
 
 class QM(Colt):
-
-    pathways = {
-        # folders
-        'preopt': '0_preopt',
-        'hessian': '1_hessian',
-        'hessian_charge': '1_hessian/charge',
-        'fragments': '2_fragments',
-        # files
-        'init.xyz': 'init.xyz',
-        'preopt.xyz': '0_preopt/preopt.xyz',
-    }
 
     _user_input = """
 
@@ -78,6 +68,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
 
     def __init__(self, job, config):
         self.job = job
+        self.pathways = job.pathways
         self.config = config
         self.softwares = self._get_qm_softwares(config)
         # check hessian files and if not present write the input file
@@ -86,57 +77,34 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
     def get_scan_software(self):
         return self.softwares['scan_software']
 
-    def preopt_dir(self, only=False):
-        path = self.pathways['preopt']
-        if only is True:
-            return path
-        return os.path.join(self.job.dir, path)
-
-    def hessian_dir(self, only=False):
-        path = self.pathways['hessian']
-        if only is True:
-            return path
-        return os.path.join(self.job.dir, path)
-
-    def hessian_charge_dir(self, only=False):
-        path = self.pathways['hessian_charge']
-        if only is True:
-            return path
-        return os.path.join(self.job.dir, path)
-
-    def fragment_dir(self, only=False):
-        path = self.pathways['fragments']
-        if only is True:
-            return path
-        return os.path.join(self.job.dir, path)
-
     def _basename(self, software):
         return f'{self.job.name}_{software.hash(self.config.charge, self.config.multiplicity)}'
 
     def hessian_name(self, software):
-        return f'{self._basename(software)}_hessian'
+        return self.pathways.hessian_name(software, self.config.charge, self.config.multiplicity)
 
     def hessian_charge_name(self, software):
-        return f'{self._basename(software)}_hessian_charge'
+        return self.pathways.hessian_charge_name(software, self.config.charge,
+                                                 self.config.multiplicity)
 
     def charge_name(self, software):
-        return f'{self._basename(software)}_charge'
+        return self.pathways.charge_name(software, self.config.charge, self.config.multiplicity)
 
     def scan_sp_name(self, software, i):
-        return f'{self._basename(software)}_sp_step_{i:02d}'
+        return self.pathways.scan_sp_name(software, self.config.charge,
+                                          self.config.multiplicity, i)
 
     def get_hessian(self):
         """Setup hessian files, and if present read the hessian information"""
 
         software = self.softwares['software']
-        folder = self.hessian_dir()
-        os.makedirs(folder, exist_ok=True)
+        folder = self.pathways.hessian_dir(create=True)
         calculation = Calculation(f'{self.hessian_name(software)}.inp',
                                   software.read.hessian_files,
                                   folder=folder,
                                   software=software.name)
         if not calculation.input_exists():
-            _, coords, atnums = self._read_coord_file(f'{self.job.dir}/init.xyz')
+            _, coords, atnums = self._read_coord_file(self.pathways['init.xyz'])
             with open(calculation.inputfile, 'w') as file:
                 self.write_hessian(file, calculation.base, coords, atnums)
             raise CalculationIncompleteError(
@@ -154,8 +122,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         if charge_software is None:
             return output
         #
-        folder = self.hessian_charge_dir()
-        os.makedirs(folder, exist_ok=True)
+        folder = self.pathways.hessian_charge_dir(create=True)
 
         calculation = Calculation(f'{self.hessian_charge_name(charge_software)}.inp',
                                   charge_software.read.charge_files,
@@ -240,11 +207,20 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                     os.makedirs(calc.folder, exist_ok=True)
                     with open(calc.inputfile, 'w') as file:
                         self.write_scan_sp(file, calc.base, scan_out.coords[i], atnums)
+
             #
-            if charge_calc is not None:
-                out_files = check(calculations + [charge_calc])[:-1]
-            else:
-                out_files = check(calculations)
+            try:
+                if charge_calc is not None:
+                    out_files = check(calculations + [charge_calc])[:-1]
+                else:
+                    out_files = check(calculations)
+            except CalculationIncompleteError:
+                raise CalculationIncompleteError(
+                            f"Required output file(s) not found in '{parent}/step_XX'.\n"
+                            'Creating the necessary input file and exiting...\nPlease run the '
+                            'calculation and put the output files in the same directory.\n'
+                            'Necessary output files and the corresponding extensions are:\n'
+                            f"{calculations[0].missing_as_string()}") from None
             energies = []
             # do not do che charge
             for files in out_files:
@@ -359,13 +335,12 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         molecule, coords, atnums = self._read_coord_file(self.job.coord_file)
         software = self.softwares['preopt']
         if self.softwares['preopt'] is None:
-            self._write_xyzfile(molecule, 'init.xyz',
+            self._write_xyzfile(molecule, self.pathways['init.xyz'],
                                 comment=f'{self.job.name} - input geometry for hessian')
             return
         # create Preopt directory
-        folder = self.preopt_dir()
-        os.makedirs(folder, exist_ok=True)
-        self._write_xyzfile(molecule, f'{folder}/preopt.xyz',
+        folder = self.pathways.preopt_dir(create=True)
+        self._write_xyzfile(molecule, self.pathways['preopt.xyz'],
                             comment=f'{self.job.name} - input geometry for preopt')
         # setup calculation
         calculation = Calculation(f"{self.job.name}_opt.inp",
@@ -373,7 +348,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                                   software=software.name)
         #
         if not calculation.input_exists():
-            _, coords, atnums = self._read_coord_file(f'{folder}/preopt.xyz')
+            _, coords, atnums = self._read_coord_file(self.pathways['preopt.xyz'])
             #
             with open(calculation.inputfile, 'w') as file:
                 self.write_preopt(file, calculation.base, coords, atnums)
@@ -385,7 +360,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         preopt_files = calculation.check()
         coords = self._read_opt(preopt_files)
         molecule.set_positions(coords)
-        self._write_xyzfile(molecule, 'init.xyz',
+        self._write_xyzfile(molecule, self.pathways['init.xyz'],
                             comment=f'{self.job.name} - input geometry for hessian')
 
     def _check_scan_sp_output(self, folder):
@@ -434,8 +409,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         return molecule, coords, atnums
 
     def _write_xyzfile(self, molecule, filename, comment=None):
-        write(f'{self.job.dir}/{filename}', molecule, plain=True,
-              comment=comment)
+        write(filename, molecule, plain=True, comment=comment)
 
     def _get_qm_softwares(self, config):
         default = self._set_qm_software(config.software)
