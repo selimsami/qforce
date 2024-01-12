@@ -5,7 +5,8 @@ from colt.validator import Validator
 from calkeeper import CalculationKeeper, CalculationIncompleteError
 #
 from .initialize import initialize as _initialize
-from .main import runjob, KEEPER
+from .main import runjob
+from .qm.qm_base import KEEPER
 from .misc import check_if_file_exists, LOGO
 
 
