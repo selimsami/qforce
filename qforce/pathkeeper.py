@@ -40,6 +40,7 @@ class Pathways:
         # files
         'init.xyz': 'init.xyz',
         'preopt.xyz': ['preopt', 'preopt.xyz'],
+        'calculations.json': '_calculations.json',
     })
 
     def __init__(self, jobdir):
@@ -50,6 +51,9 @@ class Pathways:
 
     def preoptxyz(self, *, only=False):
         return self._path(self.pathways['preopt.xyz'], only)
+
+    def calculationsjson(self, *, only=False):
+        return self._path(self.pathways['calculations.json'], only)
 
     def preopt_dir(self, *, only=False, create=False):
         return self._dirpath(self.pathways['preopt'], only, create)
@@ -72,11 +76,12 @@ class Pathways:
                 # files
                 'init.xyz': self.initxyz,
                 'preopt.xyz': self.preoptxyz,
+                'calculations.json': self.calculationsjson,
                 }
         value = options.get(key, None)
         if value is None:
             raise ValueError(f"Option can only be one of '{','.join(options)}'")
-        return value
+        return value()
 
     def _path(self, path, only):
         """Path to the folder"""
