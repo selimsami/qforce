@@ -1,10 +1,7 @@
-from colt import from_commandline
-from colt.validator import Validator
-
 from .polarize import polarize
 from .initialize import initialize
 from .qm.qm import QM
-from .qm.qm_base import HessianOutput, SubmitKeeper, CalculationIncompleteError
+from .qm.qm_base import HessianOutput
 from .forcefield import ForceField
 from .molecule import Molecule
 from .fragment import fragment
@@ -12,68 +9,8 @@ from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian
 
-from .misc import check_if_file_exists, LOGO
 
-
-# define new validator
-Validator.overwrite_validator("file", check_if_file_exists)
-
-
-@from_commandline("""
-# Input coordinate file mol.ext (ext: pdb, xyz, gro, ...)
-# or directory (mol or mol_qforce) name.
-file = :: file
-
-# File name for the optional options.
-options = :: file, optional, alias=o
-""", description={
-    'logo': LOGO,
-    'alias': 'qforce',
-    'arg_format': {
-        'name': 12,
-        'comment': 60,
-        },
-})
-def run(file, options):
-    """Main entrypoint for QForce"""
-    config, job = initialize(file, options, None)
-    try:
-        _run(config, job)
-    except CalculationIncompleteError as err:
-        SubmitKeeper.write_check(f'{job.name}_helper.py', only_incomplete=True)
-        raise err from None
-
-
-@from_commandline("""
-# Input coordinate file mol.ext (ext: pdb, xyz, gro, ...)
-# or directory (mol or mol_qforce) name.
-file = :: file
-
-# File name for the optional options.
-options = :: file, optional, alias=o
-""", description={
-    'logo': LOGO,
-    'alias': 'qforce',
-    'arg_format': {
-        'name': 12,
-        'comment': 60,
-        },
-})
-def run_complete(file, options):
-    config, job = initialize(file, options, None)
-    running = True
-
-    while running:
-        try:
-            _run(config, job)
-            running = False
-        except CalculationIncompleteError:
-            SubmitKeeper.do_calculations()
-        except SystemExit:
-            SubmitKeeper.do_calculations()
-
-
-def _run(config, job, ext_q=None, ext_lj=None):
+def runjob(config, job, ext_q=None, ext_lj=None):
     if config.ff._polarize:
         polarize(job, config.ff)
 
@@ -111,7 +48,7 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     """Execute Qforce from python directly """
     config, job = initialize(input_arg, config, presets)
     #
-    _run(config, job, ext_q=ext_q, ext_lj=ext_lj)
+    runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
 
 
 def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
