@@ -1,13 +1,13 @@
 import sys
-from colt import Colt
 import numpy as np
 from ase.units import Hartree, mol, kJ
 #
-from .qm_base import WriteABC, ReadABC
+from .qm_base import WriteABC, ReadABC, QMInterface
 from ..elements import ATOM_SYM
 
 
-class QChem(Colt):
+class QChem(QMInterface):
+
     _user_input = """
 
     charge_method = cm5 :: str :: [cm5, resp]
@@ -53,11 +53,18 @@ class QChem(Colt):
     def __init__(self, config):
         self.required_hessian_files = {'out_file': ['.out', '.log'],
                                        'fchk_file': ['.fchk', '.fck']}
-        self.read = ReadQChem(config)
-        self.write = WriteQChem(config)
+        super().__init__(config, ReadQChem(config), WriteQChem(config))
 
 
 class ReadQChem(ReadABC):
+
+    hessian_files = {'out_file': ['${base}.out', '${base}.log'],
+                     'fchk_file': ['${base}.fchk', '${base}.fck']}
+    opt_files = {'out_file': ['${base}.out', '${base}.log']}
+    sp_files = {'out_file': ['${base}.out', '${base}.log']}
+    charge_files = {'out_file': ['${base}.out', '${base}.log']}
+    scan_files = {'file_name': ['${base}.out', '${base}.log']}
+    scan_torsiondrive_files = {'xyz': ['scan.xyz']}
 
     def hessian(self, config, out_file, fchk_file):
         b_orders, point_charges = [], []
@@ -110,8 +117,25 @@ class ReadQChem(ReadABC):
         energies = np.array(energies) * Hartree * mol / kJ
         return n_atoms, coords, angles, energies, point_charges
 
-    def opt(self):
-        raise NotImplementedError
+    def opt(self, config, out_file):
+
+        with open(out_file, "r", encoding='utf-8') as file:
+            found_n_atoms = False
+
+            for line in file:
+                if not found_n_atoms and " NAtoms, " in line:
+                    line = file.readline()
+                    n_atoms = int(line.split()[0])
+                    found_n_atoms = True
+                elif "OPTIMIZATION CONVERGED" in line:
+                    coord = []
+                    for _ in range(4):
+                        file.readline()
+                    for n in range(n_atoms):
+                        line = file.readline().split()
+                        coord.append([float(c_xyz) for c_xyz in line[2:]])
+                    return coord
+        raise ValueError(f"Could not parse file '{out_file}'")
 
     def sp(self):
         raise NotImplementedError
