@@ -133,7 +133,7 @@ class Fragment:
         if scanner == 'torsiondrive':
             self.calc = Calculation(f'{self.id}_torsiondrive.inp',
                                     software.required_scan_torsiondrive_files,
-                                    folder=self.folder, software=software.name)
+                                    folder=self.folder, software='torsiondrive')
         elif scanner == 'relaxed_scan':
             self.calc = Calculation(f'{self.id}.inp', software.required_scan_files,
                                     folder=self.folder, software=software.name)
