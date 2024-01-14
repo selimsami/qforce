@@ -1,4 +1,5 @@
 import os.path
+import subprocess
 
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
@@ -170,6 +171,24 @@ class xTB(QMInterface):
     def __init__(self, config):
 
         super().__init__(config, ReadxTB(config), WritexTB(config))
+
+    @staticmethod
+    def run(calculation):
+        """Perform a xtb calculation, raises CalculationFailed error in case of an error"""
+        with calculation.within():
+            name = calculation.filename
+            try:
+                subprocess.run(f"bash {name} > {name}.shellout", shell=True, check=True)
+            except subprocess.CalledProcessError as err:
+                raise CalculationFailed(f"subprocess registered error '{err.code}'") from None
+
+        try:
+            calculation.check()
+        except CalculationIncompleteError:
+            raise CalculationFailed("Not all necessary files could be generated for calculation"
+                                    f" '{calculation.inputfile}'"
+                                    ) from None
+
 
 
 class WritexTB(WriteABC):
@@ -389,7 +408,7 @@ class ReadxTB(ReadABC):
 
     def charges(self, config, pc_file):
         _, point_charges = self._read_xtb_charge(pc_file)
-        return point_charges
+        return {'xtb': point_charges}
 
     def hessian(self, config, hess_file, pc_file, coord_file, wbo_file):
         """ Extract hessian information from all the relevant files.
