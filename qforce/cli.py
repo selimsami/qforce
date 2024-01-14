@@ -112,7 +112,7 @@ class Check(Option):
         print("All checks have passed!")
 
 
-class RunQforceComplete(Option):
+class RunQforceComplete:
 
     name = 'run_complete'
     _colt_description = 'Run qforce automatically till completion'
