@@ -1,4 +1,5 @@
 import sys
+import subprocess
 import numpy as np
 from ase.units import Hartree, mol, kJ
 #
@@ -49,12 +50,31 @@ class QChem(QMInterface):
 
     _method = ['method', 'dispersion', 'basis', 'cis_n_roots', 'cis_singlets', 'cis_triplets',
                'cis_state_deriv', 'solvent_method']
+    name = 'qchem'
+    has_torsiondrive = False
 
     def __init__(self, config):
         self.required_hessian_files = {'out_file': ['.out', '.log'],
                                        'fchk_file': ['.fchk', '.fck']}
         super().__init__(config, ReadQChem(config), WriteQChem(config))
 
+    @staticmethod
+    def run(calculation):
+        """Perform an gaussian calculation, raises CalculationFailed error in case of an error"""
+        with calculation.within():
+            name = calculation.filename
+            base = calculation.base
+            try:
+                subprocess.run(f"qchem -nt 2 {name} > {base}.log", shell=True, check=True)
+            except subprocess.CalledProcessError as err:
+                raise CalculationFailed(f"subprocess registered error '{err.code}'") from None
+
+        try:
+            calculation.check()
+        except CalculationIncompleteError:
+            raise CalculationFailed("Not all necessary files could be generated for calculation"
+                                    f" '{calculation.inputfile}'"
+                                    ) from None
 
 class ReadQChem(ReadABC):
 
@@ -73,9 +93,9 @@ class ReadQChem(ReadABC):
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
                 if "Charge Model 5" in line and self.config.charge_method == "cm5":
-                    point_charges = self._read_cm5_charges(file, n_atoms)
+                    point_charges = self._read_cm5_charges(file)
                 elif "Merz-Kollman RESP Net Atomic" in line and self.config.charge_method == "resp":
-                    point_charges = self._read_resp_charges(file, n_atoms)
+                    point_charges = self._read_resp_charges(file)
                 if "N A T U R A L   B O N D   O R B I T A L" in line:
                     b_orders = self._read_bond_order_from_nbo_analysis(file, n_atoms)
 
@@ -109,13 +129,30 @@ class ReadQChem(ReadABC):
                     energies.append(energy)
                     coords.append(coord)
 
-                elif "Charge Model 5" in line and found_n_atoms:
-                    point_charges['cm5'] = self._read_cm5_charges(file, n_atoms)
-                elif "Merz-Kollman RESP Net Atomic" in line and found_n_atoms:
-                    point_charges['resp'] = self._read_resp_charges(file, n_atoms)
+                elif "Charge Model 5" in line:
+                    point_charges['cm5'] = self._read_cm5_charges(file)
+
+                elif "Merz-Kollman RESP Net Atomic" in line:
+                    point_charges['resp'] = self._read_resp_charges(file)
 
         energies = np.array(energies) * Hartree * mol / kJ
         return n_atoms, coords, angles, energies, point_charges
+
+    def charges(self, config, out_file):
+        """read charge from file"""
+        point_charges = {}
+        charge_method = self.config.charge_method
+        with open(out_file, "r", encoding='utf-8') as file:
+            for line in file:
+                if "Charge Model 5" in line:
+                    point_charges['cm5'] = self._read_cm5_charges(file)
+
+                elif "Merz-Kollman RESP Net Atomic" in line:
+                    point_charges['resp'] = self._read_resp_charges(file)
+
+        if len(point_charges) == 0:
+            raise ValueError("Charge not found")
+        return point_charges
 
     def opt(self, config, out_file):
 
@@ -137,33 +174,42 @@ class ReadQChem(ReadABC):
                     return coord
         raise ValueError(f"Could not parse file '{out_file}'")
 
-    def sp(self):
-        raise NotImplementedError
+    def sp(self, config, out_file):
+        with open(out_file, "r", encoding='utf-8') as file:
+            for line in file:
+                if 'Total energy in the final basis set' in line:
+                    return float(line.split()[-1])
+        raise ValueError("Could not find energy in file!")
 
     @staticmethod
-    def _read_cm5_charges(file, n_atoms):
+    def _read_cm5_charges(file):
         point_charges = []
         for _ in range(3):
             file.readline()
-        for i in range(n_atoms):
-            line = file.readline().split()
+        for line in file:
+            if '-----' in line:
+                break
+            line = line.split()
             point_charges.append(float(line[2]))
-        return point_charges
+        return np.array(point_charges)
 
     @staticmethod
-    def _read_resp_charges(file, n_atoms):
+    def _read_resp_charges(file):
         point_charges = []
         for _ in range(3):
             file.readline()
-        for i in range(n_atoms):
-            line = file.readline().split()
+        for line in file:
+            if '-----' in line:
+                break
+            line = line.split()
             point_charges.append(float(line[2]))
-        return point_charges
+        return np.array(point_charges)
 
 
 class WriteQChem(WriteABC):
     sp_rem = {'jobtype': 'sp'}
     hess_opt_rem = {'jobtype': 'opt'}
+    charges_rem = {'jobtype': 'sp', 'cm5': 'true', 'resp_charges': 'true'}
     hess_freq_rem = {'jobtype': 'freq', 'cm5': 'true', 'resp_charges': 'true', 'nbo': 2,
                      'iqmol_fchk': 'true'}
     scan_rem = {'jobtype': 'pes_scan', 'cm5': 'true', 'resp_charges': 'true'}
@@ -176,6 +222,11 @@ class WriteQChem(WriteABC):
     def sp(self, file, job_name, config, coords, atnums):
         self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)
         self._write_job_setting(file, job_name, config, self.sp_rem)
+        file.write('\n\n\n\n\n')
+
+    def charges(self, file, job_name, config, coords, atnums):
+        self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)
+        self._write_job_setting(file, job_name, config, self.charges_rem)
         file.write('\n\n\n\n\n')
 
     def hessian(self, file, job_name, config, coords, atnums):
