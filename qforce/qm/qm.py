@@ -229,8 +229,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         # check and read charge software
         if charge_software is not None:
             charge_files = charge_calc.check()
-            point_charges = charge_software.read.charges(self.config, **charge_files)
-            scan_out.charges = {self.config.charge_method: list(point_charges)}
+            scan_out.point_charges = charge_software.read.charges(self.config, **charge_files)
 
         return scan_out
 
