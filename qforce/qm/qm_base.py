@@ -107,13 +107,11 @@ class WriteABC(ABC):
             The engine to use in torsion-drive
         """
         base, _ = os.path.split(file.name)
-        # Given that the xTB input has to be given in the command line.
-        # We create the xTB command template here.
-        # Write the hessian.inp which is the command line input
+        # write torsiondrive input
         file.write(f"torsiondrive-launch {job_name}_input.xyz "
-                   "{job_name}_dihedrals.txt -g {int(config.scan_step_size)} "
-                   "-e {engine} --native_opt -v > {job_name}.log ")
-        # Write the coordinates, which is the standard xyz file.
+                   f"{job_name}_dihedrals.txt -g {int(config.scan_step_size)} "
+                   f"-e {engine} --native_opt -v > {job_name}.log ")
+        # write dihedral atoms
         with open(f'{base}/{job_name}_dihedrals.txt', 'w') as fh:
             fh.write('{} {} {} {}'.format(*scanned_atoms))
 

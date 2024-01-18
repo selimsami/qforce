@@ -38,7 +38,7 @@ class Gaussian(QMInterface):
         super().__init__(config, ReadGaussian(config), WriteGaussian(config))
 
     @staticmethod
-    def run(calculation):
+    def run(calculation, ncores):
         """Perform an gaussian calculation, raises CalculationFailed error in case of an error"""
         with calculation.within():
             name = calculation.filename
@@ -120,7 +120,6 @@ class ReadGaussian(ReadABC):
     def charges(self, config, out_file):
         """read charge from file"""
         point_charges = {}
-        charge_method = self.config.charge_method
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
                 if line.startswith(" NAtoms= "):
