@@ -1,13 +1,50 @@
 """keep track of basic pathways in qforce"""
-from collections import UserDict
 import os
+import shutil
 from pathlib import Path
 from string import Template
 
 
-class Pathlib(UserDict):
+def _resort(orders, final_orders):
+    missing = {}
+    for name, order in orders.items():
+        if isinstance(order, int):
+            final_orders[name] = order
+        else:
+            if order in final_orders:
+                final_orders[name] = final_orders[order]+1
+            else:
+                missing[name] = order
+    return missing
 
-    """UserDict to easy access local paths in qforce
+
+def _compute_order(data):
+    orders = {}
+    for key, value in data.items():
+        if isinstance(value, str) or value[0] == '':
+            orders[key] = 0
+        else:
+            orders[key] = value[0]
+
+    final_orders = {}
+    while True:
+        orders = _resort(orders, final_orders)
+        if len(orders) == 0:
+            break
+    return [name for name, _ in sorted(final_orders.items(), key=lambda x: x[1])]
+
+
+def get_template_arguments(string):
+    allvalues = [value[1] or value[2] for value in Template.pattern.findall(string)]
+    out = []
+    for value in allvalues:
+        if value not in out:
+            out.append(value)
+    return out
+
+
+class Pathlib:
+    """Easy access local paths in qforce
 
     the given dict should have the form:
 
@@ -17,16 +54,52 @@ class Pathlib(UserDict):
 
         'name': 'name'
 
-    where parent is the parent diretory of the path
+    where parent is the parent diretory of the path, formates everything with string Templates
+
+    so placeholder can be put according to:
+
+        'name': ['parent', '${name}_number']
+
+        or
+
+        'name': '${name}_number'
+
+    do not use placeholders in the parent!
     """
 
+    def __init__(self, data):
+        self._data = self._format(data)
+
     def __getitem__(self, key):
-        value = self.data[key]
-        if isinstance(value, str):
-            return value
-        if value[0] == '':
-            return value[1]
-        return os.path.join(self.data[value[0]], value[1])
+        return self._data[key]
+
+    def files(self):
+        return [name for name in self._data
+                if os.path.splitext(name)[1] != '']
+
+    def dirs(self):
+        return [name for name in self._data
+                if os.path.splitext(name)[1] == '']
+
+    @staticmethod
+    def _format(data):
+        keys = _compute_order(data)
+        result = {}
+        for key in keys:
+            value = data[key]
+            if isinstance(value, str):
+                result[key] = value
+            else:
+                if value[0] == '':
+                    result[key] = value[1]
+                else:
+                    result[key] = os.path.join(result[value[0]], value[1])
+
+        return {name: (Template(value), get_template_arguments(value))
+                for name, value in result.items()}
+
+    def __setitem__(self, key, value):
+        raise ValueError("Cannot set item for Pathways")
 
 
 class Pathways:
@@ -38,14 +111,19 @@ class Pathways:
         'hessian': '1_hessian',
         'hessian_charge': ['hessian', 'charge'],
         'fragments': '2_fragments',
-        'fragment': ['fragments', '${frag_id}'],
-        'fragment_scans': ['fragments', '${frag_id}_scans'],
-        # files
+        'frag': ['fragments', '${frag_id}'],
+        'frag_charge': ['frag', 'charge'],
+        'frag_step': ['frag', 'step_${idx}'],
+        'frag_scans': ['fragments', '${frag_id}_scans'],
+        # files should have ending!
+        'settings.ini': 'settings.ini',
         'init.xyz': 'init.xyz',
         'preopt.xyz': ['preopt', 'preopt.xyz'],
         'calculations.json': '_calculations.json',
-        'settings.ini': 'settings.ini',
     })
+
+    _files = pathways.files()
+    _dirs = pathways.dirs()
 
     def __init__(self, jobdir, name=None):
         if name is None:
@@ -53,61 +131,28 @@ class Pathways:
         self.jobdir = Path(jobdir)
         self.name = name
 
-    def initxyz(self, *, only=False):
-        return self._path(self.pathways['init.xyz'], only)
+    def __getitem__(self, args):
+        if isinstance(args, str):
+            return self.get(args)
+        return self.get(*args)
 
-    def preoptxyz(self, *, only=False):
-        return self._path(self.pathways['preopt.xyz'], only)
+    def getdir(self, key, *args, only=False, create=False, remove=False):
+        if key not in self._dirs:
+            raise ValueError(f"Option can only be one of '{', '.join(self._dirs)}'")
+        path, kwargs = self._get_path_args(key, *args)
+        return self._dirpath(path, only, create, remove, **kwargs)
 
-    def calculationsjson(self, *, only=False):
-        return self._path(self.pathways['calculations.json'], only)
+    def getfile(self, key, *args, only=False):
+        if key not in self._files:
+            raise ValueError(f"Option can only be one of '{', '.join(self._files)}'")
+        path, kwargs = self._get_path_args(key, *args)
+        return self._path(path, only, **kwargs)
 
-    def settingsini(self, *, only=False):
-        return self._path(self.pathways['settings.ini'], only)
-
-    def preopt_dir(self, *, only=False, create=False):
-        return self._dirpath(self.pathways['preopt'], only, create)
-
-    def hessian_dir(self, *, only=False, create=False):
-        return self._dirpath(self.pathways['hessian'], only, create)
-
-    def hessian_charge_dir(self, *, only=False, create=False):
-        return self._dirpath(self.pathways['hessian_charge'], only, create)
-
-    def fragments_dir(self, *, only=False, create=False):
-        return self._dirpath(self.pathways['fragments'], only, create)
-
-    def frag_dir(self, id, *, only=False, create=False):
-        return self._dirpath(self.pathways['fragments'], only, create)
-
-    def __getitem__(self, key):
-        options = {
-                'preopt': self.preopt_dir,
-                'hessian': self.hessian_dir,
-                'hessian_charge': self.hessian_charge_dir,
-                'fragments': self.fragments_dir,
-                # files
-                'init.xyz': self.initxyz,
-                'preopt.xyz': self.preoptxyz,
-                'calculations.json': self.calculationsjson,
-                'settings.ini': self.settingsini,
-                }
-        value = options.get(key, None)
-        if value is None:
-            raise ValueError(f"Option can only be one of '{','.join(options)}'")
-        return value()
-
-    def _path(self, path, only):
-        """Path to the folder"""
-        if only is True:
-            return Path(path)
-        return self.jobdir / path
-
-    def _dirpath(self, path, only, create):
-        path = self._path(path, only)
-        if create is True:
-            os.makedirs(path, exist_ok=True)
-        return path
+    def get(self, key, *args, only=False):
+        if key in self._dirs:
+            return self.getdir(key, *args, only=only)
+        else:
+            return self.getfile(key, *args, only=only)
 
     def basename(self, software, charge, mult):
         return f'{self.name}_{software.hash(charge, mult)}'
@@ -123,3 +168,33 @@ class Pathways:
 
     def scan_sp_name(self, software, charge, mult, i):
         return f'{self.basename(software, charge, mult)}_sp_step_{i:02d}'
+
+    def _path(self, path, only, **kwargs):
+        """Path to the folder"""
+        if isinstance(path, Template):
+            path = path.substitute(**kwargs)
+        if only is True:
+            return Path(path)
+        return self.jobdir / path
+
+    def _dirpath(self, path, only, create, remove, **kwargs):
+        path = self._path(path, only, **kwargs)
+        if remove is True:
+            if os.path.exists(path):
+                shutil.rmtree(path)
+        if create is True:
+            os.makedirs(path, exist_ok=True)
+        return path
+
+    def _get_path_args(self, key, *args):
+        path, arguments = self.pathways[key]
+        #
+        if len(args) != len(arguments):
+            if len(args) > len(arguments):
+                raise TypeError(f"getdir() takes {len(arguments)} "
+                                f"positional arguments but {len(args)} were given")
+            else:
+                raise TypeError(f"getdir() missing {len(arguments)} "
+                                "required positional arguments: "
+                                f"""{" and ".join(f"'arg'" for arg in arguments[len(args):])}""")
+        return path, {arg: value for arg, value in zip(arguments, args)}

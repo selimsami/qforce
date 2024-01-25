@@ -98,7 +98,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         """Setup hessian files, and if present read the hessian information"""
 
         software = self.softwares['software']
-        folder = self.pathways.hessian_dir(create=True)
+        folder = self.pathways.getdir("hessian", create=True)
         calculation = Calculation(f'{self.hessian_name(software)}.inp',
                                   software.read.hessian_files,
                                   folder=folder,
@@ -122,7 +122,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         if charge_software is None:
             return output
         #
-        folder = self.pathways.hessian_charge_dir(create=True)
+        folder = self.pathways.getdir("hessian_charge", create=True)
 
         calculation = Calculation(f'{self.hessian_charge_name(charge_software)}.inp',
                                   charge_software.read.charge_files,
@@ -340,7 +340,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                                 comment=f'{self.job.name} - input geometry for hessian')
             return
         # create Preopt directory
-        folder = self.pathways.preopt_dir(create=True)
+        folder = self.pathways.getdir("preopt", create=True)
         self._write_xyzfile(molecule, self.pathways['preopt.xyz'],
                             comment=f'{self.job.name} - input geometry for preopt')
         # setup calculation
