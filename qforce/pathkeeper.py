@@ -1,7 +1,8 @@
 """keep track of basic pathways in qforce"""
+from collections import UserDict
 import os
 from pathlib import Path
-from collections import UserDict
+from string import Template
 
 
 class Pathlib(UserDict):
@@ -37,14 +38,20 @@ class Pathways:
         'hessian': '1_hessian',
         'hessian_charge': ['hessian', 'charge'],
         'fragments': '2_fragments',
+        'fragment': ['fragments', '${frag_id}'],
+        'fragment_scans': ['fragments', '${frag_id}_scans'],
         # files
         'init.xyz': 'init.xyz',
         'preopt.xyz': ['preopt', 'preopt.xyz'],
         'calculations.json': '_calculations.json',
+        'settings.ini': 'settings.ini',
     })
 
-    def __init__(self, jobdir):
+    def __init__(self, jobdir, name=None):
+        if name is None:
+            name = jobdir
         self.jobdir = Path(jobdir)
+        self.name = name
 
     def initxyz(self, *, only=False):
         return self._path(self.pathways['init.xyz'], only)
@@ -55,6 +62,9 @@ class Pathways:
     def calculationsjson(self, *, only=False):
         return self._path(self.pathways['calculations.json'], only)
 
+    def settingsini(self, *, only=False):
+        return self._path(self.pathways['settings.ini'], only)
+
     def preopt_dir(self, *, only=False, create=False):
         return self._dirpath(self.pathways['preopt'], only, create)
 
@@ -64,7 +74,10 @@ class Pathways:
     def hessian_charge_dir(self, *, only=False, create=False):
         return self._dirpath(self.pathways['hessian_charge'], only, create)
 
-    def fragment_dir(self, *, only=False, create=False):
+    def fragments_dir(self, *, only=False, create=False):
+        return self._dirpath(self.pathways['fragments'], only, create)
+
+    def frag_dir(self, id, *, only=False, create=False):
         return self._dirpath(self.pathways['fragments'], only, create)
 
     def __getitem__(self, key):
@@ -72,11 +85,12 @@ class Pathways:
                 'preopt': self.preopt_dir,
                 'hessian': self.hessian_dir,
                 'hessian_charge': self.hessian_charge_dir,
-                'fragments': self.fragment_dir,
+                'fragments': self.fragments_dir,
                 # files
                 'init.xyz': self.initxyz,
                 'preopt.xyz': self.preoptxyz,
                 'calculations.json': self.calculationsjson,
+                'settings.ini': self.settingsini,
                 }
         value = options.get(key, None)
         if value is None:
@@ -96,7 +110,7 @@ class Pathways:
         return path
 
     def basename(self, software, charge, mult):
-        return f'{self.jobdir}_{software.hash(charge, mult)}'
+        return f'{self.name}_{software.hash(charge, mult)}'
 
     def hessian_name(self, software, charge, mult):
         return f'{self.basename(software, charge, mult)}_hessian'
