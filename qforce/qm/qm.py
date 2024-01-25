@@ -249,7 +249,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         software.write.sp(file, job_name, self.config, coords, atnums)
 
     @scriptify
-    def write_charge(self, file, job_name, coords, atnums, software):
+    def write_charge(self, file, job_name, coords, atnums, software=None):
+        if software is None:
+            software = self.softwares['charge_software']
         software.write.charges(file, job_name, self.config, coords, atnums)
 
     @scriptify

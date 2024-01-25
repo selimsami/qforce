@@ -289,24 +289,24 @@ class WriteQChem(WriteABC):
     def _write_job_setting(self, file, job_name, config, job_rem):
         file.write('$rem\n')
         file.write(f'  method = {self.config.method}\n')
-        if config.basis is not None:
+        if self.config.basis is not None:
             file.write(f'  basis = {self.config.basis}\n')
-        if config.dispersion is not None:
+        if self.config.dispersion is not None:
             file.write(f'  dft_d = {self.config.dispersion}\n')
-        if config.solvent_method is not None:
+        if self.config.solvent_method is not None:
             file.write(f'  solvent_method = {self.config.solvent_method}\n')
-        if config.cis_n_roots is not None:
+        if self.config.cis_n_roots is not None:
             file.write(f'  cis_n_roots = {self.config.cis_n_roots}\n')
-        if config.cis_singlets is not None:
+        if self.config.cis_singlets is not None:
             file.write(f'  cis_singlets = {self.config.cis_singlets}\n')
-        if config.cis_triplets is not None:
+        if self.config.cis_triplets is not None:
             file.write(f'  cis_triplets = {self.config.cis_triplets}\n')
-        if config.cis_state_deriv is not None:
+        if self.config.cis_state_deriv is not None:
             file.write(f'  cis_state_deriv = {self.config.cis_state_deriv}\n')
         for key, val in job_rem.items():
             file.write(f'  {key} = {val}\n')
         file.write(f'  mem_total = {config.memory}\n')
-        file.write(f'  geom_opt_max_cycles = {config.max_opt_cycles}\n')
+        file.write(f'  geom_opt_max_cycles = {self.config.max_opt_cycles}\n')
         file.write(f'  max_scf_cycles = {self.config.max_scf_cycles}\n')
         file.write(f'  xc_grid = {self.config.xc_grid}\n')
         file.write('$end\n')
