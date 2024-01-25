@@ -30,7 +30,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p Opt=(Modredundant,nomicro) ")
-        self.write_method(file, config)
+        self.write_method(file, self.config)
         file.write("\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
@@ -40,7 +40,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p ")
-        self.write_method(file, config)
+        self.write_method(file, self.config)
         file.write("\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
@@ -50,7 +50,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p Opt=(nomicro) ")
-        self.write_method(file, config)
+        self.write_method(file, self.config)
         file.write("\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
@@ -60,7 +60,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p Opt=nomicro Freq ")
-        self.write_method(file, config)
+        self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
@@ -70,7 +70,7 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"%mem={config.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p ")
-        self.write_method(file, config)
+        self.write_method(file, self.config)
         file.write("\n\n")
         file.write(f"{job_name}\n\n")
         file.write(f"{config.charge} {config.multiplicity}\n")
@@ -372,7 +372,7 @@ class WritexTB(WriteABC):
         self._scan_torsiondrive_helper(file, job_name, config, scanned_atoms, 'xtb')
 
         cmd = (f'xTB arguments: --opt --chrg {config.charge} --uhf 0 '
-               f'{config.xtb_command} --parallel {config.n_proc} ')
+               f'{self.config.xtb_command} --parallel {config.n_proc} ')
 
         mol = Atoms(positions=coords, numbers=atnums)
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,
