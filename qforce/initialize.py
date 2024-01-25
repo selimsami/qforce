@@ -155,7 +155,7 @@ def _get_job_info(filename):
         job['name'] = base.split('_qforce')[0]
 
     job['dir'] = f'{path}{job["name"]}_qforce'
-    pathways = Pathways(job['dir'])
+    pathways = Pathways(job['dir'], name=job['name'])
     job['pathways'] = pathways
     job['frag_dir'] = str(pathways["fragments"])
     #
@@ -176,13 +176,13 @@ def _get_job_info(filename):
     return SimpleNamespace(**job)
 
 
-def _check_and_copy_settings_file(job_dir, config_file):
+def _check_and_copy_settings_file(pathways, config_file):
     """
     If options are provided as a file, copy that to job directory.
     If options are provided as StringIO, write that to job directory.
     """
 
-    settings_file = os.path.join(job_dir, 'settings.ini')
+    settings_file = pathways['settings.ini']
 
     if config_file is not None:
         if isinstance(config_file, StringIO):
@@ -197,7 +197,7 @@ def _check_and_copy_settings_file(job_dir, config_file):
 
 def initialize(filename, config_file, presets=None):
     job_info = _get_job_info(filename)
-    settings_file = _check_and_copy_settings_file(job_info.dir, config_file)
+    settings_file = _check_and_copy_settings_file(job_info.pathways, config_file)
 
     config = Initialize.from_questions(config=settings_file, presets=presets, check_only=True)
 
