@@ -174,7 +174,7 @@ batch_run = False :: bool
                 print(f'Run {n_run+1}/{self.config.n_dihed_scans}, fitting dihedral '
                       f'{n_fit}/{len(fragments)}: {frag.id}')
 
-                scan_dir = f'{self.frag_dir}/{frag.id}'
+                scan_dir = f'{self.frag_dir}/{frag.id}/mm'
                 make_scan_dir(scan_dir)
 
                 for term in frag.fit_terms:

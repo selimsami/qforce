@@ -64,7 +64,7 @@ vib_scaling = 1.0 :: float
 # Use the internal relaxed scan method of the QM software or the Torsiondrive method using xTB
 dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
 """
-    _method = ['scan_step_size']
+    _method = ['scan_step_size', 'dihedral_scanner']
 
     def __init__(self, job, config):
         self.job = job
@@ -208,7 +208,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                     with open(calc.inputfile, 'w') as file:
                         self.write_scan_sp(file, calc.base, scan_out.coords[i], atnums)
 
-            #
             try:
                 if charge_calc is not None:
                     out_files = check(calculations + [charge_calc])[:-1]
@@ -226,6 +225,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             for files in out_files:
                 energies.append(charge_software.read.sp(self.config, **files))
             scan_out.energies = np.array(energies, dtype=np.float64)
+
         # check and read charge software
         if charge_software is not None:
             charge_files = charge_calc.check()
@@ -333,6 +333,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
     def preopt(self):
         molecule, coords, atnums = self._read_coord_file(self.job.coord_file)
         software = self.softwares['preopt']
+
         if self.softwares['preopt'] is None:
             self._write_xyzfile(molecule, self.pathways['init.xyz'],
                                 comment=f'{self.job.name} - input geometry for hessian')

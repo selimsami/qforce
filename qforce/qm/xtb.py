@@ -372,7 +372,7 @@ class WritexTB(WriteABC):
         self._scan_torsiondrive_helper(file, job_name, config, scanned_atoms, 'xtb')
 
         cmd = (f'xTB arguments: --opt --chrg {config.charge} --uhf 0 '
-               f'{config.xtb_command} --parallel {config.n_proc} ')
+               f'{self.config.xtb_command} --parallel {config.n_proc} ')
 
         mol = Atoms(positions=coords, numbers=atnums)
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,
