@@ -175,8 +175,8 @@ class ReadQChem(ReadABC):
     def sp(self, config, out_file):
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
-                if 'Total energy in the final basis set' in line:
-                    return float(line.split()[-1])
+                if 'Total energy' in line:
+                    return float(line.split()[-1]) * Hartree * mol / kJ
         raise ValueError("Could not find energy in file!")
 
     @staticmethod

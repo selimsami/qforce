@@ -298,6 +298,7 @@ class ScanOutput:
     @energies.setter
     def energies(self, energies):
         energies = np.asarray(energies, dtype=self._energies.dtype)
+        energies -= energies.min()
         if energies.size != self.n_steps:
             raise ValueError("Number of energies incomplete!")
         self._energies = energies
