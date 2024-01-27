@@ -25,9 +25,9 @@ class WriteXTBGaussian(WriteGaussian):
     def _write_bndix(file):
         file.write("\n\n\n")
 
-    def _write_scan_job_setting(self, job_name, config, file, charge, multiplicity):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_scan_job_setting(self, job_name, settings, file, charge, multiplicity):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p Opt=(Modredundant,nomicro) ")
         self.write_method(file, self.config)
@@ -35,9 +35,9 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
 
-    def _write_charge_job_setting(self, job_name, config, file, charge, multiplicity):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_charge_job_setting(self, job_name, settings, file, charge, multiplicity):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p ")
         self.write_method(file, self.config)
@@ -45,39 +45,39 @@ class WriteXTBGaussian(WriteGaussian):
         file.write(f"{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
 
-    def _write_opt_job_setting(self, job_name, config, file):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_opt_job_setting(self, job_name, settings, file):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p Opt=(nomicro) ")
         self.write_method(file, self.config)
         file.write("\n\n")
         file.write(f"{job_name}\n\n")
-        file.write(f"{config.charge} {config.multiplicity}\n")
+        file.write(f"{settings.charge} {settings.multiplicity}\n")
 
-    def _write_hessian_job_setting(self, job_name, config, file):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_hessian_job_setting(self, job_name, settings, file):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p Opt=nomicro Freq ")
         self.write_method(file, self.config)
-        file.write(f"{self.config.solvent_method}\n\n")
+        file.write("\n\n")
         file.write(f"{job_name}\n\n")
-        file.write(f"{config.charge} {config.multiplicity}\n")
+        file.write(f"{settings.charge} {settings.multiplicity}\n")
 
-    def _write_sp_job_setting(self, job_name, config, file):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_sp_job_setting(self, job_name, settings, file):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}_hessian.chk\n")
         file.write("#p ")
         self.write_method(file, self.config)
         file.write("\n\n")
         file.write(f"{job_name}\n\n")
-        file.write(f"{config.charge} {config.multiplicity}\n")
+        file.write(f"{settings.charge} {settings.multiplicity}\n")
 
-    def _write_scan_torsiondrive_job_settings(self, job_name, config, file, charge, multiplicity):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_scan_torsiondrive_job_settings(self, job_name, settings, file, charge, multiplicity):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p Opt=ModRedundant nosym ")
         self.write_method(file, self.config)
@@ -169,7 +169,6 @@ class xTB(QMInterface):
     _method = ['xtb_command', 'charge_method']
 
     def __init__(self, config):
-
         super().__init__(config, ReadxTB(config), WritexTB(config))
 
     @staticmethod
@@ -193,7 +192,7 @@ class xTB(QMInterface):
 
 class WritexTB(WriteABC):
 
-    def opt(self, file, job_name, config, coords, atnums):
+    def opt(self, file, job_name, settings, coords, atnums):
         """ Write the input file for optimization
 
         Parameters
@@ -202,7 +201,7 @@ class WritexTB(WriteABC):
             The file object to write the command line.
         job_name : string
             The name of the job.
-        config : config
+        settings: SimpleNamespace
             A configparser object with all the parameters.
         coords : array
             A coordinates array of shape (N,3), where N is the number of atoms.
@@ -213,9 +212,9 @@ class WritexTB(WriteABC):
         base, filename = os.path.split(name)
         # Given that the xTB input has to be given in the command line.
         # We create the xTB command template here.
-        cmd = f'xtb {job_name}_input.xyz --opt --chrg {config.charge} ' \
-              f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name} --parallel {config.n_proc} ' \
+        cmd = f'xtb {job_name}_input.xyz --opt --chrg {settings.charge} ' \
+              f'--uhf {settings.multiplicity - 1} ' \
+              f'--namespace {job_name} --parallel {settings.n_proc} ' \
               f'{self.config.xtb_command}'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
@@ -224,7 +223,7 @@ class WritexTB(WriteABC):
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,
               comment=cmd)
 
-    def hessian(self, file, job_name, config, coords, atnums):
+    def hessian(self, file, job_name, settings, coords, atnums):
         """ Write the input file for hessian and charge calculation.
 
         Parameters
@@ -233,7 +232,7 @@ class WritexTB(WriteABC):
             The file object to write the command line.
         job_name : string
             The name of the job.
-        config : config
+        settings: SimpleNamespace
             A configparser object with all the parameters.
         coords : array
             A coordinates array of shape (N,3), where N is the number of atoms.
@@ -244,9 +243,9 @@ class WritexTB(WriteABC):
         base, filename = os.path.split(name)
         # Given that the xTB input has to be given in the command line.
         # We create the xTB command template here.
-        cmd = f'xtb {job_name}_input.xyz --ohess --chrg {config.charge} ' \
-              f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name} --parallel {config.n_proc} ' \
+        cmd = f'xtb {job_name}_input.xyz --ohess --chrg {settings.charge} ' \
+              f'--uhf {settings.multiplicity - 1} ' \
+              f'--namespace {job_name} --parallel {settings.n_proc} ' \
               f'{self.config.xtb_command}'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
@@ -255,14 +254,14 @@ class WritexTB(WriteABC):
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,
               comment=cmd)
 
-    def sp(self, file, job_name, config, coords, atnums):
+    def sp(self, file, job_name, settings, coords, atnums):
         name = file.name
         base, filename = os.path.split(name)
         # Given that the xTB input has to be given in the command line.
         # We create the xTB command template here.
-        cmd = f'xtb {job_name}_input.xyz --chrg {config.charge} ' \
-              f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name} --parallel {config.n_proc} ' \
+        cmd = f'xtb {job_name}_input.xyz --chrg {settings.charge} ' \
+              f'--uhf {settings.multiplicity - 1} ' \
+              f'--namespace {job_name} --parallel {settings.n_proc} ' \
               f'{self.config.xtb_command} > {job_name}.sp.inp.out'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
@@ -271,14 +270,14 @@ class WritexTB(WriteABC):
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,
               comment=cmd)
 
-    def charges(self, file, job_name, config, coords, atnums):
+    def charges(self, file, job_name, settings, coords, atnums):
         name = file.name
         base, _ = os.path.split(name)
         # Given that the xTB input has to be given in the command line.
         # We create the xTB command template here.
-        cmd = f'xtb {job_name}_input.xyz --chrg {config.charge} ' \
-              f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name} --parallel {config.n_proc} ' \
+        cmd = f'xtb {job_name}_input.xyz --chrg {settings.charge} ' \
+              f'--uhf {settings.multiplicity - 1} ' \
+              f'--namespace {job_name} --parallel {settings.n_proc} ' \
               f'{self.config.xtb_command} > {job_name}_sp.out'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
@@ -287,7 +286,7 @@ class WritexTB(WriteABC):
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,
               comment=cmd)
 
-    def scan(self, file, job_name, config, coords, atnums, scanned_atoms,
+    def scan(self, file, job_name, settings, coords, atnums, scanned_atoms,
              start_angle, charge, multiplicity):
         """ Write the input file for the dihedral scan and charge calculation.
 
@@ -297,7 +296,7 @@ class WritexTB(WriteABC):
             The file object to write the input.
         job_name : string
             The name of the job.
-        config : config
+        settings: SimpleNamespace
             A configparser object with all the parameters.
         coords : array
             A coordinates array of shape (N,3), where N is the number of atoms.
@@ -317,15 +316,15 @@ class WritexTB(WriteABC):
         base, filename = os.path.split(name)
 
         # Generate the command line
-        cmd = f'xtb {job_name}_input.xyz --opt --chrg {config.charge} ' \
-              f'--uhf {config.multiplicity - 1} ' \
-              f'--namespace {job_name} --parallel {config.n_proc} ' \
+        cmd = f'xtb {job_name}_input.xyz --opt --chrg {settings.charge} ' \
+              f'--uhf {settings.multiplicity - 1} ' \
+              f'--namespace {job_name} --parallel {settings.n_proc} ' \
               f'--input {job_name}.dat {self.config.xtb_command}'
 
         # Create the scan input file
         a1, a2, a3, a4 = np.array(scanned_atoms)
-        step_num = int(360 // config.scan_step_size)
-        end_angle = start_angle + 360 - config.scan_step_size
+        step_num = int(360 // settings.scan_step_size)
+        end_angle = start_angle + 360 - settings.scan_step_size
 
         with open(f'{base}/{job_name}.dat', 'w') as f:
             f.write('$constrain\n')
@@ -342,7 +341,7 @@ class WritexTB(WriteABC):
 
         file.write(cmd)
 
-    def scan_torsiondrive(self, file, job_name, config, coords, atnums, scanned_atoms,
+    def scan_torsiondrive(self, file, job_name, settings, coords, atnums, scanned_atoms,
                           start_angle, charge, multiplicity):
         """ Write the input file for the dihedral scan and charge calculation.
 
@@ -352,7 +351,7 @@ class WritexTB(WriteABC):
             The file object to write the input.
         job_name : string
             The name of the job.
-        config : config
+        settings: SimpleNamespace
             A configparser object with all the parameters.
         coords : array
             A coordinates array of shape (N,3), where N is the number of atoms.
@@ -369,10 +368,10 @@ class WritexTB(WriteABC):
         """
         base, _ = os.path.split(file.name)
 
-        self._scan_torsiondrive_helper(file, job_name, config, scanned_atoms, 'xtb')
+        self._scan_torsiondrive_helper(file, job_name, settings, scanned_atoms, 'xtb')
 
-        cmd = (f'xTB arguments: --opt --chrg {config.charge} --uhf 0 '
-               f'{self.config.xtb_command} --parallel {config.n_proc} ')
+        cmd = (f'xTB arguments: --opt --chrg {settings.charge} --uhf 0 '
+               f'{self.config.xtb_command} --parallel {settings.n_proc} ')
 
         mol = Atoms(positions=coords, numbers=atnums)
         write(f'{base}/{job_name}_input.xyz', mol, plain=True,

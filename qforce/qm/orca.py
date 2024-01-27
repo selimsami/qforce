@@ -62,24 +62,24 @@ class Orca(QMInterface):
 
 class WriteORCA(WriteABC):
 
-    def opt(self, file, job_name, config, coords, atnums):
-        self._write_coordinates_and_defaults(file, config, atnums, coords)
+    def opt(self, file, job_name, settings, coords, atnums):
+        self._write_coordinates_and_defaults(file, settings, atnums, coords)
         file.write(f"! opt {self.config.method} {self.config.basis} ")
         file.write(f" {self.config.options} {self.config.dispersion} nopop\n")
         file.write(f'%base "{job_name}_opt"\n')
 
-    def sp(self, file, job_name, config, coords, atnums):
-        self._write_coordinates_and_defaults(file, config, atnums, coords)
+    def sp(self, file, job_name, settings, coords, atnums):
+        self._write_coordinates_and_defaults(file, settings, atnums, coords)
         file.write(f"! {self.config.method} {self.config.basis} ")
         file.write(f" {self.config.options} {self.config.dispersion} nopop\n\n")
 
-    def charges(self, file, job_name, config, coords, atnums):
-        self._write_coordinates_and_defaults(file, config, atnums, coords)
+    def charges(self, file, job_name, settings, coords, atnums):
+        self._write_coordinates_and_defaults(file, settings, atnums, coords)
         file.write(f"! {self.config.method} {self.config.basis} ")
         file.write(f" {self.config.options} {self.config.dispersion} chelpg Hirshfeld nopop\n")
         file.write(f'%base "{job_name}_charge"\n\n')
 
-    def hessian(self, file, job_name, config, coords, atnums):
+    def hessian(self, file, job_name, settings, coords, atnums):
         """ Write the input file for hessian and charge calculation.
 
         Parameters
@@ -88,7 +88,7 @@ class WriteORCA(WriteABC):
             The file object to write the input.
         job_name : string
             The name of the job.
-        config : config
+        settings: SimpleNamespace 
             A configparser object with all the parameters.
         coords : array
             A coordinates array of shape (N,3), where N is the number of atoms.
@@ -123,7 +123,7 @@ class WriteORCA(WriteABC):
         file.write('STEP_END\n\n')
         file.write('END\n')
 
-    def scan(self, file, job_name, config, coords, atnums, scanned_atoms, start_angle, charge,
+    def scan(self, file, job_name, settings, coords, atnums, scanned_atoms, start_angle, charge,
              multiplicity):
         """ Write the input file for the dihedral scan and charge calculation.
 
@@ -133,7 +133,7 @@ class WriteORCA(WriteABC):
             The file object to write the input.
         job_name : string
             The name of the job.
-        config : config
+        settings: SimpleNamespace
             A configparser object with all the parameters.
         coords : array
             A coordinates array of shape (N,3), where N is the number of atoms.
@@ -148,7 +148,7 @@ class WriteORCA(WriteABC):
         multiplicity : int
             The multiplicity of the molecule.
         """
-        self._write_coordinates_and_defaults(file, config, atnums, coords)
+        self._write_coordinates_and_defaults(file, settings, atnums, coords)
         # Start compound job
         file.write('%Compound\n\n')
 
@@ -166,7 +166,7 @@ class WriteORCA(WriteABC):
         file.write(f"! opt {self.config.method} {self.config.basis} ")
         file.write(f" {self.config.options} {self.config.dispersion} nopop\n")
         file.write(f'%base "{job_name}_scan"\n')
-        self._write_scanned_atoms(file, scanned_atoms, start_angle, config.scan_step_size)
+        self._write_scanned_atoms(file, scanned_atoms, start_angle, settings.scan_step_size)
         file.write(f"*xyzfile {charge} {multiplicity} {job_name}_opt.xyz\n")
         file.write('STEP_END\n\n')
 
@@ -185,18 +185,18 @@ class WriteORCA(WriteABC):
         # Close compound block
         file.write('END\n')
 
-    def _write_coordinates_and_defaults(self, file, config, atnums, coords):
+    def _write_coordinates_and_defaults(self, file, settings, atnums, coords):
         # Using the ORCA compound functionality
         # Write the coordinates
-        file.write(f"* xyz   {config.charge}   {config.multiplicity}\n")
+        file.write(f"* xyz   {settings.charge}   {settings.multiplicity}\n")
         self._write_coords(atnums, coords, file)
         file.write(' *\n\n')
 
-        file.write(f"%pal nprocs  {config.n_proc} end\n")
+        file.write(f"%pal nprocs  {settings.n_proc} end\n")
         # ORCA uses MPI parallelization and a factor of 0.75 is used to
         # avoid ORCA using more than it is available.
         file.write('%maxcore  {}\n\n'.format(int(
-            config.memory / config.n_proc * 0.75)))
+            settings.memory / settings.n_proc * 0.75)))
 
     @staticmethod
     def _write_scanned_atoms(file, scanned_atoms, start_angle, step_size):
@@ -279,11 +279,11 @@ class ReadORCA(ReadABC):
                   # possible add _scan.relaxscanact.dat etc.
                   }
 
-    def opt(self, config, coord_file):
+    def opt(self, settings, coord_file):
         n_atoms, elements, coords = self._read_orca_xyz(coord_file)
         return coords
 
-    def sp(self, config, out_file):
+    def sp(self, settings, out_file):
         energy = None
         with open(out_file, 'r') as fh:
             for line in fh:
@@ -297,20 +297,20 @@ class ReadORCA(ReadABC):
             return energy
         raise ValueError("Could not parse orca file")
 
-    def charges(self, config, out_file):
-        if config.charge_method == "cm5":
+    def charges(self, settings, out_file):
+        if self.config.charge_method == "cm5":
             n_atoms, point_charges = self._read_orca_cm5(out_file)
-        elif config.charge_method == "esp":
+        elif self.config.charge_method == "esp":
             base, ext = os.path.splitext(out_file)
             n_atoms, point_charges = self._read_orca_esp('{}_charge.pc_chelpg'.format(base))
-        return {config.charge_method: point_charges}
+        return {self.config.charge_method: point_charges}
 
-    def hessian(self, config, out_file, hess_file, coord_file):
+    def hessian(self, settings, out_file, hess_file, coord_file):
         """ Extract information from all the relevant files.
 
         Parameters
         ----------
-        config : config
+        settings: SimpleNamespace 
             A configparser object with all the parameters.
         out_file : string
             File name of the ORCA log file.
@@ -341,23 +341,23 @@ class ReadORCA(ReadABC):
             A list of float of the size of n_atoms.
         """
         hessian = self._read_orca_hess(hess_file)
-        if config.charge_method == "cm5":
+        if self.config.charge_method == "cm5":
             n_atoms, point_charges = self._read_orca_cm5(out_file)
-        elif config.charge_method == "esp":
+        elif self.config.charge_method == "esp":
             base, ext = os.path.splitext(out_file)
             n_atoms, point_charges = self._read_orca_esp('{}_charge.pc_chelpg'.format(base))
         n_atoms, elements, coords = self._read_orca_xyz(coord_file)
-        charge = config.charge
-        multiplicity = config.multiplicity
+        charge = settings.charge
+        multiplicity = settings.multiplicity
         b_orders = self._read_orca_bond_order(out_file, n_atoms)
         return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges
 
-    def scan(self, config, out_file, scan_file):
+    def scan(self, settings, out_file, scan_file):
         """ Read data from the scan file.
 
         Parameters
         ----------
-        config : config
+        settings: SimpleNamespace
             A configparser object with all the parameters.
         out_file: string
             File name of the ORCA log file.
@@ -381,10 +381,10 @@ class ReadORCA(ReadABC):
         """
         base, ext = os.path.splitext(out_file)
         point_charges = {}
-        if config.charge_method == "cm5":
+        if self.config.charge_method == "cm5":
             n_atoms, charges = self._read_orca_cm5(out_file)
             point_charges["cm5"] = charges
-        if config.charge_method == "esp":
+        if self.config.charge_method == "esp":
             n_atoms, charges = self._read_orca_esp(
                 '{}_charge.pc_chelpg'.format(base))
             point_charges["esp"] = charges

@@ -98,7 +98,6 @@ _ext_alpha = no :: bool
 
     @classmethod
     def _set_config(cls, config):
-        config['qm'].update(config['qm']['software'])
         config.update({key: SimpleNamespace(**val) for key, val in config.items()})
         return SimpleNamespace(**config)
 

@@ -118,7 +118,8 @@ class Fragment:
         self.charge_scaling = config.ff.charge_scaling
         self.ext_charges = config.ff.ext_charges
         self.use_ext_charges_for_frags = config.ff.use_ext_charges_for_frags
-        self.charge_method = config.qm.charge_method
+        # set charge_method
+        self.charge_method = qm.get_scan_software().config.charge_method
 
         self.check_fragment(job, config.scan, mol, qm, config.qm.dihedral_scanner)
 

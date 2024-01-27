@@ -54,8 +54,6 @@ class QChem(QMInterface):
     has_torsiondrive = False
 
     def __init__(self, config):
-        self.required_hessian_files = {'out_file': ['.out', '.log'],
-                                       'fchk_file': ['.fchk', '.fck']}
         super().__init__(config, ReadQChem(config), WriteQChem(config))
 
     @staticmethod
@@ -214,56 +212,56 @@ class WriteQChem(WriteABC):
                      'iqmol_fchk': 'true'}
     scan_rem = {'jobtype': 'pes_scan', 'cm5': 'true', 'resp_charges': 'true'}
 
-    def opt(self, file, job_name, config, coords, atnums):
-        self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)
-        self._write_job_setting(file, job_name, config, self.hess_opt_rem)
+    def opt(self, file, job_name, settings, coords, atnums):
+        self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity)
+        self._write_job_setting(file, job_name, settings, self.hess_opt_rem)
         file.write('\n\n\n\n\n')
 
-    def sp(self, file, job_name, config, coords, atnums):
-        self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)
-        self._write_job_setting(file, job_name, config, self.sp_rem)
+    def sp(self, file, job_name, settings, coords, atnums):
+        self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity)
+        self._write_job_setting(file, job_name, settings, self.sp_rem)
         file.write('\n\n\n\n\n')
 
-    def charges(self, file, job_name, config, coords, atnums):
-        self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)
-        self._write_job_setting(file, job_name, config, self.charges_rem)
+    def charges(self, file, job_name, settings, coords, atnums):
+        self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity)
+        self._write_job_setting(file, job_name, settings, self.charges_rem)
         file.write('\n\n\n\n\n')
 
-    def hessian(self, file, job_name, config, coords, atnums):
-        self._write_molecule(file, job_name, atnums, coords, config.charge, config.multiplicity)
-        self._write_job_setting(file, job_name, config, self.hess_opt_rem)
+    def hessian(self, file, job_name, settings, coords, atnums):
+        self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity)
+        self._write_job_setting(file, job_name, settings, self.hess_opt_rem)
         file.write('\n\n@@@\n\n\n')
         file.write('$molecule\n  read\n$end\n\n')
-        self._write_job_setting(file, job_name, config, self.hess_freq_rem)
+        self._write_job_setting(file, job_name, settings, self.hess_freq_rem)
         file.write('\n$nbo\n  nbo\n  bndidx\n$end\n\n')
 
-    def scan(self, file, job_name, config, coords, atnums, scanned_atoms, start_angle, charge,
+    def scan(self, file, job_name, settings, coords, atnums, scanned_atoms, start_angle, charge,
              multiplicity):
 
         direct = [1, -1]
-        if start_angle + config.scan_step_size > 180:
+        if start_angle + settings.scan_step_size > 180:
             direct.remove(1)
-        elif start_angle - config.scan_step_size < -180:
+        elif start_angle - settings.scan_step_size < -180:
             direct.remove(-1)
         if not direct:
             sys.exit('ERROR: Your scan step size is too large to perform a scan.\n')
 
         self._write_molecule(file, job_name, atnums, coords, charge, multiplicity)
-        self._write_job_setting(file, job_name, config, self.scan_rem)
+        self._write_job_setting(file, job_name, settings, self.scan_rem)
         self._write_scan_info(file, scanned_atoms, start_angle, direct[0]*180,
-                              direct[0]*config.scan_step_size)
+                              direct[0]*settings.scan_step_size)
 
         if len(direct) == 2:
             new_start = start_angle
             while new_start < 180:
-                new_start += config.scan_step_size
+                new_start += settings.scan_step_size
             new_start -= 360
 
             file.write('\n\n@@@\n\n\n')
             file.write('$molecule\n  read\n$end\n\n')
-            self._write_job_setting(file, job_name, config, self.scan_rem)
+            self._write_job_setting(file, job_name, settings, self.scan_rem)
             self._write_scan_info(file, scanned_atoms, new_start, start_angle-0.1,
-                                  config.scan_step_size)
+                                  settings.scan_step_size)
 
     @staticmethod
     def _write_scan_info(file, scanned_atoms, start_angle, final_angle, scan_step_size):
@@ -286,7 +284,7 @@ class WriteQChem(WriteABC):
             file.write(f'{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n')
         file.write('$end\n\n')
 
-    def _write_job_setting(self, file, job_name, config, job_rem):
+    def _write_job_setting(self, file, job_name, settings, job_rem):
         file.write('$rem\n')
         file.write(f'  method = {self.config.method}\n')
         if self.config.basis is not None:
@@ -305,7 +303,7 @@ class WriteQChem(WriteABC):
             file.write(f'  cis_state_deriv = {self.config.cis_state_deriv}\n')
         for key, val in job_rem.items():
             file.write(f'  {key} = {val}\n')
-        file.write(f'  mem_total = {config.memory}\n')
+        file.write(f'  mem_total = {settings.memory}\n')
         file.write(f'  geom_opt_max_cycles = {self.config.max_opt_cycles}\n')
         file.write(f'  max_scf_cycles = {self.config.max_scf_cycles}\n')
         file.write(f'  xc_grid = {self.config.xc_grid}\n')

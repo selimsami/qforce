@@ -69,7 +69,6 @@ class ReadGaussian(ReadABC):
 
     def opt(self, config, out_file):
         """read the log file"""
-
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
                 if 'Input orientation:' in line:
@@ -214,23 +213,23 @@ class ReadGaussian(ReadABC):
 
 class WriteGaussian(WriteABC):
 
-    def opt(self, file, job_name, config, coords, atnums):
-        self._write_opt_job_setting(job_name, config, file)
+    def opt(self, file, job_name, settings, coords, atnums):
+        self._write_opt_job_setting(job_name, settings, file)
         self._write_coords(atnums, coords, file)
         file.write("\n\n\n")
 
-    def sp(self, file, job_name, config, coords, atnums):
-        self._write_sp_job_setting(job_name, config, file)
+    def sp(self, file, job_name, settings, coords, atnums):
+        self._write_sp_job_setting(job_name, settings, file)
         self._write_coords(atnums, coords, file)
         file.write("\n\n\n")
 
-    def charges(self, file, job_name, config, coords, atnums):
-        self._write_charge_job_setting(job_name, config, file)
+    def charges(self, file, job_name, settings, coords, atnums):
+        self._write_charge_job_setting(job_name, settings, file)
         self._write_coords(atnums, coords, file)
         file.write("\n\n\n")
 
-    def hessian(self, file, job_name, config, coords, atnums):
-        self._write_hessian_job_setting(job_name, config, file)
+    def hessian(self, file, job_name, settings, coords, atnums):
+        self._write_hessian_job_setting(job_name, settings, file)
         self._write_coords(atnums, coords, file)
         self._write_bndix(file)
 
@@ -238,20 +237,20 @@ class WriteGaussian(WriteABC):
     def _write_bndix(file):
         file.write('\n$nbo BNDIDX $end\n\n')
 
-    def scan(self, file, job_name, config, coords, atnums, scanned_atoms, start_angle, charge,
+    def scan(self, file, job_name, settings, coords, atnums, scanned_atoms, start_angle, charge,
              multiplicity):
-        self._write_scan_job_setting(job_name, config, file, charge, multiplicity)
+        self._write_scan_job_setting(job_name, settings, file, charge, multiplicity)
         self._write_coords(atnums, coords, file)
-        self._write_scanned_atoms(file, scanned_atoms, config.scan_step_size)
+        self._write_scanned_atoms(file, scanned_atoms, settings.scan_step_size)
 
-    def scan_torsiondrive(self, file, job_name, config, coords, atnums,
+    def scan_torsiondrive(self, file, job_name, settings, coords, atnums,
                           scanned_atoms, start_angle, charge, multiplicity):
 
         base, _ = os.path.split(file.name)
-        self._scan_torsiondrive_helper(file, job_name, config, scanned_atoms, 'gaussian')
+        self._scan_torsiondrive_helper(file, job_name, settings, scanned_atoms, 'gaussian')
 
         with open(f'{base}/{job_name}_input.xyz', 'w') as fh:
-            self._write_scan_torsiondrive_job_settings(job_name, config, fh, charge, multiplicity)
+            self._write_scan_torsiondrive_job_settings(job_name, settings, fh, charge, multiplicity)
             self._write_coords(atnums, coords, fh)
             fh.write("\n\n\n")
 
@@ -267,58 +266,58 @@ class WriteGaussian(WriteABC):
             elem = ATOM_SYM[atnum]
             file.write(f'{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n')
 
-    def _write_sp_job_setting(self, job_name, config, file):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_sp_job_setting(self, job_name, settings, file):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p ")
         self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
-        file.write(f"{config.charge} {config.multiplicity}\n")
+        file.write(f"{settings.charge} {settings.multiplicity}\n")
 
-    def _write_charge_job_setting(self, job_name, config, file):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_charge_job_setting(self, job_name, settings, file):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p ")
         self.write_method(file, self.config)
         file.write(f" pop=(CM5, ESP) {self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
-        file.write(f"{config.charge} {config.multiplicity}\n")
+        file.write(f"{settings.charge} {settings.multiplicity}\n")
 
-    def _write_opt_job_setting(self, job_name, config, file):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_opt_job_setting(self, job_name, settings, file):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p Opt")
         self.write_method(file, self.config)
         file.write(f"{self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
-        file.write(f"{config.charge} {config.multiplicity}\n")
+        file.write(f"{settings.charge} {settings.multiplicity}\n")
 
-    def _write_hessian_job_setting(self, job_name, config, file):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_hessian_job_setting(self, job_name, settings, file):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p Opt Freq ")
         self.write_method(file, self.config)
         file.write(f"pop=(CM5, ESP, NBOREAD) {self.config.solvent_method}\n\n")
         file.write(f"{job_name}\n\n")
-        file.write(f"{config.charge} {config.multiplicity}\n")
+        file.write(f"{settings.charge} {settings.multiplicity}\n")
 
-    def _write_scan_torsiondrive_job_settings(self, job_name, config, file, charge, multiplicity):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_scan_torsiondrive_job_settings(self, job_name, settings, file, charge, multiplicity):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p Opt=ModRedundant ")
         self.write_method(file, self.config)
         file.write(f"\n\n{job_name}\n\n")
         file.write(f"{charge} {multiplicity}\n")
 
-    def _write_scan_job_setting(self, job_name, config, file, charge, multiplicity):
-        file.write(f"%nprocshared={config.n_proc}\n")
-        file.write(f"%mem={config.memory}MB\n")
+    def _write_scan_job_setting(self, job_name, settings, file, charge, multiplicity):
+        file.write(f"%nprocshared={settings.n_proc}\n")
+        file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
         file.write("#p Opt=Modredundant ")
         self.write_method(file, self.config)
