@@ -7,6 +7,7 @@ from calkeeper import CalculationKeeper, CalculationIncompleteError
 from .initialize import initialize as _initialize
 from .main import runjob
 from .misc import check_if_file_exists, LOGO
+from .logger import LoggerExit
 
 
 # define new validator
@@ -80,6 +81,8 @@ class RunQforce(Option):
             save_jobs(self.job)
         except CalculationIncompleteError:
             save_jobs(self.job)
+        except LoggerExit:
+            save_jobs(self.job)
 
 
 def load_keeper(job):
@@ -137,7 +140,7 @@ class RunQforceComplete:
                 running = False
             except CalculationIncompleteError:
                 self.job.calkeeper.do_calculations()
-            except SystemExit:
+            except LoggerExit:
                 self.job.calkeeper.do_calculations()
         save_jobs(self.job)
 
