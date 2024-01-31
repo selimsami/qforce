@@ -118,7 +118,7 @@ class Check(Option):
         print("All checks have passed!")
 
 
-class RunQforceComplete:
+class RunQforceComplete(Option):
 
     name = 'run_complete'
     _colt_description = 'Run qforce automatically till completion'
@@ -136,15 +136,18 @@ class RunQforceComplete:
 
     def run(self):
         self.job.logger.info(LOGO)
+        methods = {name: calculator.run for name, calculator in self.job.calculators.items()}
+        ncores = self.config.qm.n_proc
+
         running = True
         while running:
             try:
                 runjob(self.config, self.job)
                 running = False
             except CalculationIncompleteError:
-                self.job.calkeeper.do_calculations()
+                self.job.calkeeper.do_calculations(methods, ncores)
             except LoggerExit:
-                self.job.calkeeper.do_calculations()
+                self.job.calkeeper.do_calculations(methods, ncores)
         save_jobs(self.job)
 
 
