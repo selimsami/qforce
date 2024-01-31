@@ -73,6 +73,7 @@ batch_run = False :: bool
 
     def __init__(self, fragments, mol, job, all_config):
         self.frag_dir = job.frag_dir
+        self.logger = job.logger
         self.job_name = job.name
         self.mdp_file = f'{job.md_data}/default.mdp'
         self.config = all_config.scan
@@ -162,17 +163,19 @@ batch_run = False :: bool
             sum_scans += n_scans
 
         if bad_fits:
-            print('WARNING: R-squared < 0.9 for the dihedral fit of the following fragment(s):')
+            msg = 'R-squared < 0.9 for the dihedral fit of the following fragment(s):\n'
             for bad_fit in bad_fits:
-                print(f'         - {bad_fit}')
-            print('         Please check manually to see if you find the accuracy satisfactory.\n')
+                msg += f'         - {bad_fit}\n'
+            msg += '         Please check manually to see if you find the accuracy satisfactory.\n\n'
+            self.logger.warning(msg)
 
     def scan_dihedrals(self, fragments, mol, all_config, all_dih_terms, weights):
         for n_run in range(self.config.n_dihed_scans):
             energy_diffs, md_energies = [], []
             for n_fit, frag in enumerate(fragments, start=1):
-                print(f'Run {n_run+1}/{self.config.n_dihed_scans}, fitting dihedral '
-                      f'{n_fit}/{len(fragments)}: {frag.id}')
+                msg = (f'Run {n_run+1}/{self.config.n_dihed_scans}, fitting dihedral '
+                       f'{n_fit}/{len(fragments)}: {frag.id}')
+                self.logger.info(msg)
 
                 scan_dir = f'{self.frag_dir}/{frag.id}/mm'
                 make_scan_dir(scan_dir)
@@ -212,7 +215,7 @@ batch_run = False :: bool
                 term_idx = all_dih_terms.index(str(term))
                 term.equ += params[6*term_idx:(6*term_idx)+6]
 
-        print('Done!\n')
+        self.logger.info('Done!')
         final_energy = np.array(md_energies) + np.sum(matrix * params, axis=1)
 
         return final_energy, params
