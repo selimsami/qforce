@@ -175,7 +175,7 @@ class Pathways:
 
     def preopt_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_sp_step_{i:02d}.{ending}'
+        return f'{base}_preopt.{ending}'
 
     def _path(self, path, only, **kwargs):
         """Path to the folder"""
