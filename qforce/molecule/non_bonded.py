@@ -32,8 +32,8 @@ class NonBonded():
     def from_topology(cls, config, job, qm_out, topo, ext_q, ext_lj):
         comb_rule, fudge_lj, fudge_q, h_cap = set_non_bonded_props(config)
 
-        exclusions = cls._set_custom_exclusions_and_pairs(config.exclusions)
-        pairs = cls._set_custom_exclusions_and_pairs(config.pairs)
+        exclusions = cls._set_custom_exclusions_and_pairs(job.logger, config.exclusions)
+        pairs = cls._set_custom_exclusions_and_pairs(job.logger, config.pairs)
         if config.n_excl == 2:
             pairs = cls._set_1_4_pairs(topo, exclusions, pairs)
 
@@ -48,28 +48,31 @@ class NonBonded():
             q = np.loadtxt(f'{job.dir}/ext_q', comments=['#', ';'])
         else:
             if config.charge_scaling != 1.0 and qm_out.charge != 0:
-                print('WARNING: Your system has a net charge and therefore point charges for the '
-                      'FF cannot be scaled.\n         If you will simulate in the condensed phase'
-                      ', you might want to account for condensed\n         phase polarization in '
-                      'another way (Hartree-Fock charges, implicit solvent, ...).\n')
+                job.logger.warning('Your system has a net charge and therefore point charges '
+                                   'for the FF cannot be scaled.\n         If you will '
+                                   'simulate in the condensed phase, you might want to account '
+                                   'for condensed\n         phase polarization in '
+                                   'another way (Hartree-Fock charges, implicit solvent, ...).\n')
                 q = qm_out.point_charges
             elif config.charge_scaling != 1.0 and qm_out.charge == 0:
                 q = qm_out.point_charges * config.charge_scaling
-                print(f'NOTE: QM atomic charges are scaled by {config.charge_scaling} to account '
-                      'for the condensed phase polarization.\n      Set this value to 1 for gas '
-                      'phase simulations.\n')
+                job.logger.note(f'QM atomic charges are scaled by {config.charge_scaling} to '
+                                'account for the condensed phase polarization.\n'
+                                '      Set this value to 1 for gas '
+                                'phase simulations.\n')
             else:
                 q = qm_out.point_charges
 
         q = average_equivalent_terms(topo, [q])[0]
-        q = sum_charges_to_qtotal(topo, q)
+        q = sum_charges_to_qtotal(job.logger, topo, q)
 
         # LENNARD-JONES
         if config._d4:
             lj_types, lj_pairs = set_qforce_lennard_jones(topo, comb_rule, lj_a, lj_b)
             lj_1_4 = lj_pairs
-            print('WARNING: You are using Q-Force Lennard-Jones parameters. This is unfinished.',
-                  '\nYou are advised to provide external LJ parameters for production runs.\n')
+            job.logger.warning('You are using Q-Force Lennard-Jones parameters. '
+                               'This is unfinished.\nYou are advised to provide external '
+                               'LJ parameters for production runs.\n')
         else:
             lj_types = get_external_lennard_jones(config, topo, q, job, ext_lj)
             lj_pairs, lj_1_4, lj_atomic_number = set_external_lennard_jones(job, config, comb_rule,
@@ -113,7 +116,7 @@ class NonBonded():
                    non_bonded.fudge_q, non_bonded.h_cap, alpha)
 
     @staticmethod
-    def _set_custom_exclusions_and_pairs(value):
+    def _set_custom_exclusions_and_pairs(logger, value):
         selection = []
         if value:
             for line in value.split('\n'):
@@ -125,9 +128,9 @@ class NonBonded():
                         if pair not in selection:
                             selection.append(pair)
                 elif len(line) == 1:
-                    print('WARNING: Exclusion/Pair lines should contain at least two atom IDs:\n',
-                          'First entry is excluded from / paired to all the following entries.\n',
-                          f'Ignoring the line: {line[0]}\n')
+                    logger.warning('Exclusion/Pair lines should contain at least two atom IDs:\n'
+                                   'First entry is excluded from / paired to all the following '
+                                   f'entries.\nIgnoring the line: {line[0]}\n')
         return selection
 
     @staticmethod
@@ -142,9 +145,9 @@ class NonBonded():
 
 def get_external_lennard_jones(config, topo, q, job, ext_lj):
     if config.lennard_jones == 'gromos_auto':
-        lj_types = determine_gromos_atom_types(topo, q)
+        lj_types = determine_gromos_atom_types(job.logger, topo, q)
     elif config.lennard_jones == 'opls_auto':
-        lj_types = determine_opls_atom_types(topo, q)
+        lj_types = determine_opls_atom_types(job.logger, topo, q)
     elif ext_lj:
         if 'lj_types' not in ext_lj:
             sys.exit('ERROR: You have not provided the "lj_types" list in the "ext_lj" '
@@ -161,14 +164,14 @@ def get_external_lennard_jones(config, topo, q, job, ext_lj):
             lj_types = np.loadtxt(f'{job.dir}/ext_lj', dtype='str',
                                   comments=['#', ';']).ravel()
         else:
-            sys.exit(f'ERROR: Manual LJ types requested ({config.lennard_jones}) but the '
-                     'atom types are not provided in the "ext_lj" file in the job'
-                     ' directory.\nPlease provide there an atom type for each atom in the '
-                     'same order as your coordinate file.\n')
+            job.logger.error(f'Manual LJ types requested ({config.lennard_jones}) but the '
+                             'atom types are not provided in the "ext_lj" file in the job'
+                             ' directory.\nPlease provide there an atom type for each atom in the '
+                             'same order as your coordinate file.\n')
         if lj_types.size != topo.n_atoms:
-            sys.exit('ERROR: Format of your "ext_lj" file is wrong.\nPlease provide there '
-                     'an atom type for each atom in the same order as your coordinate file'
-                     '.\n')
+            job.logger.error('Format of your "ext_lj" file is wrong.\nPlease provide there '
+                             'an atom type for each atom in the same order as your coordinate file'
+                             '.\n')
     return lj_types
 
 
@@ -240,7 +243,7 @@ class Neighbors(list):
         return len(matched)
 
 
-def determine_opls_atom_types(topo, q):
+def determine_opls_atom_types(logger, topo, q):
     """
     Carbon
     #CA (aromatic): opls_145  ---- LigParGen puts C=N a CA atomtype, why???
@@ -274,8 +277,8 @@ def determine_opls_atom_types(topo, q):
     S (S...): opls_200
     """
 
-    print('NOTE: Automatic atom-type determination (used only for LJ interactions) is new. \n'
-          '      Double check your atom types or enter them manually.\n')
+    logger.note('Automatic atom-type determination (used only for LJ interactions) is new. \n'
+                '      Double check your atom types or enter them manually.\n')
     a_types = []
     for atomid, elem in enumerate(topo.elements):
 
@@ -358,9 +361,9 @@ def determine_opls_atom_types(topo, q):
     return a_types
 
 
-def determine_gromos_atom_types(topo, q):
-    print('NOTE: Automatic atom-type determination (used only for LJ interactions) is new. \n'
-          '      Double check your atom types or enter them manually.\n')
+def determine_gromos_atom_types(logger, topo, q):
+    logger.note('Automatic atom-type determination (used only for LJ interactions) is new. \n'
+                '      Double check your atom types or enter them manually.\n')
     a_types = []
     for i, elem in enumerate(topo.elements):
         elem_neigh = [topo.elements[atom] for atom in topo.neighbors[0][i]]
@@ -615,7 +618,7 @@ def average_equivalent_terms(topo, terms):
     return avg_terms
 
 
-def sum_charges_to_qtotal(topo, q):
+def sum_charges_to_qtotal(logger, topo, q):
     total = q.sum()
     q_integer = int(round(total))
 
@@ -641,8 +644,8 @@ def sum_charges_to_qtotal(topo, q):
             for i, v in enumerate(prob.variables()):
                 q[topo.list[i]] -= sign * v.varValue / 100000
         else:
-            print('Failed to equate total of charges to the total charge of '
-                  'the system. Do so manually')
+            logger.info('Failed to equate total of charges to the total charge of '
+                        'the system. Do so manually')
     return q
 
 
