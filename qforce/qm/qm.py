@@ -113,15 +113,16 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             _, coords, atnums = self._read_coord_file(self.pathways['init.xyz'])
             with open(calculation.inputfile, 'w') as file:
                 self.write_hessian(file, calculation.base, coords, atnums)
-            raise CalculationIncompleteError(
-                        f"Required Hessian output file(s) not found in '{folder}' .\n"
-                        'Creating the necessary input file and exiting...\nPlease run the '
-                        'calculation and put the output files in the same directory.\n'
-                        'Necessary Hessian output files and the corresponding extensions are:\n'
-                        f"{calculation.missing_as_string()}\n\n\n"
-                            )
-
-        hessian_files = calculation.check()
+        #
+        try:
+            hessian_files = calculation.check()
+        except CalculationIncompleteError:
+            self.logger.exit(f"Required Hessian output file(s) not found in '{folder}' .\n"
+                             'Creating the necessary input file and exiting...\nPlease run the '
+                             'calculation and put the output files in the same directory.\n'
+                             'Necessary Hessian output files and the corresponding extensions '
+                             f"are:\n{calculation.missing_as_string()}\n\n\n")
+        #
         output = self._read_hessian(hessian_files)
         # update output with charge calculation if necessary
         charge_software = self.softwares['charge_software']
@@ -139,15 +140,15 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             with open(calculation.inputfile, 'w') as file:
                 self.write_charge(file, calculation.base, output.coords,
                                   output.elements, charge_software)
-            raise CalculationIncompleteError(
-                        f"Required Hessian Charge output file(s) not found in '{folder}' .\n"
-                        'Creating the necessary input file and exiting...\nPlease run the '
-                        'calculation and put the output files in the same directory.\n'
-                        'Necessary Hessian output files and the corresponding extensions are:\n'
-                        f"{calculation.missing_as_string()}"
-                        )
         # if files exist
-        charge_files = calculation.check()
+        try:
+            charge_files = calculation.check()
+        except CalculationIncompleteError:
+            self.logger.exit(f"Required Hessian Charge output file(s) not found in '{folder}' .\n"
+                             'Creating the necessary input file and exiting...\nPlease run the '
+                             'calculation and put the output files in the same directory.\n'
+                             'Necessary Hessian output files and the corresponding extensions '
+                             f"are:\n{calculation.missing_as_string()}\n\n\n")
         #
         point_charges = charge_software.read.charges(self.config, **charge_files)
         #
@@ -220,12 +221,12 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                 else:
                     out_files = check(calculations)
             except CalculationIncompleteError:
-                raise CalculationIncompleteError(
-                            f"Required output file(s) not found in '{parent}/step_XX'.\n"
-                            'Creating the necessary input file and exiting...\nPlease run the '
-                            'calculation and put the output files in the same directory.\n'
-                            'Necessary output files and the corresponding extensions are:\n'
-                            f"{calculations[0].missing_as_string()}") from None
+                self.logger.exit(f"Required output file(s) not found in '{parent}/step_XX'.\n"
+                                 'Creating the necessary input file and exiting...\n'
+                                 'Please run the calculation and put the output files in the '
+                                 'same directory.\nNecessary output files and the '
+                                 'corresponding extensions are:\n'
+                                 f"{calculations[0].missing_as_string()}")
             energies = []
             # do not do che charge
             for files in out_files:
@@ -360,55 +361,18 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             #
             with open(calculation.inputfile, 'w') as file:
                 self.write_preopt(file, calculation.base, coords, atnums)
-                raise CalculationIncompleteError(
-                        'Required Preopt output file(s) not found in the job directory.\n'
-                        'Creating the necessary input file and exiting...\nPlease run the '
-                        'calculation and put the output files in the same directory.\n')
         # check_preopt_output
-        preopt_files = calculation.check()
+        try:
+            preopt_files = calculation.check()
+        except CalculationIncompleteError:
+            self.logger.exit('Required Preopt output file(s) not found in the job directory.\n'
+                             'Creating the necessary input file and exiting...\nPlease run the '
+                             'calculation and put the output files in the same directory.\n')
+        #
         coords = self._read_opt(preopt_files)
         molecule.set_positions(coords)
         self._write_xyzfile(molecule, self.pathways['init.xyz'],
                             comment=f'{self.job.name} - input geometry for hessian')
-
-    def _check_scan_sp_output(self, folder):
-        software = self.softwares['software']
-        scan_sp_files = {}
-        folders = [folder for folder in os.listdir(folder)
-                   if folder.startswith('step_')]
-
-        for subfolder in folders:
-            files = {}
-            scan_sp_files[subfolder] = files
-            all_files = os.listdir(f'{folder}/{subfolder}')
-            for name, tails in software.read.sp_files.items():
-                found_files = [file for file in all_files
-                               if any(file.endswith(f'{tail}') for tail in tails)]
-                n_files = len(found_files)
-                if n_files == 0:
-                    scan_sp_files[subfolder] = SystemExit(
-                                'Required Scan SP output file(s) not found in the job directory.\n'
-                                'Creating the necessary input file and exiting...\nPlease run the '
-                                'calculation and put the output files in the same directory.\n')
-                elif n_files > 1:
-                    scan_sp_files[subfolder] = SystemExit(
-                                    'There are multiple files in the job directory '
-                                    'with the expected Hessian output extensions.\n'
-                                    'Please remove the undesired ones.\n')
-
-                else:
-                    files[name] = f'{folder}/{subfolder}/{found_files[0]}'
-
-        msg = ''
-        for folder, error in scan_sp_files.items():
-            if isinstance(error, SystemExit):
-                msg += f'\n---------------------\nError in {folder}:\n---------------------\n\n'
-                msg += error.code
-
-        if msg != '':
-            raise SystemExit(msg)
-
-        return scan_sp_files
 
     def _read_coord_file(self, filename):
         molecule = read(filename)
@@ -448,8 +412,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             softwares['scan_software'] = xtbsoftware(SimpleNamespace(**selection))
 
         if scanner == 'torsiondrive' and softwares['scan_software'].has_torsiondrive is False:
-            raise SystemExit("Error: TorsionDrive not supported for scan_software "
-                             f"'{softwares['scan_software'].name}'")
+            self.logger.error("TorsionDrive not supported for scan_software "
+                              f"'{softwares['scan_software'].name}'")
         self.logger.info(self._get_software_text(softwares))
 
         return softwares
