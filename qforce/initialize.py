@@ -6,7 +6,7 @@ import pkg_resources
 #
 from colt import Colt
 #
-from .qm.qm import QM, implemented_qm_software
+from .qm.qm import QM, implemented_qm_software, calculators
 from .molecule.terms import Terms
 from .dihedral_scan import DihedralScan
 from .pathkeeper import Pathways
@@ -95,14 +95,6 @@ _ext_alpha = no :: bool
 
 """
 
-    @staticmethod
-    def _to_simplenamespace(config, name):
-        if config[name].value is None:
-            config.update({name: None})
-        else:
-            config.update({
-                name: SimpleNamespace(**{config[name]})})
-
     @classmethod
     def _set_config(cls, config):
         config.update({key: SimpleNamespace(**val) for key, val in config.items()})
@@ -124,7 +116,11 @@ _ext_alpha = no :: bool
                                                      for key, software
                                                      in implemented_qm_software.items()},
                                  block='qm')
+        # calculator block
         questions.generate_block("terms", Terms.get_questions())
+        questions.generate_block("calculators", "")
+        for name, calculator in calculators.items():
+            questions.generate_block(name, calculator.colt_user_input, block='calculators')
 
     @classmethod
     def from_config(cls, config):
@@ -179,6 +175,7 @@ def _get_job_info(filename):
 
     # Added calkeeper
     job['logger'] = None
+    job['calculators'] = {}
     job['calkeeper'] = CalculationKeeper()
     job['Calculation'] = job['calkeeper'].get_calcls()
     #
@@ -211,6 +208,8 @@ def initialize(filename, config_file, presets=None):
     settings_file = _check_and_copy_settings_file(job_info.pathways, config_file)
 
     config = Initialize.from_questions(config=settings_file, presets=presets, check_only=True)
-
+    # get calculators
+    for key, Calculator in calculators.items():
+        job_info.calculators[key] = Calculator.from_config(getattr(config.calculators, key))
     job_info.logger = QForceLogger(config.logging.filename)
     return config, job_info
