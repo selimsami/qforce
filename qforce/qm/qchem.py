@@ -3,7 +3,7 @@ import subprocess
 import numpy as np
 from ase.units import Hartree, mol, kJ
 #
-from .qm_base import WriteABC, ReadABC, QMInterface
+from .qm_base import WriteABC, ReadABC, QMInterface, Calculator
 from ..elements import ATOM_SYM
 
 
@@ -56,23 +56,24 @@ class QChem(QMInterface):
     def __init__(self, config):
         super().__init__(config, ReadQChem(config), WriteQChem(config))
 
-    @staticmethod
-    def run(calculation):
-        """Perform an gaussian calculation, raises CalculationFailed error in case of an error"""
-        with calculation.within():
-            name = calculation.filename
-            base = calculation.base
-            try:
-                subprocess.run(f"qchem -nt 2 {name} > {base}.log", shell=True, check=True)
-            except subprocess.CalledProcessError as err:
-                raise CalculationFailed(f"subprocess registered error '{err.code}'") from None
 
-        try:
-            calculation.check()
-        except CalculationIncompleteError:
-            raise CalculationFailed("Not all necessary files could be generated for calculation"
-                                    f" '{calculation.inputfile}'"
-                                    ) from None
+class QChemCalculator(Calculator):
+
+    name = 'qchem'
+    _user_input = """
+    qchemexe = qchem
+    """
+
+    def __init__(self, qchemexe):
+        self.qchemexe = qchemexe
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(config['qchemexe'])
+
+    def _commands(self, filename, basename, ncores):
+        return [f'{self.qchemexe} -nt {ncores} {filename} > {basename}.log']
+
 
 class ReadQChem(ReadABC):
 
