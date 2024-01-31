@@ -36,8 +36,8 @@ def polarize(inp, path):
     write_gro(inp, atoms, new_mol_natoms, n_mols, polar_coords, polar_vel, box_dim,
               polar_gro_file)
 
-    print("Done!")
-    print(f"Polarizable coordinate file in: {polar_gro_file}\n\n")
+    inp.logger.info("Done!")
+    inp.logger.info(f"Polarizable coordinate file in: {polar_gro_file}\n\n")
     raise SystemExit
 
 
