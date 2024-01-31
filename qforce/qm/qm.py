@@ -4,14 +4,13 @@ from types import SimpleNamespace
 from ase.io import read, write
 import numpy as np
 from colt import Colt
-from calkeeper import check
+from calkeeper import check, CalculationIncompleteError
 
 from .gaussian import Gaussian
 from .qchem import QChem
 from .orca import Orca
 from .xtb import xTB, XTBGaussian
 from .qm_base import scriptify, HessianOutput, ScanOutput
-from .qm_base import Calculation, CalculationIncompleteError
 
 
 implemented_qm_software = {'gaussian': Gaussian,
@@ -70,6 +69,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         self.job = job
         self.pathways = job.pathways
         self.config = config
+        self.logger = job.logger
         self.softwares = self._get_qm_softwares(config)
         # check hessian files and if not present write the input file
         self.method = self._register_method()
@@ -97,15 +97,18 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         return self.pathways.preopt_filename(software, self.config.charge,
                                              self.config.multiplicity)
 
+    def Calculation(self, filename, required_files, *, folder=None, software=None):
+        return self.job.Calculation(filename, required_files, folder=folder, software=software)
+
     def get_hessian(self):
         """Setup hessian files, and if present read the hessian information"""
 
         software = self.softwares['software']
         folder = self.pathways.getdir("hessian", create=True)
-        calculation = Calculation(self.hessian_name(software),
-                                  software.read.hessian_files,
-                                  folder=folder,
-                                  software=software.name)
+        calculation = self.Calculation(self.hessian_name(software),
+                                       software.read.hessian_files,
+                                       folder=folder,
+                                       software=software.name)
         if not calculation.input_exists():
             _, coords, atnums = self._read_coord_file(self.pathways['init.xyz'])
             with open(calculation.inputfile, 'w') as file:
@@ -127,10 +130,10 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         #
         folder = self.pathways.getdir("hessian_charge", create=True)
 
-        calculation = Calculation(self.hessian_charge_name(charge_software),
-                                  charge_software.read.charge_files,
-                                  folder=folder,
-                                  software=charge_software.name)
+        calculation = self.Calculation(self.hessian_charge_name(charge_software),
+                                       charge_software.read.charge_files,
+                                       folder=folder,
+                                       software=charge_software.name)
 
         if not calculation.input_exists():
             with open(calculation.inputfile, 'w') as file:
@@ -186,9 +189,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         # setup charge calculations
         if charge_software is not None:
             folder = f'{parent}/charge'
-            charge_calc = Calculation(self.charge_name(charge_software),
-                                      charge_software.read.charge_files, folder=folder,
-                                      software=charge_software.name)
+            charge_calc = self.Calculation(self.charge_name(charge_software),
+                                           charge_software.read.charge_files, folder=folder,
+                                           software=charge_software.name)
             os.makedirs(folder, exist_ok=True)
             with open(charge_calc.inputfile, 'w') as file:
                 self.write_charge(file, charge_calc.base, scan_out.coords[0],
@@ -198,10 +201,10 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             software = self.softwares['software']
             folder = parent
             os.makedirs(folder, exist_ok=True)
-            calculations = [Calculation(self.scan_sp_name(software, i),
-                                        software.read.sp_files,
-                                        folder=f'{folder}/step_{i}',
-                                        software=software.name)
+            calculations = [self.Calculation(self.scan_sp_name(software, i),
+                                             software.read.sp_files,
+                                             folder=f'{folder}/step_{i}',
+                                             software=software.name)
                             for i in range(scan_out.n_steps)]
 
             # setup files
@@ -348,9 +351,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         self._write_xyzfile(molecule, self.pathways['preopt.xyz'],
                             comment=f'{self.job.name} - input geometry for preopt')
         # setup calculation
-        calculation = Calculation(self.preopt_name(software),
-                                  software.read.opt_files, folder=folder,
-                                  software=software.name)
+        calculation = self.Calculation(self.preopt_name(software),
+                                       software.read.opt_files, folder=folder,
+                                       software=software.name)
         #
         if not calculation.input_exists():
             _, coords, atnums = self._read_coord_file(self.pathways['preopt.xyz'])
@@ -447,7 +450,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         if scanner == 'torsiondrive' and softwares['scan_software'].has_torsiondrive is False:
             raise SystemExit("Error: TorsionDrive not supported for scan_software "
                              f"'{softwares['scan_software'].name}'")
-        print(self._get_software_text(softwares))
+        self.logger.info(self._get_software_text(softwares))
 
         return softwares
 
@@ -476,4 +479,4 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         method = {key: val for key, val in self.config.__dict__.items() if key in method_list}
         method.update({key: val.upper() for key, val in method.items() if isinstance(val, str)})
         method['software'] = self.config.software
-        return method
+        rieturn method
