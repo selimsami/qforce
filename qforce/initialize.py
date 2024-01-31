@@ -10,10 +10,17 @@ from .qm.qm import QM, implemented_qm_software
 from .molecule.terms import Terms
 from .dihedral_scan import DihedralScan
 from .pathkeeper import Pathways
+from .logger import QForceLogger
+from calkeeper import CalculationKeeper
 
 
 class Initialize(Colt):
     _user_input = """
+[logging]
+# if given log qforce to filename
+filename = :: str, optional
+
+
 [ff]
 # Number of n equivalent neighbors needed to consider two atoms equivalent
 # Negative values turns off equivalence, 0 makes same elements equivalent
@@ -170,6 +177,11 @@ def _get_job_info(filename):
                 raise SystemExit(f"Either '{pathways['init.xyz']}' "
                                  f"or '{pathways['preopt.xyz']}' need to be present")
 
+    # Added calkeeper
+    job['logger'] = None
+    job['calkeeper'] = CalculationKeeper()
+    job['Calculation'] = job['calkeeper'].get_calcls()
+    #
     job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
     os.makedirs(job['dir'], exist_ok=True)
     return SimpleNamespace(**job)
@@ -200,4 +212,5 @@ def initialize(filename, config_file, presets=None):
 
     config = Initialize.from_questions(config=settings_file, presets=presets, check_only=True)
 
+    job_info.logger = QForceLogger(config.logging.filename)
     return config, job_info

@@ -6,7 +6,6 @@ from calkeeper import CalculationKeeper, CalculationIncompleteError
 #
 from .initialize import initialize as _initialize
 from .main import runjob
-from .qm.qm_base import KEEPER
 from .misc import check_if_file_exists, LOGO
 
 
@@ -45,7 +44,6 @@ class Option(Plugin):
 
     @classmethod
     def from_config(cls, _config):
-        print(LOGO)
         return cls.plugin_from_config(_config['mode'])
 
 
@@ -55,7 +53,7 @@ def initialize(config):
 
 def save_jobs(job):
     with open(job.pathways['calculations.json'], 'w') as fh:
-        fh.write(KEEPER.as_json())
+        fh.write(job.calkeeper.as_json())
 
 
 class RunQforce(Option):
@@ -76,6 +74,7 @@ class RunQforce(Option):
         return cls(config, job)
 
     def run(self):
+        self.job.logger.info(LOGO)
         try:
             runjob(self.config, self.job)
             save_jobs(self.job)
@@ -108,6 +107,7 @@ class Check(Option):
         return cls(load_keeper(job))
 
     def run(self):
+        print(LOGO)
         self.keeper.check()
         print("All checks have passed!")
 
@@ -129,15 +129,16 @@ class RunQforceComplete:
         return cls(config, job)
 
     def run(self):
+        self.job.logger.info(LOGO)
         running = True
         while running:
             try:
                 runjob(self.config, self.job)
                 running = False
             except CalculationIncompleteError:
-                KEEPER.do_calculations()
+                self.job.calkeeper.do_calculations()
             except SystemExit:
-                KEEPER.do_calculations()
+                self.job.calkeeper.do_calculations()
         save_jobs(self.job)
 
 
@@ -177,6 +178,7 @@ doi = {10.1021/acs.jctc.1c00195},
 
     @classmethod
     def from_config(cls, config):
+        print(LOGO)
         return cls(config['format'])
 
     def run(self):
@@ -203,6 +205,8 @@ class Bash(Option):
         return cls(load_keeper(job), config['filename'])
 
     def run(self):
+        print(LOGO)
+        print(f"Creating {self.filename}...")
         with open(self.filename, 'w') as fh:
             fh.write("current=$PWD\nfor folder in ")
             fh.write("  ".join(str(calc.folder) for calc in self.keeper.get_incomplete()))
