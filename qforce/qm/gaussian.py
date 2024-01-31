@@ -3,7 +3,7 @@ import subprocess
 import numpy as np
 from ase.units import Hartree, mol, kJ
 #
-from .qm_base import WriteABC, ReadABC, QMInterface
+from .qm_base import WriteABC, ReadABC, QMInterface, Calculator
 from ..elements import ATOM_SYM
 
 
@@ -37,24 +37,28 @@ class Gaussian(QMInterface):
             config.solvent_method = ''
         super().__init__(config, ReadGaussian(config), WriteGaussian(config))
 
-    @staticmethod
-    def run(calculation, ncores):
-        """Perform an gaussian calculation, raises CalculationFailed error in case of an error"""
-        with calculation.within():
-            name = calculation.filename
-            base = calculation.base
-            try:
-                subprocess.run(f"g09 {name}", shell=True, check=True)
-                subprocess.run(f"formchk {base}.chk", shell=True, check=True)
-            except subprocess.CalledProcessError as err:
-                raise CalculationFailed(f"subprocess registered error '{err.code}'") from None
 
-        try:
-            calculation.check()
-        except CalculationIncompleteError:
-            raise CalculationFailed("Not all necessary files could be generated for calculation"
-                                    f" '{calculation.inputfile}'"
-                                    ) from None
+class GaussianCalculator(Calculator):
+
+    name = 'gaussian'
+
+    _user_input = """
+    # name of the gaussian executable
+    gauexe = g09 :: str
+    # name of the formchk code
+    formchk = formchk
+    """
+
+    def __init__(self, gauexe, formchk):
+        self.gauexe = gauexe
+        self.formchk = formchk
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(config['gauexe'], config['formchk'])
+
+    def _commands(self, filename, basename, ncores):
+        return [f'{self.gauexe} {filename}', f'{self.formchk} {basename}.chk']
 
 
 class ReadGaussian(ReadABC):
