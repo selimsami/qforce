@@ -479,4 +479,4 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         method = {key: val for key, val in self.config.__dict__.items() if key in method_list}
         method.update({key: val.upper() for key, val in method.items() if isinstance(val, str)})
         method['software'] = self.config.software
-        rieturn method
+        return method
