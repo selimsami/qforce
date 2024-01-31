@@ -21,6 +21,7 @@ class QMInterface(Colt):
     has_torsiondrive = False
     # please implement methods
     _method = []
+    fileending = 'inp'
 
     def __init__(self, config, read, write):
         self._setup(config, read, write)

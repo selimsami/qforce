@@ -26,8 +26,8 @@ def fragment(mol, qm, job, config):
     unique_dihedrals = {}
 
     os.makedirs(config.scan.frag_lib, exist_ok=True)
-    os.makedirs(job.frag_dir, exist_ok=True)
-    reset_data_files(job.frag_dir)
+    frag_dir = job.pathways.getdir('fragments', create=True)
+    reset_data_files(frag_dir)
 
     for term in mol.terms['dihedral/flexible']:
         name = term.typename.partition('_')[0]

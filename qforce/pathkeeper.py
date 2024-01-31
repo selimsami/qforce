@@ -114,7 +114,7 @@ class Pathways:
         'frag': ['fragments', '${frag_id}'],
         'frag_charge': ['frag', 'charge'],
         'frag_step': ['frag', 'step_${idx}'],
-        'frag_scans': ['fragments', '${frag_id}_scans'],
+        'frag_mm': ['frag', 'mm'],
         # files should have ending!
         'settings.ini': 'settings.ini',
         'init.xyz': 'init.xyz',
@@ -155,19 +155,27 @@ class Pathways:
             return self.getfile(key, *args, only=only)
 
     def basename(self, software, charge, mult):
-        return f'{self.name}_{software.hash(charge, mult)}'
+        return f'{self.name}_{software.hash(charge, mult)}', software.fileending
 
-    def hessian_name(self, software, charge, mult):
-        return f'{self.basename(software, charge, mult)}_hessian'
+    def hessian_filename(self, software, charge, mult):
+        base, ending = self.basename(software, charge, mult)
+        return f'{base}_hessian.{ending}'
 
-    def hessian_charge_name(self, software, charge, mult):
-        return f'{self.basename(software, charge, mult)}_hessian_charge'
+    def hessian_charge_filename(self, software, charge, mult):
+        base, ending = self.basename(software, charge, mult)
+        return f'{base}_hessian_charge.{ending}'
 
-    def charge_name(self, software, charge, mult):
-        return f'{self.basename(software, charge, mult)}_charge'
+    def charge_filename(self, software, charge, mult):
+        base, ending = self.basename(software, charge, mult)
+        return f'{base}_charge.{ending}'
 
-    def scan_sp_name(self, software, charge, mult, i):
-        return f'{self.basename(software, charge, mult)}_sp_step_{i:02d}'
+    def scan_sp_filename(self, software, charge, mult, i):
+        base, ending = self.basename(software, charge, mult)
+        return f'{base}_sp_step_{i:02d}.{ending}'
+
+    def preopt_filename(self, software, charge, mult):
+        base, ending = self.basename(software, charge, mult)
+        return f'{base}_sp_step_{i:02d}.{ending}'
 
     def _path(self, path, only, **kwargs):
         """Path to the folder"""

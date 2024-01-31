@@ -77,29 +77,32 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
     def get_scan_software(self):
         return self.softwares['scan_software']
 
-    def _basename(self, software):
-        return f'{self.job.name}_{software.hash(self.config.charge, self.config.multiplicity)}'
-
     def hessian_name(self, software):
-        return self.pathways.hessian_name(software, self.config.charge, self.config.multiplicity)
+        return self.pathways.hessian_filename(software, self.config.charge,
+                                              self.config.multiplicity)
 
     def hessian_charge_name(self, software):
-        return self.pathways.hessian_charge_name(software, self.config.charge,
-                                                 self.config.multiplicity)
+        return self.pathways.hessian_charge_filename(software, self.config.charge,
+                                                     self.config.multiplicity)
 
     def charge_name(self, software):
-        return self.pathways.charge_name(software, self.config.charge, self.config.multiplicity)
+        return self.pathways.charge_filename(software, self.config.charge,
+                                             self.config.multiplicity)
 
     def scan_sp_name(self, software, i):
-        return self.pathways.scan_sp_name(software, self.config.charge,
-                                          self.config.multiplicity, i)
+        return self.pathways.scan_sp_filename(software, self.config.charge,
+                                              self.config.multiplicity, i)
+
+    def preopt_name(self, software):
+        return self.pathways.preopt_filename(software, self.config.charge,
+                                             self.config.multiplicity)
 
     def get_hessian(self):
         """Setup hessian files, and if present read the hessian information"""
 
         software = self.softwares['software']
         folder = self.pathways.getdir("hessian", create=True)
-        calculation = Calculation(f'{self.hessian_name(software)}.inp',
+        calculation = Calculation(self.hessian_name(software),
                                   software.read.hessian_files,
                                   folder=folder,
                                   software=software.name)
@@ -124,7 +127,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         #
         folder = self.pathways.getdir("hessian_charge", create=True)
 
-        calculation = Calculation(f'{self.hessian_charge_name(charge_software)}.inp',
+        calculation = Calculation(self.hessian_charge_name(charge_software),
                                   charge_software.read.charge_files,
                                   folder=folder,
                                   software=charge_software.name)
@@ -183,7 +186,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         # setup charge calculations
         if charge_software is not None:
             folder = f'{parent}/charge'
-            charge_calc = Calculation(f'{self.charge_name(charge_software)}.inp',
+            charge_calc = Calculation(self.charge_name(charge_software),
                                       charge_software.read.charge_files, folder=folder,
                                       software=charge_software.name)
             os.makedirs(folder, exist_ok=True)
@@ -195,7 +198,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             software = self.softwares['software']
             folder = parent
             os.makedirs(folder, exist_ok=True)
-            calculations = [Calculation(f'{self.scan_sp_name(software, i)}.inp',
+            calculations = [Calculation(self.scan_sp_name(software, i),
                                         software.read.sp_files,
                                         folder=f'{folder}/step_{i}',
                                         software=software.name)
@@ -345,7 +348,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         self._write_xyzfile(molecule, self.pathways['preopt.xyz'],
                             comment=f'{self.job.name} - input geometry for preopt')
         # setup calculation
-        calculation = Calculation(f"{self.job.name}_opt.inp",
+        calculation = Calculation(self.preopt_name(software),
                                   software.read.opt_files, folder=folder,
                                   software=software.name)
         #
