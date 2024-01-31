@@ -6,11 +6,24 @@ import numpy as np
 from colt import Colt
 from calkeeper import check, CalculationIncompleteError
 
-from .gaussian import Gaussian
-from .qchem import QChem
+from .gaussian import Gaussian, GaussianCalculator
+from .qchem import QChem, QChemCalculator
 from .orca import Orca
-from .xtb import xTB, XTBGaussian
-from .qm_base import scriptify, HessianOutput, ScanOutput
+from .xtb import xTB, XTBGaussian, xTBCalculator
+from .qm_base import scriptify, HessianOutput, ScanOutput, Calculator
+
+
+class TorsiondriveCalculator(Calculator):
+
+    name = 'torsiondrive'
+    _user_input = ""
+
+    @classmethod
+    def from_config(cls, config):
+        return cls()
+
+    def _commands(self, filename, basename, ncores):
+        return [f'bash {filename}']
 
 
 implemented_qm_software = {'gaussian': Gaussian,
@@ -19,6 +32,15 @@ implemented_qm_software = {'gaussian': Gaussian,
                            'xtb': xTB,
                            'xtb-gaussian': XTBGaussian
                            }
+
+
+calculators = {
+        'gaussian': GaussianCalculator,
+        'torsiondrive': TorsiondriveCalculator,
+        'xtb': xTBCalculator,
+        'qchem': QChemCalculator,
+        'torsiondrive': TorsiondriveCalculator,
+        }
 
 
 class QM(Colt):
@@ -152,8 +174,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         #
         point_charges = charge_software.read.charges(self.config, **charge_files)
         #
-        output.point_charges = output.check_type_and_shape(point_charges, 'point_charges', float,
-                                                           (output.n_atoms,))
+        output.point_charges = output.check_type_and_shape(
+                    point_charges[charge_software.config.charge_method], 'point_charges', float,
+                    (output.n_atoms,))
         #
         return output
 
