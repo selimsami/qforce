@@ -10,6 +10,7 @@ from pathlib import Path
 from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
 from .forces import get_dihed
 from calkeeper import CalculationIncompleteError
+from .logger import LoggerExit
 
 """
 
@@ -44,10 +45,9 @@ def fragment(mol, qm, job, config):
                 fragments.append(frag)
             elif config.scan.batch_run and frag.has_inp:
                 generated.append(frag)
-        except CalculationIncompleteError as e:
-            error += e.code + '\n\n'
-    if error != '':
-        raise CalculationIncompleteError(error)
+        except (CalculationIncompleteError, LoggerExit):
+            # ignore these errors, checking is done in check_and_notify!
+            pass
 
     check_and_notify(job, config.scan, len(unique_dihedrals), len(fragments), len(generated))
 
@@ -126,8 +126,7 @@ class Fragment:
         self.make_fragment_graph(mol)
         self.make_fragment_identifier(config, mol, qm)
         self.check_for_fragment(job, config, qm)
-        self.folder = Path(job.frag_dir) / self.id
-        os.makedirs(self.folder, exist_ok=True)
+        self.folder = job.pathways.getdir('frag', self.id, create=True)
         software = qm.get_scan_software()
         if scanner == 'torsiondrive':
             self.calc = job.Calculation(f'{self.id}_torsiondrive.inp',
@@ -328,7 +327,7 @@ class Fragment:
                     job.logger.info('"\navail_only" requested, attempting to continue with '
                                     'the missing points...\n\n')
                 else:
-                    raise SystemExit('Exiting...\n\n')
+                    job.logger.exit('Exiting...\n\n')
             else:
                 with open(f'{self.dir}/scandata_{self.hash_idx}', 'w') as data:
                     for angle, energy in zip(qm_out.angles, qm_out.energies):
