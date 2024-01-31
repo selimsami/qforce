@@ -81,8 +81,11 @@ class RunQforce(Option):
             save_jobs(self.job)
         except CalculationIncompleteError:
             save_jobs(self.job)
-        except LoggerExit:
+        except LoggerExit as err:
             save_jobs(self.job)
+            if not self.job.logger.isstdout:
+                self.job.logger.info(str(err))
+            raise err from None
 
 
 def load_keeper(job):
