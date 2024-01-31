@@ -10,6 +10,7 @@ import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
 from ase.io import read
 from colt import Colt
+from calkeeper import CalculationFailed, CalculationIncompleteError
 
 
 class QMInterface(Colt):
@@ -48,6 +49,7 @@ class QMInterface(Colt):
 
     def _setup(self, config, read, write):
         """Setup qm interface"""
+        self.write = write
         self.read = read
         # get required files
         self.required_hessian_files = read.hessian_files
@@ -57,8 +59,46 @@ class QMInterface(Colt):
         self.required_scan_files = read.scan_files
         self.required_scan_torsiondrive_files = read.scan_torsiondrive_files
         #
-        self.write = write
         self.config = config
+
+
+class Calculator(Colt):
+
+    name = None
+
+    def run(self, calculation, ncores):
+        """Perform an calculation, raises CalculationFailed error in case of an error"""
+        if self.name != calculation.software:
+            raise CalculationFailed(f"Do not know software '{calculation.software}', "
+                                    f"can only run '{self.name}' jobs")
+        with calculation.within():
+            name = calculation.filename
+            base = calculation.base
+            commands = self._commands(calculation.filename, base, ncores)
+            if isinstance(commands, str):
+                commands = [commands]
+            for command in commands:
+                try:
+                    subprocess.run(command, shell=True, check=True)
+                except subprocess.CalledProcessError as err:
+                    raise CalculationFailed(f"subprocess registered error: '{err.code}' "
+                                            f"in '{os.getcwd()}'"
+                                            f"ERROR in command: {command}") from None
+        try:
+            calculation.check()
+        except CalculationIncompleteError:
+            raise CalculationFailed("Not all necessary files could be generated for calculation"
+                                    f" '{calculation.inputfile}' in '{calculation.folder}'"
+                                    ) from None
+
+    def _commands(self, filename, basename, ncores):
+        """Returns the command(s) to run the inputfile
+        return should be
+            str: single command
+            or
+            list(str): multiple commands
+        """
+        raise NotImplementedError
 
 
 class WriteABC(ABC):
