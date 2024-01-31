@@ -6,7 +6,6 @@ from warnings import warn
 import hashlib
 import subprocess
 
-from calkeeper import CalculationKeeper, CalculationIncompleteError, CalculationFailed
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
 from ase.io import read
@@ -341,23 +340,6 @@ class ScanOutput:
         return angles, energies, coords
 
 
-def do_xtb(calculation):
-    """Perform a xtb calculation, raises CalculationFailed error in case of an error"""
-    with calculation.within():
-        name = calculation.filename
-        try:
-            subprocess.run(f"bash {name} > {name}.shellout", shell=True, check=True)
-        except subprocess.CalledProcessError as err:
-            raise CalculationFailed(f"subprocess registered error '{err.code}'") from None
-
-    try:
-        calculation.check()
-    except CalculationIncompleteError:
-        raise CalculationFailed("Not all necessary files could be generated for calculation"
-                                f" '{calculation.inputfile}'"
-                                ) from None
-
-
 def scriptify(writer):
     def wrapper(self, *args, **kwargs):
         pre_input_script, post_input_script = [], []
@@ -391,7 +373,3 @@ def scriptify(writer):
         for line in post_input_script:
             file.write(f'{line}\n')
     return wrapper
-
-
-KEEPER = CalculationKeeper()
-Calculation = KEEPER.get_calcls()
