@@ -6,7 +6,7 @@ import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
 from ase.io import read
 #
-from .qm_base import WriteABC, ReadABC, QMInterface
+from .qm_base import WriteABC, ReadABC, QMInterface, Calculator
 
 from ..elements import ATOM_SYM
 
@@ -43,24 +43,18 @@ class Orca(QMInterface):
         super().__init__(config, ReadORCA(config), WriteORCA(config))
 
 
-    @staticmethod
-    def run(calculation, ncores):
-        """Perform an orca calculation, raises CalculationFailed error in case of an error"""
-        with calculation.within():
-            name = calculation.filename
-            base = calculation.base
-            try:
-                subprocess.run(f"orca {name}", shell=True, check=True)
-                subprocess.run(f"formchk {base}.chk", shell=True, check=True)
-            except subprocess.CalledProcessError as err:
-                raise CalculationFailed(f"subprocess registered error '{err.code}'") from None
+class OrcaCalculator(Calculator):
 
-        try:
-            calculation.check()
-        except CalculationIncompleteError:
-            raise CalculationFailed("Not all necessary files could be generated for calculation"
-                                    f" '{calculation.inputfile}'"
-                                    ) from None
+    name = 'orca'
+    _user_input = ""
+    
+    @classmethod
+    def from_config(cls, config):
+        return cls()
+
+    def _commands(self, filename, basename, ncores):
+        raise NotImplementedError
+
 
 
 class WriteORCA(WriteABC):
@@ -91,7 +85,7 @@ class WriteORCA(WriteABC):
             The file object to write the input.
         job_name : string
             The name of the job.
-        settings: SimpleNamespace 
+        settings: SimpleNamespace
             A configparser object with all the parameters.
         coords : array
             A coordinates array of shape (N,3), where N is the number of atoms.
@@ -185,7 +179,7 @@ class WriteORCA(WriteABC):
         file.write(f"%pal nprocs  {settings.n_proc} end\n")
         # ORCA uses MPI parallelization and a factor of 0.75 is used to
         # avoid ORCA using more than it is available.
-        file.write(f'%maxcore  {int(config.memory / config.n_proc * 0.75)}\n\n')
+        file.write(f'%maxcore  {int(settings.memory / settings.n_proc * 0.75)}\n\n')
 
     @staticmethod
     def _write_scanned_atoms(file, scanned_atoms, start_angle, step_size):
@@ -301,7 +295,7 @@ class ReadORCA(ReadABC):
 
         Parameters
         ----------
-        settings: SimpleNamespace 
+        settings: SimpleNamespace
             A configparser object with all the parameters.
         out_file : string
             File name of the ORCA log file.
@@ -381,7 +375,7 @@ class ReadORCA(ReadABC):
         elif self.config.charge_method == "esp":
             n_atoms, charges = self._read_orca_esp(f'{base}_charge.pc_chelpg')
             point_charges["esp"] = charges
-        #    
+        #
         n_atoms, elements, coords = self._read_orca_allxyz(scan_file)
         angles, energies = self._read_orca_dat(f'{base}_scan.relaxscanact.dat')
         if os.path.isfile(f'{base}_sp.xyzact.dat'):
