@@ -68,9 +68,9 @@ def check_and_notify(job, config, n_unique, n_have, n_generated):
     else:
         job.logger.info(f"There are {n_unique} unique flexible dihedrals.")
         if n_missing == 0:
-            job.logging.info("All scan data is available. Fitting the dihedrals...\n")
+            job.logger.info("All scan data is available. Fitting the dihedrals...\n")
         else:
-            job.logging.info(f"{n_missing} of them are missing the scan data.")
+            job.logger.info(f"{n_missing} of them are missing the scan data.")
             if n_generated > 0:
                 job.logger.info(f"{n_generated} of them generated previously (Batch run enabled).")
             if n_missing - n_generated > 0:
