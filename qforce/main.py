@@ -31,7 +31,7 @@ def runjob(config, job, ext_q=None, ext_lj=None):
         fragments = fragment(mol, qm, job, config)
 
     # hessian fitting
-    md_hessian = fit_hessian(config.terms, mol, qm_hessian_out)
+    md_hessian = fit_hessian(job.logger, config.terms, mol, qm_hessian_out)
 
     # do the scans
     if fragments is not None:
@@ -41,7 +41,7 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     ff = ForceField(job.name, config, mol, mol.topo.neighbors)
     ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
 
-    print_outcome(job.dir)
+    print_outcome(job.logger, job.dir)
 
 
 def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
@@ -59,21 +59,21 @@ def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
 
     mol = Molecule(config, job, qm_hessian_out, ext_q, ext_lj)
 
-    md_hessian = fit_hessian(config.terms, mol, qm_hessian_out)
+    md_hessian = fit_hessian(job.logger, config.terms, mol, qm_hessian_out)
     calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
 
     ff = ForceField(job.name, config, mol, mol.topo.neighbors)
     ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
 
-    print_outcome(job.dir)
+    print_outcome(job.logger, job.dir)
 
     return mol.terms
 
 
-def print_outcome(job_dir):
-    print(f'Output files can be found in the directory: {job_dir}.')
-    print('- Q-Force force field parameters in GROMACS format (gas.gro, gas.itp, gas.top).')
-    print('- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,'
-          ' frequencies.pdf).')
-    print('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
-    print('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.')
+def print_outcome(logger, job_dir):
+    logger.info(f'Output files can be found in the directory: {job_dir}.')
+    logger.info('- Q-Force force field parameters in GROMACS format (gas.gro, gas.itp, gas.top).')
+    logger.info('- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,'
+                ' frequencies.pdf).')
+    logger.info('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
+    logger.info('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.')
