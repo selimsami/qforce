@@ -2,16 +2,16 @@ import scipy.optimize as optimize
 import numpy as np
 
 
-def fit_hessian(config, mol, qm):
+def fit_hessian(logger, config, mol, qm):
     hessian, full_md_hessian_1d = [], []
     non_fit = []
     qm_hessian = np.copy(qm.hessian)
 
-    print("Calculating the MD hessian matrix elements...")
+    logger.info("Calculating the MD hessian matrix elements...")
     full_md_hessian = calc_hessian(qm.coords, mol)
 
     count = 0
-    print("Fitting the MD hessian parameters to QM hessian values")
+    logger.info("Fitting the MD hessian parameters to QM hessian values")
     for i in range(mol.topo.n_atoms*3):
         for j in range(i+1):
             hes = (full_md_hessian[i, j] + full_md_hessian[j, i]) / 2
@@ -27,7 +27,7 @@ def fit_hessian(config, mol, qm):
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
     fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
-    print("Done!\n")
+    logger.info("Done!\n")
 
     for term in mol.terms:
         if term.idx < len(fit):
