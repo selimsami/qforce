@@ -9,7 +9,7 @@ from pathlib import Path
 #
 from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
 from .forces import get_dihed
-from .qm.qm_base import Calculation, CalculationIncompleteError
+from calkeeper import CalculationIncompleteError
 
 """
 
@@ -64,24 +64,22 @@ def reset_data_files(frag_dir):
 def check_and_notify(job, config, n_unique, n_have, n_generated):
     n_missing = n_unique - n_have
     if n_unique == 0:
-        print('There are no flexible dihedrals.')
+        job.logger.info('There are no flexible dihedrals.')
     else:
-        print(f"There are {n_unique} unique flexible dihedrals.")
+        job.logger.info(f"There are {n_unique} unique flexible dihedrals.")
         if n_missing == 0:
-            print("All scan data is available. Fitting the dihedrals...\n")
+            job.logging.info("All scan data is available. Fitting the dihedrals...\n")
         else:
-            print(f"{n_missing} of them are missing the scan data.")
+            job.logging.info(f"{n_missing} of them are missing the scan data.")
             if n_generated > 0:
-                print(
-                    f"{n_generated} of them generated previously (Batch run enabled).")
+                job.logger.info(f"{n_generated} of them generated previously (Batch run enabled).")
             if n_missing - n_generated > 0:
-                print(f"QM input files for them are created in: {job.frag_dir}")
+                job.logger.info(f"QM input files for them are created in: {job.frag_dir}")
 
             if config.avail_only:
-                print('Continuing without the missing dihedrals...\n')
+                job.logger.info('Continuing without the missing dihedrals...\n')
             else:
-                print('Exiting...\n')
-                raise CalculationIncompleteError
+                job.logger.exit('Exiting...')
 
 
 class Fragment:
@@ -132,12 +130,12 @@ class Fragment:
         os.makedirs(self.folder, exist_ok=True)
         software = qm.get_scan_software()
         if scanner == 'torsiondrive':
-            self.calc = Calculation(f'{self.id}_torsiondrive.inp',
-                                    software.required_scan_torsiondrive_files,
-                                    folder=self.folder, software='torsiondrive')
+            self.calc = job.Calculation(f'{self.id}_torsiondrive.inp',
+                                        software.required_scan_torsiondrive_files,
+                                        folder=self.folder, software='torsiondrive')
         elif scanner == 'relaxed_scan':
-            self.calc = Calculation(f'{self.id}.inp', software.required_scan_files,
-                                    folder=self.folder, software=software.name)
+            self.calc = job.Calculation(f'{self.id}.inp', software.required_scan_files,
+                                        folder=self.folder, software=software.name)
         else:
             raise ValueError("scanner can only be 'torsiondrive' or 'relaxed_scan'")
         self.check_for_qm_data(job, config, mol, qm)
@@ -327,8 +325,8 @@ class Fragment:
             #
             if qm_out.mismatch:
                 if config.avail_only:
-                    print('"\navail_only" requested, attempting to continue with the missing '
-                          'points...\n\n')
+                    job.logger.info('"\navail_only" requested, attempting to continue with '
+                                    'the missing points...\n\n')
                 else:
                     raise SystemExit('Exiting...\n\n')
             else:
