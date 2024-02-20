@@ -20,7 +20,6 @@ from .forcefield import ForceField
 from .calculator import QForce
 from .forces import get_dihed, get_dist
 
-from pprint import pprint
 from typing import List, Tuple
 
 """
@@ -259,8 +258,6 @@ batch_run = False :: bool
         ff = ForceField(self.job_name, all_config, frag, frag.neighbors,
                         exclude_all=frag.remove_non_bonded)
 
-        pprint(frag.fit_terms)
-
         for i, coord in enumerate(frag.coords):
             step_dir = f"{scan_dir}/step{i:02d}"
             make_scan_dir(step_dir)
@@ -279,9 +276,9 @@ batch_run = False :: bool
             self.calc_fit_angles(frag, coords)
             frag.coords[i] = coords
         
-        for i, term in enumerate(frag.fit_terms):
-            print(f"Angle series (original, rad) {i}: {term['angles']}")
-            print(f"Angle series (deg) {i}: {np.degrees(term['angles'])}")
+        # for i, term in enumerate(frag.fit_terms):
+        #     print(f"Angle series (original, rad) {i}: {term['angles']}")
+        #     print(f"Angle series (deg) {i}: {np.degrees(term['angles'])}")
 
         return np.array(md_energies)
     
@@ -292,7 +289,7 @@ batch_run = False :: bool
             all_config,
             frag,
             frag.neighbors,
-            exclude_all=frag.remove_non_bonded
+            exclude_all=frag.remove_non_bonded,
         )
 
         # QM angles
@@ -303,9 +300,7 @@ batch_run = False :: bool
         last_qm_angle = first_qm_angle + ((360/step_size)-1)*step_size
         wraparound = first_qm_angle+180
 
-        # Managing angles
-        #angle_series = []
-
+        # Managing MM angles
         for term in frag.fit_terms:
             angles = []
             for coord in frag.coords:
@@ -313,35 +308,6 @@ batch_run = False :: bool
                 angles.append(angle)
             
             term['angles'] = angles
-            pprint(term)
-
-        
-            
-        #     coord = frag.coords[0]
-        #     first_angle = get_dihed(coord[term['atomids']])[0]
-        #     first_angles.append(first_angle)
-
-        # for term in frag.fit_terms:
-        #     coord = frag.coords[0]
-        #     first_angle = get_dihed(coord[term['atomids']])[0]
-        #     first_angles.append(first_angle)
-
-        # pprint(frag.fit_terms)
-
-        # print("First angles (rad): ", first_angles)
-        # print("First angles (deg):", np.degrees(first_angles))
-    
-        # ref_angle, *other_angles = first_angles
-        
-        # ref_serie, other_series = calculate_angle_series(ref_angle, other_angles, step_size, rad=True,)
-
-        # angle_series = [ list(ref_serie) ] + [ serie.tolist() for serie in other_series ]
-
-        # for i, term in enumerate(frag.fit_terms):
-        #     term['angles'] = angle_series[i]
-
-        # for i, term in enumerate(frag.fit_terms):
-        #     print(f"Angle series {i}: {np.degrees(term['angles'])}")
 
         run_dir = f"{scan_dir}/abf_run_{n_run}"
         make_scan_dir(run_dir)
@@ -528,57 +494,6 @@ Argon          3
                                                 'end': get_periodic_angle(angles[i+1]),
                                                 'direct': direct[i] == '+'})
         return sym_dict
-# fmt: on
-def calculate_angle_series(
-    start_angle: float,
-    other_angles: List[float],
-    step: int,
-    rad: bool = False,
-) -> Tuple[np.ndarray, List[np.ndarray]]:
-    """
-    Generate a series of angles based on the provided start angle, a list of other angles, and step.
-
-    :param start_angle: The starting angle for calculation.
-    :param other_angles: A list of other angles to calculate the differences.
-    :param step: The step size.
-    :param rad: Boolean indicating if angles are in radians.
-    :return: A list containing the first series and a list of other series.
-    """
-
-    if rad:
-        start_angle = np.degrees(start_angle)
-
-    # Function to wrap angle between -180 and 180
-    def wrap_angle(angle: float) -> float:
-        angle = angle % 360
-        if angle > 180:
-            angle -= 360
-        return angle
-
-    # Generate first series from -180 to +180
-    series1 = np.array(range(-180, 180, int(step)))
-
-    other_series = []
-    for other_angle in other_angles:
-        if rad:
-            other_angle = np.degrees(other_angle)
-
-        # Calculate the difference and wrap it
-        angle_difference = wrap_angle(other_angle - start_angle)
-
-        # Generate series starting from angle_difference
-        series = np.array([wrap_angle(angle_difference - 180 + i * step) for i in range(len(series1))])
-        if rad:
-            series = np.radians(series)
-        other_series.append(series)
-
-    if rad:
-        series1 = np.radians(series1)
-
-    return series1, other_series
-
-
-# fmt: off
 
 def wrap_angle(angle: float) -> float:
     angle = angle % 360
@@ -695,13 +610,10 @@ def calc_multi_rb_matrix(fragments, all_dih_terms, n_total_scans):
     matrix = np.zeros((n_total_scans, n_terms))
     for frag in fragments:
         n_scans = len(frag.qm_angles)
-        print("Number of scans: ", n_scans)
 
         for term in frag.fit_terms:
             term_idx = all_dih_terms.index(term['name'])
-            print("Scan sum: ", scan_sum)
-            print("term_idx: ", term_idx)
-            #print("calc_rb: ", calc_rb(term['angles']))
+
             matrix[scan_sum:scan_sum+n_scans,
                    term_idx*6:(term_idx*6)+6] += calc_rb(term['angles'])
         scan_sum += n_scans

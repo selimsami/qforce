@@ -1,0 +1,53 @@
+; MDP file
+
+; Run parameters
+integrator              = md                ; leap-frog integrator
+nsteps                  = 10000000          ; 10'000'000 = 3 ns
+dt                      = 0.0001            ; in ps (0.001 = 1 fs)
+nstcomm                 = 1                 ; freq. for cm-motion removal
+ld_seed                 = -1
+
+; Bond constraints
+continuation            = no                ; continue from npt equilibration
+constraints             = none              ; constrain hydrogen bond lengths
+constraint_algorithm    = lincs             ; default
+lincs_order             = 4                 ; default
+
+; X/V/F/E outputs
+nstxout                 = 50000            ; pos out   ---  1000  ps
+nstvout                 = 50000            ; vel out   ---  1000  ps
+nstfout                 = 0                 ; force out ---  no
+nstlog                  = 50000             ; energies to log (20 ps)
+nstenergy               = 50000               ; energies to energy file
+nstxout-compressed      = 500               ; xtc, 1 ps
+compressed-x-precision  = 100000
+
+; Neighbour list
+cutoff-scheme           = Verlet            ;
+ns_type                 = grid              ; neighlist type
+nstlist                 = 20                ; Freq. to update neighbour list
+rlist                   = 1.2               ; nm (cutoff for short-range NL)
+
+; Coulomb interactions
+coulombtype             = Cut-off
+rcoulomb                = 1.1                ; nm (direct space sum cut-off)
+;optimize_fft            = yes               ; optimal FFT plan for the grid
+
+; van der Waals interactions
+vdwtype                 = Cut-off           ; Van der Waals interactions
+rvdw                    = 1.1               ; nm (LJ cut-off)
+DispCorr                = No                ; use dispersion correction
+
+; Energy monitoring
+energygrps              = System
+
+; Temperature coupling is on
+tcoupl                  = V-rescale         ; modified Berendsen thermostat
+tc-grps                 = MOL  Argon        ; two coupling groups - more accurate
+tau_t                   = 1.0   1.0         ; time constant, in ps
+ref_t                   = 273   273         ; reference temperature, one for each group, in K
+
+; Periodic boundary conditions
+pbc                     = xyz               ; 3-D PBC
+; Velocity generation
+gen_vel                 = yes
