@@ -1,3 +1,4 @@
+# fmt: off
 import subprocess
 import os
 import shutil
@@ -18,6 +19,8 @@ from colt import Colt
 from .forcefield import ForceField
 from .calculator import QForce
 from .forces import get_dihed, get_dist
+
+from typing import List, Tuple
 
 """
 
@@ -46,7 +49,7 @@ conj_bo_cutoff = 1.4 :: float
 break_co_bond = no :: bool
 
 # Method for doing the MM relaxed dihedral scan
-method = qforce :: str :: [qforce, gromacs]
+method = qforce :: str :: [qforce, gromacs, abf]
 
 # The executable for gromacs - necessary if scan method is gromacs
 gromacs_exec = gmx :: str
@@ -71,6 +74,7 @@ batch_run = False :: bool
 """
 
     def __init__(self, fragments, mol, job, all_config):
+        self.job = job
         self.frag_dir = job.frag_dir
         self.job_name = job.name
         self.mdp_file = f'{job.md_data}/default.mdp'
@@ -78,6 +82,8 @@ batch_run = False :: bool
         self.symmetrize = self._set_symmetrize()
         self.scan = getattr(self, f'scan_dihed_{self.config.method.lower()}')
         self.move_capping_atoms(fragments)
+
+        print(f"---------- Scanning with {self.config.method.lower()} ----------")
 
         fragments, all_dih_terms, weights = self.arrange_data(mol, fragments)
         final_energy, params = self.scan_dihedrals(fragments, mol, all_config, all_dih_terms,
@@ -163,17 +169,24 @@ batch_run = False :: bool
             print('         Please check manually to see if you find the accuracy satisfactory.\n')
 
     def scan_dihedrals(self, fragments, mol, all_config, all_dih_terms, weights):
+        removedir = []
+
         for n_run in range(self.config.n_dihed_scans):
             energy_diffs, md_energies = [], []
+
             for n_fit, frag in enumerate(fragments, start=1):
                 print(f'Run {n_run+1}/{self.config.n_dihed_scans}, fitting dihedral '
                       f'{n_fit}/{len(fragments)}: {frag.id}')
 
                 scan_dir = f'{self.frag_dir}/{frag.id}'
-                make_scan_dir(scan_dir)
+
+                if frag.id not in removedir:
+                    make_scan_dir(scan_dir)
+                    removedir.append(frag.id)
 
                 for term in frag.fit_terms:
                     term['angles'] = []
+
 
                 md_energy = self.scan(all_config, frag, scan_dir, mol, n_run)
                 md_energy -= md_energy.min()
@@ -262,7 +275,106 @@ batch_run = False :: bool
             coords = read(f'{step_dir}/geom.gro').get_positions()
             self.calc_fit_angles(frag, coords)
             frag.coords[i] = coords
+        
+        # for i, term in enumerate(frag.fit_terms):
+        #     print(f"Angle series (original, rad) {i}: {term['angles']}")
+        #     print(f"Angle series (deg) {i}: {np.degrees(term['angles'])}")
+
         return np.array(md_energies)
+    
+# fmt: on
+    def scan_dihed_abf(self, all_config, frag, scan_dir, mol, n_run):
+        ff = ForceField(
+            self.job_name,
+            all_config,
+            frag,
+            frag.neighbors,
+            exclude_all=frag.remove_non_bonded,
+        )
+
+        # QM angles
+        step_size = all_config.qm.scan_step_size
+        first_qm_coord = frag.coords[0]
+        qm_term = frag.fit_terms[0] # term containing atom indices of the "main" scanned dihedral
+        first_qm_angle = np.degrees(get_dihed(first_qm_coord[qm_term['atomids']])[0])
+        last_qm_angle = first_qm_angle + ((360/step_size)-1)*step_size
+        wraparound = first_qm_angle+180
+
+        # Managing MM angles
+        for term in frag.fit_terms:
+            angles = []
+            for coord in frag.coords:
+                angle = get_dihed(coord[term['atomids']])[0]
+                angles.append(angle)
+            
+            term['angles'] = angles
+
+        run_dir = f"{scan_dir}/abf_run_{n_run}"
+        make_scan_dir(run_dir)
+
+        ff.write_gromacs(run_dir, frag, frag.coords[0], abf=True)
+        shutil.copy2(f'{self.job.md_data}/default_md.mdp', run_dir)
+
+        index1, index2, index3, index4 = frag.scanned_atomids
+        
+
+        colvar_string = f"""colvar {{
+  name phi
+  width {step_size}
+  lowerBoundary {first_qm_angle}
+  upperBoundary {last_qm_angle}
+  # H C C H
+  dihedral {{
+    wraparound {wraparound}
+    group1 {{ atomNumbers {index1+1}}}
+    group2 {{ atomNumbers {index2+1}}}
+    group3 {{ atomNumbers {index3+1}}}
+    group4 {{ atomNumbers {index4+1}}}
+  }}
+  extendedLagrangian on
+  extendedFluctuation 0.3
+}}
+abf {{
+ colvars phi
+ fullSamples 200
+}}"""
+        with open(f"{run_dir}/colvars.dat", "w") as colvarsfile:
+            colvarsfile.write(colvar_string)
+
+        # create argon single atom pdb file on the fly
+        with open(f"{run_dir}/argon.pdb", "w") as argon_pdb_file:
+            argon_pdb_file.write("HETATM    1 Ar   UNL     1       0.000   0.000   0.000  1.00  0.00          Ar")
+
+        argon_itp_string = '''
+[ moleculetype ]
+; Name            nrexcl
+Argon          3
+
+[ atoms ]
+;   nr       type  resnr residue  atom   cgnr    charge       mass  typeB    chargeB      massB
+; residue    1 RES rtp RES q 0.0
+    1   opls_097      1    Argon      Ar      1  0.00000000  39.948000   ; qtot  0.000000
+'''
+        with open(f"{run_dir}/argon.itp", "w") as argon_itp_file:
+            argon_itp_file.write(argon_itp_string)
+
+        gromacs_exec = all_config.scan.gromacs_exec
+
+        # create sample with gromacs insert
+        insert = subprocess.Popen([gromacs_exec, 'insert-molecules', '-f', 'gas.gro', '-ci', 'argon.pdb', '-nmol', '40', '-o', 'system.gro'],
+                                 cwd=run_dir, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+        insert.wait()
+        # run!
+        run_gromacs(run_dir, all_config.scan.gromacs_exec, ff.polar_title, abf = True)
+
+        energy = np.genfromtxt(f"{run_dir}/em.pmf", comments='#', usecols=1)
+
+        return energy
+    
+
+
+# fmt: off
 
     @staticmethod
     def calc_fit_angles(frag, coords):
@@ -383,6 +495,11 @@ batch_run = False :: bool
                                                 'direct': direct[i] == '+'})
         return sym_dict
 
+def wrap_angle(angle: float) -> float:
+    angle = angle % 360
+    if angle > 180:
+        angle -= 360
+    return angle
 
 def get_periodic_angle(angle):
     if angle > 360:
@@ -393,6 +510,8 @@ def get_periodic_angle(angle):
 
 
 def get_periodic_angles(angles):
+    if isinstance(angles, list):
+        angles = np.array(angles)
     angles[angles > 360] -= 360
     angles[angles < 0] += 360
     return angles
@@ -419,10 +538,18 @@ def make_scan_dir(scan_name):
     os.makedirs(scan_name)
 
 
-def run_gromacs(directory, gromacs_exec, polar_title):
+def run_gromacs(directory, gromacs_exec, polar_title, abf=False):
+    if abf:
+        mdp_file = 'default_md.mdp'
+        structure_file = 'system.gro'
+        colvars = ['-colvars', 'colvars.dat']
+    else:
+        mdp_file = 'default.mdp'
+        structure_file = f'gas{polar_title}.gro'
+        colvars = []
     attempt, returncode = 0, 1
-    grompp = subprocess.Popen([gromacs_exec, 'grompp', '-f', 'default.mdp', '-p',
-                               f'gas{polar_title}.top', '-c', f'gas{polar_title}.gro', '-o',
+    grompp = subprocess.Popen([gromacs_exec, 'grompp', '-f', mdp_file, '-p',
+                               f'gas{polar_title}.top', '-c', structure_file, '-o',
                                'em.tpr', '-po', 'em.mdp', '-maxwarn', '10'],
                               cwd=directory, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT)
@@ -430,7 +557,7 @@ def run_gromacs(directory, gromacs_exec, polar_title):
 
     while returncode != 0 and attempt < 5:
         check_gromacs_termination(grompp)
-        mdrun = subprocess.Popen([gromacs_exec, 'mdrun', '-deffnm', 'em'],
+        mdrun = subprocess.Popen([gromacs_exec, 'mdrun', '-nt', '1', '-deffnm', 'em', *colvars],
                                  cwd=directory, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT)
         mdrun.wait()
@@ -483,8 +610,10 @@ def calc_multi_rb_matrix(fragments, all_dih_terms, n_total_scans):
     matrix = np.zeros((n_total_scans, n_terms))
     for frag in fragments:
         n_scans = len(frag.qm_angles)
+
         for term in frag.fit_terms:
             term_idx = all_dih_terms.index(term['name'])
+
             matrix[scan_sum:scan_sum+n_scans,
                    term_idx*6:(term_idx*6)+6] += calc_rb(term['angles'])
         scan_sum += n_scans
@@ -507,3 +636,4 @@ def calc_rb_pot(params, angles):
     for i in range(1, 6):
         rb += params[i]*np.cos(np.array(angles)-np.pi)**i
     return rb
+# fmt: on
