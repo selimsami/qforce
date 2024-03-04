@@ -1,8 +1,6 @@
 """Basic Logging for QForce"""
 import sys
-from functools import partial
 from datetime import datetime
-from contextlib import contextmanager
 from io import StringIO
 
 
@@ -44,7 +42,7 @@ class Timer:
         self._start = datetime.now()
         return self._startmsg()
 
-    def stop(self):            
+    def stop(self):
         """Stop the timer, returns the stop msg as a string"""
         self._stop = datetime.now()
         return self._stopmsg()
@@ -64,7 +62,8 @@ class Timer:
 
     def _stopmsg(self):
         msg = '' if self.start_msg is None else self.start_msg
-        return f"""{self.name}: Ended at {self.logger.formatdatetime(self._start)} after {self._timedelta()}\n{msg}\n"""
+        return (f"{self.name}: Ended at {self.logger.formatdatetime(self._start)} "
+                f"after {self._timedelta()}\n{msg}\n")
 
 
 class QForceLogger:
@@ -123,4 +122,3 @@ class QForceLogger:
     @staticmethod
     def formatdatetime(time):
         return time.strftime('%Y-%m-%d %H:%M:%S')
-
