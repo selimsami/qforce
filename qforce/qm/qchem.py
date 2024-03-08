@@ -51,6 +51,7 @@ class QChem(QMInterface):
     _method = ['method', 'dispersion', 'basis', 'cis_n_roots', 'cis_singlets', 'cis_triplets',
                'cis_state_deriv', 'solvent_method']
     name = 'qchem'
+    fileending = 'in'
     has_torsiondrive = False
 
     def __init__(self, config):
