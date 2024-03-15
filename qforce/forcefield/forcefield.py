@@ -24,10 +24,10 @@ class ForceField():
         self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
         self.pairs = self.make_pairs(neighbors, mol.non_bonded)
 
-        if self.polar:
-            self.polar_title = '_polar'
-        else:
-            self.polar_title = ''
+        if config.ff.output_software == 'gromacs':
+            self.write_ff = self.write_gromacs
+        elif config.ff.output_software == 'openmm':
+            self.write_ff = self.write_openmm
 
     def write_gromacs(self, directory, mol, coords):
         self.write_itp(mol, directory)
@@ -128,7 +128,8 @@ class ForceField():
             itp.write(";   name  at_num     mass   charge  type        sigma      epsilon\n")
 
         for lj_type, lj_params in gro_atomtypes.items():
-            itp.write(f'{lj_type:>8} {non_bonded.lj_atomic_number[lj_type]:>7} {0:>8.4f} {0:>8.4f} {"A":>5} ')
+            itp.write(
+                f'{lj_type:>8} {non_bonded.lj_atomic_number[lj_type]:>7} {0:>8.4f} {0:>8.4f} {"A":>5} ')
             itp.write(f'{lj_params[0]:>12.5e} {lj_params[1]:>12.5e}\n')
 
         if self.polar:
@@ -200,12 +201,12 @@ class ForceField():
 
     def write_itp_bonds(self, itp, terms, alpha_map):
         itp.write("\n[ bonds ]\n")
-        itp.write(";   ai     aj      f         r0     k_bond\n")
+        itp.write(";   ai     aj      f           r0     k_bond\n")
         for bond in terms['bond']:
             ids = bond.atomids + 1
             equ = bond.equ * 0.1
             fconst = bond.fconst * 100
-            itp.write(f'{ids[0]:>6} {ids[1]:>6} {1:>6} {equ:>10.5f} {fconst:>10.0f}\n')
+            itp.write(f'{ids[0]:>6} {ids[1]:>6} {1:>6} {equ:>12.7f} {fconst:>10.0f}\n')
 
         if self.polar:
             itp.write(';   ai     aj      f - polar connections\n')
@@ -219,9 +220,9 @@ class ForceField():
 
     def write_itp_angles(self, itp, terms):
         itp.write("\n[ angles ]\n")
-        itp.write(";   ai     aj     ak      f     theta0    k_theta")
+        itp.write(";   ai     aj     ak      f       theta0      k_theta")
         if self.urey:
-            itp.write('         r0     k_bond')
+            itp.write('           r0       k_bond')
         itp.write('\n')
 
         for angle in terms['angle']:
@@ -233,43 +234,83 @@ class ForceField():
                 urey = [term for term in terms['urey'] if np.array_equal(term.atomids,
                                                                          angle.atomids)]
             if not self.urey or len(urey) == 0:
-                itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {1:>6} {equ:>10.3f} '
-                          f'{fconst:>10.3f}\n')
+                itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {1:>6} {equ:>12.5f} '
+                          f'{fconst:>12.5f}\n')
             else:
                 urey_equ = urey[0].equ * 0.1
                 urey_fconst = urey[0].fconst * 100
-                itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {5:>6} {equ:>10.3f} '
-                          f'{fconst:>10.3f} {urey_equ:>10.5f} {urey_fconst:>10.1f}\n')
+                itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {5:>6} {equ:>12.5f} '
+                          f'{fconst:>12.5f} {urey_equ:>12.7f} {urey_fconst:>12.3f}\n')
+
+        if 'cross_bond_bond' in terms:
+            if len(terms['cross_bond_bond']) > 0:
+
+                itp.write(
+                    "\n;   ai     aj     ak      f         r0_1         r0_2    k_cross  - bond-bond coupling\n")
+            for cross_bb in terms['cross_bond_bond']:
+                ids = cross_bb.atomids + 1
+                equ1, equ2 = cross_bb.equ * 0.1
+                fconst = - cross_bb.fconst * 100
+
+                itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {3:>6} {equ1:>12.7f} {equ2:>12.7f} '
+                          f'{fconst:>10.1f} \n')
+
+            print('bond-bond', len(terms['cross_bond_bond']))
+            for term in terms['cross_bond_bond']:
+                print(term.atomids+1, term.equ, -term.fconst)
+
+        if '_cross_bond_angle' in terms:
+            print('bond-angle', len(terms['_cross_bond_angle']))
+            for term in terms['_cross_bond_angle']:
+                print(term.atomids+1, np.degrees(term.equ[0]), term.equ[1], -term.fconst)
+
+        if '_cross_angle_angle' in terms:
+            print('angle-angle', len(terms['_cross_angle_angle']))
+            for term in terms['_cross_angle_angle']:
+                print(term.atomids+1, np.degrees(term.equ[0]),
+                      np.degrees(term.equ[1]), -term.fconst)
+
+        if '_cross_dihed_angle' in terms:
+            print('dihed-angle', len(terms['_cross_dihed_angle']))
+            for term in terms['_cross_dihed_angle']:
+                print(term.atomids+1, np.degrees(term.equ[0]),
+                      np.degrees(term.equ[1]), -term.fconst)
+
+        if '_cross_dihed_bond' in terms:
+            print('dihed-bond', len(terms['_cross_dihed_bond']))
+            for term in terms['_cross_dihed_bond']:
+                print(term.atomids+1, np.degrees(term.equ[0]),
+                      term.equ[1], -term.fconst)
 
     def write_itp_dihedrals(self, itp, terms):
         if len(terms['dihedral']) > 0:
             itp.write("\n[ dihedrals ]\n")
 
         # rigid dihedrals
-        if len(terms['dihedral/rigid']) > 0:
+        if 'dihedral/rigid' in terms and len(terms['dihedral/rigid']) > 0:
             itp.write("; rigid dihedrals \n")
             itp.write(";   ai     aj     ak     al      f      theta0       k_theta\n")
 
-        for dihed in terms['dihedral/rigid']:
-            ids = dihed.atomids + 1
-            equ = np.degrees(dihed.equ)
-            fconst = dihed.fconst
+            for dihed in terms['dihedral/rigid']:
+                ids = dihed.atomids + 1
+                equ = np.degrees(dihed.equ)
+                fconst = dihed.fconst
 
-            itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {ids[3]:>6} {2:>6} {equ:>11.3f} ')
-            itp.write(f'{fconst:>13.3f}\n')
+                itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {ids[3]:>6} {2:>6} {equ:>11.3f} ')
+                itp.write(f'{fconst:>13.3f}\n')
 
         # improper dihedrals
-        if len(terms['dihedral/improper']) > 0:
+        if 'dihedral/improper' in terms and len(terms['dihedral/improper']) > 0:
             itp.write("; improper dihedrals \n")
             itp.write(";   ai     aj     ak     al      f      theta0       k_theta\n")
 
-        for dihed in terms['dihedral/improper']:
-            ids = dihed.atomids + 1
-            equ = np.degrees(dihed.equ)
-            fconst = dihed.fconst
+            for dihed in terms['dihedral/improper']:
+                ids = dihed.atomids + 1
+                equ = np.degrees(dihed.equ)
+                fconst = dihed.fconst
 
-            itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {ids[3]:>6} {2:>6} {equ:>11.3f} ')
-            itp.write(f'{fconst:>13.3f}\n')
+                itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {ids[3]:>6} {2:>6} {equ:>11.3f} ')
+                itp.write(f'{fconst:>13.3f}\n')
 
         # flexible dihedrals
         if len(terms['dihedral/flexible']) > 0:
@@ -285,15 +326,15 @@ class ForceField():
             itp.write(f'{c[1]:>11.3f} {c[2]:>11.3f} {c[3]:>11.3f} {c[4]:>11.3f} {c[5]:>11.3f}\n')
 
         # inversion dihedrals
-        if len(terms['dihedral/inversion']) > 0:
+        if 'dihedral/inversion' in terms and len(terms['dihedral/inversion']) > 0:
             itp.write("; inversion dihedrals \n")
             itp.write(';   ai     aj     ak     al      f          c0          c1          c2\n')
 
-        for dihed in terms['dihedral/inversion']:
-            ids = dihed.atomids + 1
-            c0, c1, c2 = convert_to_inversion_rb(dihed.fconst, dihed.equ)
-            itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {ids[3]:>6} {3:>6}'
-                      f'{c0:>11.3f} {c1:>11.3f} {c2:>11.3f} {0:>11.1f} {0:>11.1f} {0:>11.1f}\n')
+            for dihed in terms['dihedral/inversion']:
+                ids = dihed.atomids + 1
+                c0, c1, c2 = convert_to_inversion_rb(dihed.fconst, dihed.equ)
+                itp.write(f'{ids[0]:>6} {ids[1]:>6} {ids[2]:>6} {ids[3]:>6} {3:>6}'
+                          f'{c0:>11.3f} {c1:>11.3f} {c2:>11.3f} {0:>11.1f} {0:>11.1f} {0:>11.1f}\n')
 
     def write_itp_exclusions(self, itp):
         if any(len(exclusion) > 0 for exclusion in self.exclusions):
