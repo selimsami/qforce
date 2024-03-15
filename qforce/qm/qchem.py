@@ -16,7 +16,7 @@ class QChem(Colt):
     method = PBE :: str
 
     # Dispersion (enter "no"/"false" to turn off)
-    dispersion = d3_bj :: str, optional :: [d3, d3_bj, d3_bjm, d3_zero, d3_op, empirical_grimme]
+    dispersion = d3_bj :: str, optional :: [d3, d3_bj, d3_bjm, d3_zero, d3_op, empirical_grimme, no, false]
 
     # QM basis set to be used (enter "no"/"false" to turn off)
     basis = 6-31+G(D) :: str, optional
@@ -28,8 +28,17 @@ class QChem(Colt):
     max_opt_cycles = 100 :: int
 
     # DFT Quadrature grid size
-    xc_grid = 3 :: int :: [0, 1, 2, 3]
+    xc_grid = 3
 
+    # SCF convergence criteria
+    scf_convergence = 8 :: int
+    
+    # Basis set linear dependence threshold
+    basis_lin_dep_thresh = :: int, optional
+    
+    # Threshold for two electron integrals
+    thresh = :: int, optional
+    
     # Number of CIS roots to ask
     cis_n_roots = :: int, optional
 
@@ -132,7 +141,7 @@ class ReadQChem(ReadABC):
 class WriteQChem(WriteABC):
     hess_opt_rem = {'jobtype': 'opt'}
     hess_freq_rem = {'jobtype': 'freq', 'cm5': 'true', 'resp_charges': 'true', 'nbo': 2,
-                     'iqmol_fchk': 'true'}
+                     'iqmol_fchk': 'true', 'vibman_print': 6, 'molden_format': 'true'}
     scan_rem = {'jobtype': 'pes_scan', 'cm5': 'true', 'resp_charges': 'true'}
 
     def hessian(self, file, job_name, config, coords, atnums):
@@ -202,6 +211,20 @@ class WriteQChem(WriteABC):
             file.write(f'  dft_d = {config.dispersion}\n')
         if config.solvent_method is not None:
             file.write(f'  solvent_method = {config.solvent_method}\n')
+
+        for key, val in job_rem.items():
+            file.write(f'  {key} = {val}\n')
+
+        file.write(f'  mem_total = {config.memory}\n')
+        file.write(f'  geom_opt_max_cycles = {config.max_opt_cycles}\n')
+        file.write(f'  max_scf_cycles = {config.max_scf_cycles}\n')
+        file.write(f'  xc_grid = {config.xc_grid}\n')
+        file.write(f'  scf_convergence = {config.scf_convergence}\n')
+
+        if config.basis_lin_dep_thresh is not None:
+            file.write(f'  basis_lin_dep_thresh = {config.basis_lin_dep_thresh}\n')
+        if config.thresh is not None:
+            file.write(f'  thresh = {config.thresh}\n')
         if config.cis_n_roots is not None:
             file.write(f'  cis_n_roots = {config.cis_n_roots}\n')
         if config.cis_singlets is not None:
@@ -210,10 +233,5 @@ class WriteQChem(WriteABC):
             file.write(f'  cis_triplets = {config.cis_triplets}\n')
         if config.cis_state_deriv is not None:
             file.write(f'  cis_state_deriv = {config.cis_state_deriv}\n')
-        for key, val in job_rem.items():
-            file.write(f'  {key} = {val}\n')
-        file.write(f'  mem_total = {config.memory}\n')
-        file.write(f'  geom_opt_max_cycles = {config.max_opt_cycles}\n')
-        file.write(f'  max_scf_cycles = {config.max_scf_cycles}\n')
-        file.write(f'  xc_grid = {config.xc_grid}\n')
+
         file.write('$end\n')

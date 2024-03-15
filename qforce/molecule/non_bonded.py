@@ -87,7 +87,7 @@ class NonBonded():
         rev_map = {v: k for k, v in mapping.items()}
         h_cap = non_bonded.h_cap
 
-        if frag_charges != []:
+        if list(frag_charges) != []:
             q = frag_charges
         else:
             q = np.array([non_bonded.q[rev_map[i]] for i in range(n_atoms)])

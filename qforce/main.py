@@ -2,7 +2,7 @@ from .polarize import polarize
 from .initialize import initialize
 from .qm.qm import QM
 from .qm.qm_base import HessianOutput
-from .forcefield import ForceField
+from qforce.forcefield.forcefield import ForceField
 from .molecule import Molecule
 from .fragment import fragment
 from .dihedral_scan import DihedralScan
@@ -55,10 +55,10 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
         DihedralScan(fragments, mol, job, config)
 
     calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
-    ff = ForceField(job.name, config, mol, mol.topo.neighbors)
-    ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
+    ff = ForceField(config.ff.output_software, job.name, config, mol, mol.topo.neighbors)
+    ff.software.write(job.dir, qm_hessian_out.coords)
 
-    print_outcome(job.dir)
+    print_outcome(job.dir, config.ff.output_software)
 
 
 def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
@@ -72,18 +72,18 @@ def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
     md_hessian = fit_hessian(config.terms, mol, qm_hessian_out)
     calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
 
-    ff = ForceField(job.name, config, mol, mol.topo.neighbors)
-    ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
+    ff = ForceField(config.ff.output_software, job.name, config, mol, mol.topo.neighbors)
+    ff.software.write(job.dir, qm_hessian_out.coords)
 
-    print_outcome(job.dir)
+    print_outcome(job.dir, config.ff.output_software)
 
     return mol.terms
 
 
-def print_outcome(job_dir):
+def print_outcome(job_dir, output_software):
     print(f'Output files can be found in the directory: {job_dir}.')
-    print('- Q-Force force field parameters in GROMACS format (gas.gro, gas.itp, gas.top).')
+    print(f'- Q-Force force field parameters in {output_software.upper()} format.')
     print('- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,'
           ' frequencies.pdf).')
     print('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
-    print('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.')
+    print('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.\n')

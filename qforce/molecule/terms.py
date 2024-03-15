@@ -3,7 +3,9 @@ from copy import deepcopy
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm, CrossBondAngleTerm)
+from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm,
+                                 CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm,
+                                 CrossDihedAngleTerm, CrossDihedBondTerm)
 from .non_bonded_terms import NonBondedTerms
 #
 from .base import MappingIterator
@@ -13,15 +15,21 @@ from .baseterms import TermFactory
 class Terms(MappingIterator):
 
     _term_factories = {
-            'bond': BondTerm,
-            'angle': AngleTerm,
-            'urey': UreyAngleTerm,
-            '_cross_bond_angle': CrossBondAngleTerm,
-            'dihedral': DihedralTerms,
-            'non_bonded': NonBondedTerms,
+        'bond': BondTerm,
+        'angle': AngleTerm,
+        'urey': UreyAngleTerm,
+        'cross_bond_bond': CrossBondBondTerm,
+        'cross_bond_angle': CrossBondAngleTerm,
+        'cross_angle_angle': CrossAngleAngleTerm,
+        '_cross_dihed_angle': CrossDihedAngleTerm,
+        '_cross_dihed_bond': CrossDihedBondTerm,
+        'dihedral': DihedralTerms,
+        'non_bonded': NonBondedTerms,
+
     }
     _always_on = ['bond', 'angle']
-    _default_off = ['_cross_bond_angle']
+    _default_off = ['cross_bond_bond', '_cross_bond_angle',
+                    '_cross_angle_angle', '_cross_dihed_angle', '_cross_dihed_bond']
 
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)

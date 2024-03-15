@@ -1,11 +1,11 @@
+from .elements import ATOMMASS, ATOM_SYM
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.linalg import eigh
 import seaborn as sns
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 #
-from .elements import ATOMMASS, ATOM_SYM
 
 
 def calc_qm_vs_md_frequencies(job, qm, md_hessian):
@@ -35,17 +35,19 @@ def calc_vibrational_frequencies(upper, qm):
     """
     Calculate the MD vibrational frequencies by diagonalizing its Hessian
     """
-    const_amu = 1.6605389210e-27
-    const_avogadro = 6.0221412900e+23
-    const_speedoflight = 299792.458
+    molar_mass_const = 0.00099999999965  # CODATA 2018, kg/mol
+    const_speedoflight = 299792458  # CODATA 2018, m/s
     kj2j = 1e3
     ang2meter = 1e-10
-    to_omega2 = kj2j/ang2meter**2/(const_avogadro*const_amu)  # 1/s**2
-    to_waveno = 1e-5/(2.0*np.pi*const_speedoflight)  # cm-1
+    m2cm = 1e-2
+
+    to_omega2 = kj2j/ang2meter**2/molar_mass_const  # 1/s**2
+    to_waveno = m2cm/(2.0*np.pi*const_speedoflight)  # cm-1
 
     matrix = np.zeros((3*qm.n_atoms, 3*qm.n_atoms))
-    count = 0
 
+    # convert to matrix
+    count = 0
     for i in range(3*qm.n_atoms):
         for j in range(i+1):
             mass_i = ATOMMASS[qm.elements[int(np.floor(i/3))]]
@@ -54,12 +56,19 @@ def calc_vibrational_frequencies(upper, qm):
             matrix[j, i] = matrix[i, j]
             count += 1
     val, vec = eigh(matrix)
-    vec = np.reshape(np.transpose(vec), (3*qm.n_atoms, qm.n_atoms, 3))[6:]
 
-    for i in range(qm.n_atoms):
-        vec[:, i, :] = vec[:, i, :] / np.sqrt(ATOMMASS[qm.elements[i]])
+    freq = np.sqrt(val.clip(min=0) * to_omega2) * to_waveno
 
-    freq = np.sqrt(val.clip(min=0)[6:] * to_omega2) * to_waveno
+    vec = np.reshape(np.transpose(vec), (3*qm.n_atoms, qm.n_atoms, 3))
+
+    # mass weight
+    masses = [ATOMMASS[qm.elements[i]] for i in range(qm.n_atoms)]
+    vec /= np.sqrt(masses)[np.newaxis, :, np.newaxis]
+
+    # normalize
+    #norm = (vec**2).sum(axis=(1, 2))**0.5
+    #vec /= norm[:, np.newaxis, np.newaxis]
+
     return freq, vec
 
 
@@ -80,20 +89,31 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, job):
     nmd_file = f"{job.dir}/frequencies.nmd"
     errors = []
 
+    if qm_freq[5] > 300:
+        transrot = 5
+    else:
+        transrot = 6
+    mask = np.arange(qm_freq.size) >= transrot
+
+    qm_freq = qm_freq[mask]
+    md_freq = md_freq[mask]
+    qm_vec = qm_vec[mask]
+    md_vec = md_vec[mask]
+
     with open(freq_file, "w") as f:
-        f.write(" mode  QM-Freq   MD-Freq     Diff.  %Error\n")
+        f.write(" mode    QM-Freq     MD-Freq       Diff.  %Error\n")
         for i, (q, m) in enumerate(zip(qm_freq, md_freq)):
             diff = q - m
             err = diff / q * 100
             if q > 100:
                 errors.append(err)
-            f.write(f"{i+7:>4}{q:>10.1f}{m:>10.1f}{diff:>10.1f}{err:>8.2f}\n")
+            f.write(f"{i+transrot+1:>4}{q:>12.3f}{m:>12.3f}{diff:>12.3f}{err:>8.2f}\n")
         f.write("\n\n         QM vectors              MD Vectors\n")
-        f.write(50*"=")
+        f.write(62*"=")
         for i, (qm1, md1) in enumerate(zip(qm_vec, md_vec)):
-            f.write(f"\nMode {i+7}\n")
+            f.write(f"\nMode {i+transrot+1}\n")
             for qm2, md2 in zip(qm1, md1):
-                f.write("{:>8.3f}{:>8.3f}{:>8.3f}{:>10.3f}{:>8.3f}{:>8.3f}\n".format(*qm2, *md2))
+                f.write("{:>10.5f}{:>10.5f}{:>10.5f}  {:>10.5f}{:>10.5f}{:>10.5f}\n".format(*qm2, *md2))
 
     mean_percent_error = np.abs(np.array(errors)).mean()
 

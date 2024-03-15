@@ -12,6 +12,14 @@ def fit_hessian(config, mol, qm):
 
     count = 0
     print("Fitting the MD hessian parameters to QM hessian values")
+
+    min_arr = np.full(mol.terms.n_fitted_terms, -np.inf)
+    max_arr = np.full(mol.terms.n_fitted_terms, np.inf)
+    bnd_ndx = np.unique([term.idx for term in mol.terms['bond']])
+    ang_ndx = np.unique([term.idx for term in mol.terms['angle']])
+    # min_arr[bnd_ndx] = 0
+    # min_arr[ang_ndx] = 0
+
     for i in range(mol.topo.n_atoms*3):
         for j in range(i+1):
             hes = (full_md_hessian[i, j] + full_md_hessian[j, i]) / 2
@@ -26,13 +34,22 @@ def fit_hessian(config, mol, qm):
 
     difference = qm_hessian - np.array(non_fit)
     # la.lstsq or nnls could also be used:
-    fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
+
+    fit = optimize.lsq_linear(hessian, difference, bounds=(min_arr, max_arr)).x
     print("Done!\n")
 
     for term in mol.terms:
         if term.idx < len(fit):
             term.fconst = fit[term.idx]
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
+
+    err = full_md_hessian_1d-qm.hessian
+    mae = np.abs(err).mean()
+    rmse = (err**2).mean()**0.5
+    max_err = np.max(np.abs(err))
+    print('mae:', mae*0.2390057361376673)
+    print('rmse:', rmse*0.2390057361376673)
+    print('max_err:', max_err*0.2390057361376673)
 
     average_unique_minima(mol.terms, config)
 
@@ -50,12 +67,12 @@ def calc_hessian(coords, mol):
 
     for a in range(mol.topo.n_atoms):
         for xyz in range(3):
-            coords[a][xyz] += 0.003
+            coords[a][xyz] += 1e-5
             f_plus = calc_forces(coords, mol)
-            coords[a][xyz] -= 0.006
+            coords[a][xyz] -= 2e-5
             f_minus = calc_forces(coords, mol)
-            coords[a][xyz] += 0.003
-            diff = - (f_plus - f_minus) / 0.006
+            coords[a][xyz] += 1e-5
+            diff = - (f_plus - f_minus) / 2e-5
             full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1, 3*mol.topo.n_atoms).T
     return full_hessian
 
@@ -79,7 +96,11 @@ def calc_forces(coords, mol):
 
 def average_unique_minima(terms, config):
     unique_terms = {}
-    averaged_terms = ['bond', 'angle', 'dihedral/inversion']
+    averaged_terms = ['bond', 'angle']
+
+    if 'dihedral/inversion' in terms:
+        averaged_terms.append('dihedral/inversion')
+
     for name in [term_name for term_name in averaged_terms]:
         for term in terms[name]:
             if str(term) in unique_terms.keys():

@@ -62,10 +62,10 @@ class TermStorage(UserList):
     def fulfill(self, name, atomids=None, notthis=False):
 
         if atomids is None:
-            condition = lambda term: term == name
+            def condition(term): return term == name
         else:
-            condition = lambda term: (term == name and all(termid == idx
-                                      for termid, idx in zip(term.atomids, atomids)))
+            def condition(term): return (term == name and all(termid == idx
+                                                              for termid, idx in zip(term.atomids, atomids)))
         if notthis is True:
             return filter(lambda term: not condition(term), self.data)
 

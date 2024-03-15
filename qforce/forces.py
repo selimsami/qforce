@@ -17,6 +17,32 @@ def calc_bonds(coords, atoms, r0, fconst, force):
     force[atoms[1]] -= f
     return energy
 
+#
+# @jit(nopython=True)
+# def calc_angles(coords, atoms, theta0, fconst, force):
+#     theta, vec12, vec32, r12, r32 = get_angle(coords[atoms])
+#     cos_theta = math.cos(theta)
+#     cos_theta_sq = cos_theta**2
+#     dtheta = cos_theta - math.cos(theta0)
+#     energy = 0.5 * fconst * dtheta**2
+#
+#     if cos_theta_sq < 1:
+#
+#         for i, a in enumerate(atoms):
+#             for j in range(3):
+#                 c_new = np.copy(coords[atoms])
+#                 c_new[i, j] += 1e-8
+#
+#                 theta, vec12, vec32, r12, r32 = get_angle(c_new)
+#
+#                 cos_theta = math.cos(theta)
+#                 cos_theta_sq = cos_theta**2
+#                 dtheta = cos_theta - math.cos(theta0)
+#                 e_new = 0.5 * fconst * dtheta**2
+#
+#                 force[a, j] += (energy - e_new) / 1e-8
+#
+#     return energy
 
 @jit(nopython=True)
 def calc_angles(coords, atoms, theta0, fconst, force):
@@ -40,27 +66,351 @@ def calc_angles(coords, atoms, theta0, fconst, force):
     return energy
 
 
-def calc_cross_bond_angle(coords, atoms, r0s, fconst, force):
+# def calc_cross_bond_bond(coords, atoms, r0s, fconst, force):
+#     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+#     vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
+
+#     s1 = r12 - r0s[0]
+#     s2 = r32 - r0s[1]
+
+#     energy = - fconst * s1 * s2
+
+#     f1 = fconst * s2 / r12 * vec12
+#     f3 = fconst * s1 / r32 * vec32
+
+#     force[atoms[0]] += f1
+#     force[atoms[2]] += f3
+#     force[atoms[1]] -= f1 + f3
+
+#     return energy
+
+def calc_cross_bond_bond(coords, atoms, r0s, fconst, force):
     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
-    vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
-    vec13, r13 = get_dist(coords[atoms[0]], coords[atoms[1]])
+    vec32, r43 = get_dist(coords[atoms[2]], coords[atoms[3]])
 
     s1 = r12 - r0s[0]
-    s2 = r32 - r0s[1]
-    s3 = r13 - r0s[2]
+    s2 = r43 - r0s[1]
+    energy = - fconst * s1 * s2
 
-    energy = fconst * s3 * (s1+s2)
+    unique_atoms = np.unique(atoms)
 
-    k1 = - fconst * s3/r12
-    k2 = - fconst * s3/r32
-    k3 = - fconst * (s1+s2)/r13
+    for a in unique_atoms:
+        for j in range(3):
+            c_new = np.copy(coords)
+            c_new[a, j] += 1e-8
 
-    f1 = k1*vec12 + k3*vec13
-    f3 = k2*vec32 + k3*vec13
+            _, r12 = get_dist(c_new[atoms[0]], c_new[atoms[1]])
+            _, r43 = get_dist(c_new[atoms[2]], c_new[atoms[3]])
 
-    force[atoms[0]] += f1
-    force[atoms[2]] += f3
-    force[atoms[1]] -= f1 + f3
+            s1 = r12 - r0s[0]
+            s2 = r43 - r0s[1]
+
+            e_new = - fconst * s1 * s2
+            force[a, j] += (energy - e_new) / 1e-8
+
+    return energy
+
+
+# def calc_cross_bond_angle(coords, atoms, equ, fconst, force):
+#     theta, vec12, vec32, r12, r32 = get_angle(coords[atoms])
+
+#     dtheta = math.cos(theta) - math.cos(equ[0])
+#     s1 = r12 - equ[1]
+#     s2 = r32 - equ[2]
+#     print('ba')
+#     energy = fconst * dtheta * (s1+s2)
+#     print(energy)
+#     for i, a in enumerate(atoms):
+#         for j in range(3):
+#             c_new = np.copy(coords[atoms])
+#             c_new[i, j] += 1e-8
+
+#             theta, vec12, vec32, r12, r32 = get_angle(c_new)
+
+#             dtheta = math.cos(theta) - math.cos(equ[0])
+#             s1 = r12 - equ[1]
+#             s2 = r32 - equ[2]
+
+#             e_new = fconst * dtheta * (s1+s2)
+#             print(e_new)
+#             force[a, j] += (energy - e_new) / 1e-8
+
+#     return energy
+
+
+def calc_cross_bond_angle(coords, atoms, equ, fconst, force):
+    theta, _, _, _, _ = get_angle(coords[atoms[:3]])
+    _, r24 = get_dist(coords[atoms[3]], coords[atoms[4]])
+
+    dtheta = math.cos(theta) - math.cos(equ[0])
+    dr = r24 - equ[1]
+    energy = - fconst * dtheta * dr
+
+    for i, a in enumerate(atoms):
+        for j in range(3):
+            c_new = np.copy(coords[atoms])
+            c_new[i, j] += 1e-8
+
+            theta, _, _, _, _ = get_angle(c_new[:3])
+            _, r24 = get_dist(c_new[3], c_new[4])
+
+            dtheta = math.cos(theta) - math.cos(equ[0])
+            dr = r24 - equ[1]
+
+            e_new = - fconst * dtheta * dr
+            force[a, j] += (energy - e_new) / 1e-8
+
+    return energy
+
+# def calc_cross_bond_angle(coords, atoms, equ, fconst, force):
+#     theta, _, _, _, _ = get_angle(coords[atoms[:3]])
+#     _, r24 = get_dist(coords[atoms[3]], coords[atoms[4]])
+#
+#     dtheta = theta - equ[0]
+#     dr = r24 - equ[1]
+#
+#     energy = - fconst * dtheta * dr
+#     unique_atoms = np.unique(atoms)
+#
+#     for a in unique_atoms:
+#         for j in range(3):
+#             c_new = np.copy(coords)
+#             c_new[a, j] += 1e-8
+#
+#             theta, _, _, _, _ = get_angle(c_new[atoms[:3]])
+#             _, r24 = get_dist(c_new[atoms[3]], c_new[atoms[4]])
+#
+#             dtheta = theta - equ[0]
+#             dr = r24 - equ[1]
+#
+#             e_new = - fconst * dtheta * dr
+#             force[a, j] += (energy - e_new) / 1e-8
+#
+#     return energy
+
+
+# def calc_cross_bond_angle(coords, atoms, equ, fconst, force):
+#     theta, vec12, vec32, r12, r32 = get_angle(coords[atoms])
+#     cos_theta = math.cos(theta)
+#     cos_theta_sq = cos_theta**2
+
+#     dtheta = theta - equ[0]
+#     dr = r12 - equ[1]
+
+#     energy = fconst * dtheta * dr
+
+#     for i, a in enumerate(atoms):
+#         for j in range(3):
+#             c_new = np.copy(coords[atoms])
+#             c_new[i, j] += 1e-8
+
+#             theta, vec12, vec32, r12, r32 = get_angle(c_new)
+#             cos_theta = math.cos(theta)
+#             cos_theta_sq = cos_theta**2
+
+#             dtheta = theta - equ[0]
+#             dr = r12 - equ[1]
+
+#             e_new = fconst * dtheta * dr
+#             force[a, j] += (energy - e_new) / 1e-8
+
+#     return energy
+
+
+# def calc_cross_bond_angle(coords, atoms, equ, fconst, force):
+#     theta, vec12, vec32, r12, r32 = get_angle(coords[atoms])
+#     cos_theta = math.cos(theta)
+#     cos_theta_sq = cos_theta**2
+
+#     dtheta = theta - equ[0]
+#     s1 = r12 - equ[1]
+#     s2 = r32 - equ[2]
+
+#     energy = fconst * dtheta * (s1+s2)
+
+#     for i, a in enumerate(atoms):
+#         for j in range(3):
+#             c_new = np.copy(coords[atoms])
+#             c_new[i, j] += 1e-8
+
+#             theta, vec12, vec32, r12, r32 = get_angle(c_new)
+#             cos_theta = math.cos(theta)
+#             cos_theta_sq = cos_theta**2
+
+#             dtheta = theta - equ[0]
+#             s1 = r12 - equ[1]
+#             s2 = r32 - equ[2]
+
+#             e_new = fconst * dtheta * (s1+s2)
+#             force[a, j] += (energy - e_new) / 1e-8
+
+#     return energy
+
+
+# def calc_cross_bond_angle(coords, atoms, r0s, fconst, force):
+#     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+#     vec32, r32 = get_dist(coords[atoms[2]], coords[atoms[1]])
+#     vec13, r13 = get_dist(coords[atoms[0]], coords[atoms[1]])
+
+#     s1 = r12 - r0s[0]
+#     s2 = r32 - r0s[1]
+#     s3 = r13 - r0s[2]
+
+#     energy = fconst * s3 * (s1+s2)
+
+#     k1 = - fconst * s3/r12
+#     k2 = - fconst * s3/r32
+#     k3 = - fconst * (s1+s2)/r13
+
+#     f1 = k1*vec12 + k3*vec13
+#     f3 = k2*vec32 + k3*vec13
+
+#     force[atoms[0]] += f1
+#     force[atoms[2]] += f3
+#     force[atoms[1]] -= f1 + f3
+#     return energy
+
+
+def calc_cross_angle_angle(coords, atoms, equ, fconst, force):
+    theta1, _, _, _, _ = get_angle(coords[atoms[:3]])
+    theta2, _, _, _, _ = get_angle(coords[atoms[3:]])
+    # print('here')
+    dtheta1 = theta1 - equ[0]
+    dtheta2 = theta2 - equ[1]
+
+    # print(np.degrees(theta1), np.degrees(theta2), np.degrees(
+    # equ[0]), np.degrees(equ[1]), np.degrees(dtheta1), np.degrees(dtheta2))
+
+    # phi, _, _, _, _, _ = get_dihed(coords[[1, 0, 2, 3]])
+
+    # if np.isnan(phi):
+    #     cosphi = 0
+    # else:
+    #     cosphi = round(np.cos(phi))
+
+    energy = - fconst * dtheta1 * dtheta2  # * cosphi
+    # print('e____', energy)
+
+    unique_atoms = np.unique(atoms)
+
+    for a in unique_atoms:
+        for j in range(3):
+            c_new = np.copy(coords)
+            c_new[a, j] += 1e-8
+
+            theta1, _, _, _, _ = get_angle(c_new[atoms[:3]])
+            theta2, _, _, _, _ = get_angle(c_new[atoms[3:]])
+
+            dtheta1 = theta1 - equ[0]
+            dtheta2 = theta2 - equ[1]
+
+            # phi, _, _, _, _, _ = get_dihed(c_new[[1, 0, 2, 3]])
+
+            # if np.isnan(phi):
+            #     cosphi = 0
+            # else:
+            #     cosphi = round(np.cos(phi))
+
+            e_new = - fconst * dtheta1 * dtheta2  # * cosphi
+            # print('e_new', e_new)
+
+            force[a, j] += (energy - e_new) / 1e-8
+
+    return energy
+
+
+def calc_cross_dihed_angle(coords, atoms, equ, fconst, force):
+    theta1 = get_dihed(coords[atoms[:4]])[0]
+    theta2, _, _, _, _ = get_angle(coords[atoms[4:]])
+    # print('here')
+
+    dtheta1 = np.cos(theta1 - equ[0])
+    dtheta2 = theta2 - equ[1]
+
+    # print(np.degrees(theta1), np.degrees(theta2), np.degrees(
+    # equ[0]), np.degrees(equ[1]), np.degrees(dtheta1), np.degrees(dtheta2))
+
+    # phi, _, _, _, _, _ = get_dihed(coords[[1, 0, 2, 3]])
+
+    # if np.isnan(phi):
+    #     cosphi = 0
+    # else:
+    #     cosphi = round(np.cos(phi))
+
+    energy = - fconst * dtheta1 * dtheta2  # * cosphi
+    # print('e____', energy)
+
+    unique_atoms = np.unique(atoms)
+
+    for a in unique_atoms:
+        for j in range(3):
+            c_new = np.copy(coords)
+            c_new[a, j] += 1e-8
+
+            theta1 = get_dihed(c_new[atoms[:4]])[0]
+            theta2, _, _, _, _ = get_angle(c_new[atoms[4:]])
+
+            dtheta1 = np.cos(theta1 - equ[0])
+            dtheta2 = theta2 - equ[1]
+
+            # phi, _, _, _, _, _ = get_dihed(c_new[[1, 0, 2, 3]])
+
+            # if np.isnan(phi):
+            #     cosphi = 0
+            # else:
+            #     cosphi = round(np.cos(phi))
+
+            e_new = - fconst * dtheta1 * dtheta2  # * cosphi
+            # print('e_new', e_new)
+
+            force[a, j] += (energy - e_new) / 1e-8
+
+    return energy
+
+
+def calc_cross_dihed_bond(coords, atoms, equ, fconst, force):
+    theta = get_dihed(coords[atoms[:4]])[0]
+    _, r = get_dist(coords[atoms[4]], coords[atoms[5]])
+    dtheta = np.cos(theta - equ[0])
+    dr = r - equ[1]
+
+    # print(np.degrees(theta1), np.degrees(theta2), np.degrees(
+    # equ[0]), np.degrees(equ[1]), np.degrees(dtheta1), np.degrees(dtheta2))
+
+    # phi, _, _, _, _, _ = get_dihed(coords[[1, 0, 2, 3]])
+
+    # if np.isnan(phi):
+    #     cosphi = 0
+    # else:
+    #     cosphi = round(np.cos(phi))
+
+    energy = - fconst * dtheta * dr  # * cosphi
+    # print('e____', energy)
+
+    unique_atoms = np.unique(atoms)
+
+    for a in unique_atoms:
+        for j in range(3):
+            c_new = np.copy(coords)
+            c_new[a, j] += 1e-8
+
+            theta = get_dihed(c_new[atoms[:4]])[0]
+            _, r = get_dist(c_new[atoms[4]], c_new[atoms[5]])
+            dtheta = np.cos(theta - equ[0])
+            dr = r - equ[1]
+
+            # phi, _, _, _, _, _ = get_dihed(c_new[[1, 0, 2, 3]])
+
+            # if np.isnan(phi):
+            #     cosphi = 0
+            # else:
+            #     cosphi = round(np.cos(phi))
+
+            e_new = - fconst * dtheta * dr  # * cosphi
+            # print('e_new', e_new)
+
+            force[a, j] += (energy - e_new) / 1e-8
+
     return energy
 
 
@@ -74,7 +424,7 @@ def calc_imp_diheds(coords, atoms, phi0, fconst, force):
     return energy
 
 
-@jit(nopython=True)
+@ jit(nopython=True)
 def calc_rb_diheds(coords, atoms, params, fconst, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     phi += np.pi
@@ -95,7 +445,7 @@ def calc_rb_diheds(coords, atoms, params, fconst, force):
     return energy
 
 
-@jit(nopython=True)
+@ jit(nopython=True)
 def calc_inversion(coords, atoms, phi0, fconst, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     phi += np.pi
@@ -118,7 +468,7 @@ def calc_inversion(coords, atoms, phi0, fconst, force):
     return energy
 
 
-@jit(nopython=True)
+@ jit(nopython=True)
 def calc_periodic_dihed(coords, atoms, phi0, fconst, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     mult = 3
@@ -133,7 +483,7 @@ def calc_periodic_dihed(coords, atoms, phi0, fconst, force):
     return energy
 
 
-@jit(nopython=True)
+@ jit(nopython=True)
 def convert_to_inversion_rb(fconst, phi0):
     cos_phi0 = np.cos(phi0)
     c0 = fconst * cos_phi0**2
@@ -142,7 +492,7 @@ def convert_to_inversion_rb(fconst, phi0):
     return c0, c1, c2
 
 
-@jit("f8(f8[:], f8[:])", nopython=True)
+@ jit("f8(f8[:], f8[:])", nopython=True)
 def dot_prod(a, b):
     x = a[0]*b[0]
     y = a[1]*b[1]
@@ -150,8 +500,8 @@ def dot_prod(a, b):
     return x+y+z
 
 
-@jit("void(f8[:,:], i8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8)",
-     nopython=True)
+@ jit("void(f8[:,:], i8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8)",
+      nopython=True)
 def calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi):
     inner1 = dot_prod(cross1, cross1)
     inner2 = dot_prod(cross2, cross2)
@@ -179,7 +529,7 @@ def calc_dih_force(force, a, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi):
     force[a[3]] += f_l
 
 
-@jit(nopython=True)
+@ jit(nopython=True)
 def calc_pairs(coords, atoms, params, force):
     c6, c12, qq = params
     vec, r = get_dist(coords[atoms[0]], coords[atoms[1]])
@@ -196,14 +546,14 @@ def calc_pairs(coords, atoms, params, force):
     return energy
 
 
-@jit(nopython=True)
+@ jit(nopython=True)
 def get_dist(coord1, coord2):
     vec = coord1 - coord2
     r = norm(vec)
     return vec, r
 
 
-@jit(nopython=True)
+@ jit(nopython=True)
 def get_angle(coords):
     vec12, r12 = get_dist(coords[0], coords[1])
     vec32, r32 = get_dist(coords[2], coords[1])
@@ -215,7 +565,7 @@ def get_angle(coords):
     return math.acos(dot), vec12, vec32, r12, r32
 
 
-@jit(nopython=True)
+@ jit(nopython=True)
 def get_angle_from_vectors(vec1, vec2):
     dot = np.dot(vec1/norm(vec1), vec2/norm(vec2))
     if dot > 1.0:
@@ -225,7 +575,7 @@ def get_angle_from_vectors(vec1, vec2):
     return math.acos(dot)
 
 
-@jit(nopython=True)
+@ jit(nopython=True)
 def get_dihed(coords):
     vec12, r12 = get_dist(coords[0], coords[1])
     vec32, r32 = get_dist(coords[2], coords[1])
@@ -238,7 +588,7 @@ def get_dihed(coords):
     return phi, vec12, vec32, vec34, cross1, cross2
 
 
-@jit("f8[:](f8[:], f8[:])", nopython=True)
+@ jit("f8[:](f8[:], f8[:])", nopython=True)
 def cross_prod(a, b):
     c = np.empty(3, dtype=np.double)
     c[0] = a[1]*b[2] - a[2]*b[1]
@@ -247,7 +597,7 @@ def cross_prod(a, b):
     return c
 
 
-@jit("f8(f8[:])", nopython=True)
+@ jit("f8(f8[:])", nopython=True)
 def norm(vec):
     return math.sqrt(vec[0]**2 + vec[1]**2 + vec[2]**2)
 

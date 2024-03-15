@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 #
 from colt import Colt
 #
-from .forcefield import ForceField
+from qforce.forcefield.forcefield import ForceField
 from .calculator import QForce
 from .forces import get_dihed, get_dist
 
@@ -239,20 +239,20 @@ batch_run = False :: bool
     def scan_dihed_gromacs(self, all_config, frag, scan_dir, mol, n_run):
         md_energies = []
 
-        ff = ForceField(self.job_name, all_config, frag, frag.neighbors,
+        ff = ForceField('gromacs', self.job_name, all_config, frag, frag.neighbors,
                         exclude_all=frag.remove_non_bonded)
 
         for i, coord in enumerate(frag.coords):
             step_dir = f"{scan_dir}/step{i:02d}"
             make_scan_dir(step_dir)
 
-            ff.write_gromacs(step_dir, frag, coord)
+            ff.software.write(step_dir, coord)
             shutil.copy2(self.mdp_file, step_dir)
 
             restraints = self.find_restraints(frag, frag.qm_coords[i], n_run)
-            ff.add_restraints(restraints, step_dir)
+            ff.software.add_restraints(restraints, step_dir)
 
-            run_gromacs(step_dir, all_config.scan.gromacs_exec, ff.polar_title)
+            run_gromacs(step_dir, all_config.scan.gromacs_exec)
             md_energy = read_gromacs_energies(step_dir)
             md_energies.append(md_energy)
 
@@ -277,7 +277,7 @@ batch_run = False :: bool
             #     restraints.append([term.atomids, phi])
             if (all([term.atomids[i] == frag.scanned_atomids[i] for i in range(3)])
                 # or not all([idx in term.atomids for idx in frag.scanned_atomids[1:3]])):
-                    or n_run == 0):
+                or n_run == 0):
                 restraints.append([term.atomids, phi0])
 
         return restraints
@@ -416,10 +416,10 @@ def make_scan_dir(scan_name):
     os.makedirs(scan_name)
 
 
-def run_gromacs(directory, gromacs_exec, polar_title):
+def run_gromacs(directory, gromacs_exec):
     attempt, returncode = 0, 1
     grompp = subprocess.Popen([gromacs_exec, 'grompp', '-f', 'default.mdp', '-p',
-                               f'gas{polar_title}.top', '-c', f'gas{polar_title}.gro', '-o',
+                               f'gas.top', '-c', f'gas.gro', '-o',
                                'em.tpr', '-po', 'em.mdp', '-maxwarn', '10'],
                               cwd=directory, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT)

@@ -28,7 +28,7 @@ class ReadABC(ABC):
 
     @staticmethod
     def _read_fchk_file(fchk_file):
-        n_atoms, charge, multiplicity, elements, coords, hessian = None, None, None, [], [], []
+        n_atoms, charge, multiplicity, elements, hessian = None, None, None, [], []
         with open(fchk_file, "r", encoding='utf-8') as file:
             for line in file:
                 if "Charge                                     I" in line:
@@ -44,6 +44,7 @@ class ReadABC(ABC):
                         ids = [int(i) for i in line.split()]
                         elements.extend(ids)
                 if "Current cartesian coordinates   " in line:
+                    coords = []
                     n_line = math.ceil(3*n_atoms/5)
                     for i in range(n_line):
                         line = file.readline()

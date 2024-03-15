@@ -1,4 +1,4 @@
-from itertools import product
+from itertools import product, combinations
 import numpy as np
 #
 from .baseterms import TermABC, TermFactory
@@ -184,30 +184,37 @@ class DihedralTerms(TermFactory):
             bonds = list(topo.graph.neighbors(i))
             if len(bonds) != 3:
                 continue
-            atoms = [i, -1, -1, -1]
-            n_bond = [len(list(topo.graph.neighbors(b))) for b in bonds]
-            non_ring = [a for a in bonds if not topo.edge(i, a)['in_ring']]
-
-            if len(non_ring) == 1:
-                atoms[3] = non_ring[0]
+            if len(bonds) >= 3:
+                triplets = (combinations(bonds, 3))
             else:
-                atoms[3] = bonds[n_bond.index(min(n_bond))]
-
-            for b in bonds:
-                if b not in atoms:
-                    atoms[atoms.index(-1)] = b
-
-            phi = get_dihed(topo.coords[atoms])[0]
-            # Only add improper dihedrals if there is no stiff dihedral
-            # on the central improper atom and one of the neighbors
-            bonds = [sorted([b, i]) for b in bonds]
-            if any(b == list(term.atomids[1:3]) for term in terms['rigid'] for b in bonds):
                 continue
-            imp_type = f"ki_{topo.types[i]}"
-            if abs(phi) < 0.43625:  # check planarity < 25 degrees
-                add_term('improper', topo, atoms, phi, imp_type)
-            else:
-                add_term('inversion', topo, atoms, phi, imp_type)
+
+            for bonds in triplets:
+
+                atoms = [i, -1, -1, -1]
+                n_bond = [len(list(topo.graph.neighbors(b))) for b in bonds]
+                non_ring = [a for a in bonds if not topo.edge(i, a)['in_ring']]
+
+                if len(non_ring) == 1:
+                    atoms[3] = non_ring[0]
+                else:
+                    atoms[3] = bonds[n_bond.index(min(n_bond))]
+
+                for b in bonds:
+                    if b not in atoms:
+                        atoms[atoms.index(-1)] = b
+
+                phi = get_dihed(topo.coords[atoms])[0]
+                # Only add improper dihedrals if there is no stiff dihedral
+                # on the central improper atom and one of the neighbors
+                bonds = [sorted([b, i]) for b in bonds]
+                # if any(b == list(term.atomids[1:3]) for term in terms['rigid'] for b in bonds):
+                #     continue
+                imp_type = f"ki_{topo.types[i]}"
+                if abs(phi) < 0.43625:  # check planarity < 25 degrees
+                    add_term('improper', topo, atoms, phi, imp_type)
+                else:
+                    add_term('inversion', topo, atoms, phi, imp_type)
         return terms
 
 
