@@ -81,7 +81,7 @@ class Calculator(Colt):
                 try:
                     subprocess.run(command, shell=True, check=True)
                 except subprocess.CalledProcessError as err:
-                    raise CalculationFailed(f"subprocess registered error: '{err.code}' "
+                    raise CalculationFailed(f"subprocess registered error: '{err}' "
                                             f"in '{os.getcwd()}'"
                                             f"ERROR in command: {command}") from None
         try:

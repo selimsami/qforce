@@ -33,6 +33,8 @@ class Gaussian(QMInterface):
     _method = ['method', 'dispersion', 'basis', 'solvent_method']
 
     def __init__(self, config):
+        if config.dispersion.lower() == 'none':
+            config.dispersion = ''
         if config.solvent_method is None:
             config.solvent_method = ''
         super().__init__(config, ReadGaussian(config), WriteGaussian(config))
