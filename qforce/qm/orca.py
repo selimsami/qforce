@@ -264,7 +264,7 @@ class ReadORCA(ReadABC):
 
     def opt(self, settings, coord_file):
         n_atoms, elements, coords = self._read_orca_xyz(coord_file)
-        return coords
+        return [coords]
 
     def sp(self, settings, out_file):
         energy = None

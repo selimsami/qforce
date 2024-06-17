@@ -82,7 +82,7 @@ class ReadGaussian(ReadABC):
                         next(file)
                     coords = self._get_input_orientation(file)
         # return the last coordinates in the file
-        return coords
+        return [coords]
 
     def sp(self, config, out_file):
         with open(out_file, "r", encoding='utf-8') as file:

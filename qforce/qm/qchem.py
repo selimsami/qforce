@@ -171,7 +171,7 @@ class ReadQChem(ReadABC):
                     for n in range(n_atoms):
                         line = file.readline().split()
                         coord.append([float(c_xyz) for c_xyz in line[2:]])
-                    return coord
+                    return [coord]
         raise ValueError(f"Could not parse file '{out_file}'")
 
     def sp(self, config, out_file):
