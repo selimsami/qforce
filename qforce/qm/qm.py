@@ -1,5 +1,6 @@
 import os
 from types import SimpleNamespace
+from copy import deepcopy
 
 from ase.io import read, write
 import numpy as np
@@ -9,6 +10,7 @@ from calkeeper import check, CalculationIncompleteError
 from .gaussian import Gaussian, GaussianCalculator
 from .qchem import QChem, QChemCalculator
 from .orca import Orca
+from .crest import Crest, CrestCalculator
 from .xtb import xTB, XTBGaussian, xTBCalculator
 from .qm_base import scriptify, HessianOutput, ScanOutput, Calculator
 
@@ -30,16 +32,17 @@ implemented_qm_software = {'gaussian': Gaussian,
                            'qchem': QChem,
                            'orca': Orca,
                            'xtb': xTB,
-                           'xtb-gaussian': XTBGaussian
+                           'xtb-gaussian': XTBGaussian,
+                           'crest': Crest,
                            }
 
 
 calculators = {
         'gaussian': GaussianCalculator,
-        'torsiondrive': TorsiondriveCalculator,
         'xtb': xTBCalculator,
         'qchem': QChemCalculator,
         'torsiondrive': TorsiondriveCalculator,
+        'crest': CrestCalculator,
         }
 
 
@@ -127,30 +130,42 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
 
         software = self.softwares['software']
         folder = self.pathways.getdir("hessian", create=True)
-        calculation = self.Calculation(self.hessian_name(software),
-                                       software.read.hessian_files,
-                                       folder=folder,
-                                       software=software.name)
-        if not calculation.input_exists():
-            _, coords, atnums = self._read_coord_file(self.pathways['init.xyz'])
-            with open(calculation.inputfile, 'w') as file:
-                self.write_hessian(file, calculation.base, coords, atnums)
+
+
+        hessians = []
+        for i, (coords, atnums) in enumerate(self._read_init_file(self.pathways['init.xyz'])):
+            folder = self.pathways.getdir("hessian_step", i, create=True)
+
+            calculation = self.Calculation(self.hessian_name(software),
+                                           software.read.hessian_files,
+                                           folder=folder,
+                                           software=software.name)
+            if not calculation.input_exists():
+                with open(calculation.inputfile, 'w') as file:
+                    self.write_hessian(file, calculation.base, coords, atnums)
+            hessians.append(calculation)
         #
-        try:
+        for calculation in hessians:
+            try:
+                hessian_files = calculation.check()
+            except CalculationIncompleteError:
+                self.logger.exit(f"Required Hessian output file(s) not found in '{folder}' .\n"
+                                 'Creating the necessary input file and exiting...\nPlease run the '
+                                 'calculation and put the output files in the same directory.\n'
+                                 'Necessary Hessian output files and the corresponding extensions '
+                                 f"are:\n{calculation.missing_as_string()}\n\n\n")
+        #
+        results = []
+        for calculation in hessians:
             hessian_files = calculation.check()
-        except CalculationIncompleteError:
-            self.logger.exit(f"Required Hessian output file(s) not found in '{folder}' .\n"
-                             'Creating the necessary input file and exiting...\nPlease run the '
-                             'calculation and put the output files in the same directory.\n'
-                             'Necessary Hessian output files and the corresponding extensions '
-                             f"are:\n{calculation.missing_as_string()}\n\n\n")
-        #
-        output = self._read_hessian(hessian_files)
+            results.append(self._read_hessian(hessian_files))
         # update output with charge calculation if necessary
         charge_software = self.softwares['charge_software']
         if charge_software is None:
-            return output
+            return results
         #
+        output = results[0]
+
         folder = self.pathways.getdir("hessian_charge", create=True)
 
         calculation = self.Calculation(self.hessian_charge_name(charge_software),
@@ -178,7 +193,7 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                     point_charges[charge_software.config.charge_method], 'point_charges', float,
                     (output.n_atoms,))
         #
-        return output
+        return results
 
     def read_scan(self, folder, files):
         software = self.softwares['scan_software']
@@ -367,7 +382,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         software = self.softwares['preopt']
 
         if self.softwares['preopt'] is None:
-            self._write_xyzfile(molecule, self.pathways['init.xyz'],
+            molecules = self._read_molecules(self.job.coord_file)
+            self._write_xyzfile(molecules, self.pathways['init.xyz'],
                                 comment=f'{self.job.name} - input geometry for hessian')
             return
         # create Preopt directory
@@ -393,8 +409,13 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                              'calculation and put the output files in the same directory.\n')
         #
         coords = self._read_opt(preopt_files)
-        molecule.set_positions(coords)
-        self._write_xyzfile(molecule, self.pathways['init.xyz'],
+        molecules = []
+        for coord in coords:
+            mol = deepcopy(molecule)
+            mol.set_positions(coord)
+            molecules.append(mol)
+
+        self._write_xyzfile(molecules, self.pathways['init.xyz'],
                             comment=f'{self.job.name} - input geometry for hessian')
 
     def _read_coord_file(self, filename):
@@ -402,6 +423,14 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         coords = molecule.get_positions()
         atnums = molecule.get_atomic_numbers()
         return molecule, coords, atnums
+
+    def _read_molecules(self, filename):
+        return read(filename, index=':')
+
+    def _read_init_file(self, filename):
+        molecules = read(filename, index=':')
+        for molecule in molecules:
+            yield molecule.get_positions(), molecule.get_atomic_numbers()
 
     def _write_xyzfile(self, molecule, filename, comment=None):
         write(filename, molecule, plain=True, comment=comment)

@@ -1,4 +1,4 @@
-import scipy.optimize as optimize
+from scipy import optimize
 import numpy as np
 
 
@@ -15,7 +15,7 @@ def fit_hessian(logger, config, mol, qm):
     for i in range(mol.topo.n_atoms*3):
         for j in range(i+1):
             hes = (full_md_hessian[i, j] + full_md_hessian[j, i]) / 2
-            if all([h == 0 for h in hes]) or np.abs(qm_hessian[count]) < 0.0001:
+            if all(h == 0 for h in hes) or np.abs(qm_hessian[count]) < 0.0001:
                 qm_hessian = np.delete(qm_hessian, count)
                 full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_terms))
             else:
@@ -34,6 +34,49 @@ def fit_hessian(logger, config, mol, qm):
             term.fconst = fit[term.idx]
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
+    average_unique_minima(mol.terms, config)
+
+    return full_md_hessian_1d
+
+
+def multi_hessian_fit(logger, config, mol, qms):
+    if len(qms) == 0:
+        raise ValueError("at least one frequency needs to be computed!")
+
+    full_hessian = []
+    full_differences = []
+    for istruct, qm in enumerate(qms):
+        hessian, full_md_hessian_1d = [], []
+        non_fit = []
+        qm_hessian = np.copy(qm.hessian)
+        logger.info(f"Calculating the MD hessian matrix elements for Structure {istruct}...")
+        full_md_hessian = calc_hessian(qm.coords, mol)
+        count = 0
+        logger.info("Fitting the MD hessian parameters to QM hessian values")
+        for i in range(mol.topo.n_atoms*3):
+            for j in range(i+1):
+                hes = (full_md_hessian[i, j] + full_md_hessian[j, i]) / 2
+                if all([h == 0 for h in hes]) or np.abs(qm_hessian[count]) < 0.0001:
+                    qm_hessian = np.delete(qm_hessian, count)
+                    full_md_hessian_1d.append(np.zeros(mol.terms.n_fitted_terms))
+                else:
+                    count += 1
+                    hessian.append(hes[:-1])
+                    full_md_hessian_1d.append(hes[:-1])
+                    non_fit.append(hes[-1])
+
+        difference = qm_hessian - np.array(non_fit)
+        full_differences += list(difference)
+        full_hessian += hessian
+    fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
+    logger.info("Done!\n")
+    for term in mol.terms:
+        if term.idx < len(fit):
+            term.fconst = fit[term.idx]
+    # TODO: is this correct? Check
+    full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
+
+    # do it
     average_unique_minima(mol.terms, config)
 
     return full_md_hessian_1d

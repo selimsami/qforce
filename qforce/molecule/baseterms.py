@@ -35,7 +35,7 @@ class TermABC(ABC):
 
     def do_fitting(self, crd, forces):
         """compute fitting contributions"""
-        self._calc_forces(crd, forces[self.idx], 1.0)
+        return self._calc_forces(crd, forces[self.idx], 1.0)
 
     @abstractmethod
     def _calc_forces(self, crd, force, fconst):

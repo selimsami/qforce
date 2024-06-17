@@ -1,5 +1,4 @@
 import os.path
-import subprocess
 
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
@@ -391,7 +390,7 @@ class ReadxTB(ReadABC):
 
     def opt(self, config, coord_file):
         _, elements, coords = self._read_xtb_xyz(coord_file)
-        return coords
+        return [coords]
 
     def sp(self, config, sp_file):
         with open(sp_file, 'r') as fh:
@@ -440,7 +439,7 @@ class ReadxTB(ReadABC):
             A list of float of the size of n_atoms.
         """
         n_atoms, point_charges = self._read_xtb_charge(pc_file)
-        n_atoms, elements, coords = self._read_xtb_xyz(coord_file)
+        n_atoms, elements, coords, energy = self._read_xtb_xyz_and_energy(coord_file)
         charge = config.charge
         multiplicity = config.multiplicity
         b_orders = self._read_xtb_wbo_analysis(wbo_file, elements)
@@ -560,6 +559,38 @@ class ReadxTB(ReadABC):
         """
         point_charges = np.loadtxt(pc_file)
         return len(point_charges), point_charges
+
+    @staticmethod
+    def _read_xtb_xyz_and_energy(coord_file):
+        """ Read the optimised coordinate xyz file.
+
+        For xTB jobs, the optimised geometry will be stored as a file
+        with the extension .xtbopt.xyz.
+
+        Parameters
+        ----------
+        coord_file : string
+            The name of the coordinates file.
+
+        Returns
+        -------
+        n_atoms : int
+            The number of atoms in the molecule.
+        elements : array
+            A np.array of integer of the atomic number of the atoms.
+        coords : array
+            An array of float of the shape (n_atoms, 3).
+        """
+        with open(coord_file, 'r') as fh:
+            next(fh)
+            comment = next(fh).split()
+            energy = float(comment[1])
+        mol = read(coord_file)
+
+        n_atoms = len(mol)
+        elements = np.array([atom.number for atom in mol])
+        coords = mol.positions
+        return n_atoms, elements, coords, energy
 
     @staticmethod
     def _read_xtb_xyz(coord_file):

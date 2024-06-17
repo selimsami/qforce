@@ -7,7 +7,7 @@ from .molecule import Molecule
 from .fragment import fragment
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
-from .hessian import fit_hessian
+from .hessian import multi_hessian_fit
 
 
 def runjob(config, job, ext_q=None, ext_lj=None):
@@ -20,9 +20,10 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     qm.preopt()
     # get hessian output
     qm_hessian_out = qm.get_hessian()
+    main_hessian = qm_hessian_out[0]
 
     # check molecule
-    mol = Molecule(config, job, qm_hessian_out, ext_q, ext_lj)
+    mol = Molecule(config, job, main_hessian, ext_q, ext_lj)
 
     # change the order
     fragments = None
@@ -31,15 +32,15 @@ def runjob(config, job, ext_q=None, ext_lj=None):
         fragments = fragment(mol, qm, job, config)
 
     # hessian fitting
-    md_hessian = fit_hessian(job.logger, config.terms, mol, qm_hessian_out)
+    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out)
 
     # do the scans
     if fragments is not None:
         DihedralScan(fragments, mol, job, config)
 
-    calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
+    calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
     ff = ForceField(job.name, config, mol, mol.topo.neighbors)
-    ff.write_gromacs(job.dir, mol, qm_hessian_out.coords)
+    ff.write_gromacs(job.dir, mol, main_hessian.coords)
 
     print_outcome(job.logger, job.dir)
 
