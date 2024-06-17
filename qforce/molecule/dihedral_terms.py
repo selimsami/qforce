@@ -3,7 +3,7 @@ import numpy as np
 #
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dihed, get_angle
-from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion  # , calc_periodic_dihed
+from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_oop_angle  # , calc_periodic_dihed
 
 
 class DihedralBaseTerm(TermABC):
@@ -36,7 +36,7 @@ class DihedralBaseTerm(TermABC):
         elif 150 <= phi:
             ang = 180
 
-        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}~{ang}"
+        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}-{ang}"
 
     @staticmethod
     def remove_linear_angles(coords, a1s, a2, a3, a4s):
@@ -74,6 +74,7 @@ class ImproperDihedralTerm(DihedralBaseTerm):
 
     def _calc_forces(self, crd, force, fconst):
         return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
+        # return calc_oop_angle(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
@@ -105,6 +106,19 @@ class InversionDihedralTerm(DihedralBaseTerm):
         return cls(atomids, phi, d_type)
 
 
+class PiTorsionDihedralTerm(DihedralBaseTerm):
+
+    name = 'PiTorsionDihedralTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_pitorsion_diheds(crd, self.atomids, self.equ, fconst, force)
+
+    @classmethod
+    def get_term(cls, topo, atomids, phi, d_type):
+        phi = DihedralBaseTerm.check_angle(phi)
+        return cls(atomids, phi, d_type)
+
+
 class DihedralTerms(TermFactory):
 
     name = 'DihedralTerms'
@@ -114,6 +128,7 @@ class DihedralTerms(TermFactory):
         'improper': ImproperDihedralTerm,
         'flexible': FlexibleDihedralTerm,
         'inversion': InversionDihedralTerm,
+        'pitorsion': PiTorsionDihedralTerm,
     }
 
     _always_on = []
@@ -212,9 +227,37 @@ class DihedralTerms(TermFactory):
                 #     continue
                 imp_type = f"ki_{topo.types[i]}"
                 if abs(phi) < 0.43625:  # check planarity < 25 degrees
-                    add_term('improper', topo, atoms, phi, imp_type)
+                    # add_term('improper', topo, atoms, phi, imp_type)
+                    add_term('improper', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
+                    add_term('improper', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
+                    # add_term('improper', topo, [0, 2, 1, 3], phi, imp_type)
+                    add_term('improper', topo, [atoms[0], atoms[2], atoms[3], atoms[1]], phi, imp_type)
+                    # add_term('improper', topo, [0, 3, 1, 2], phi, imp_type)
+                    # add_term('improper', topo, [0, 3, 2, 1], phi, imp_type)
+
+                    # add_term('improper', topo,  [atoms[1], atoms[0], atoms[2], atoms[3]], phi, f'{imp_type}-2')
+                    # add_term('improper', topo,  [atoms[1], atoms[0], atoms[3], atoms[2]], phi, f'{imp_type}-3')
+                    # add_term('improper', topo,  [atoms[2], atoms[0], atoms[1], atoms[3]], phi, f'{imp_type}-4')
+                    # add_term('improper', topo,  [atoms[2], atoms[0], atoms[3], atoms[1]], phi, f'{imp_type}-5')
+                    # add_term('improper', topo,  [atoms[3], atoms[0], atoms[1], atoms[2]], phi, f'{imp_type}-6')
+                    # add_term('improper', topo,  [atoms[3], atoms[0], atoms[2], atoms[1]], phi, f'{imp_type}-7')
                 else:
-                    add_term('inversion', topo, atoms, phi, imp_type)
+                    add_term('inversion', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
+                    add_term('inversion', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
+                    add_term('inversion', topo, [atoms[0], atoms[2], atoms[1], atoms[3]], phi, imp_type)
+                    add_term('inversion', topo, [atoms[0], atoms[2], atoms[3], atoms[1]], phi, imp_type)
+                    add_term('inversion', topo, [atoms[0], atoms[3], atoms[1], atoms[2]], phi, imp_type)
+                    add_term('inversion', topo, [atoms[0], atoms[3], atoms[2], atoms[1]], phi, imp_type)
+
+                    # add_term('inversion', topo,  [1, 0, 2, 3], phi, f'{imp_type}-2')
+                    # add_term('inversion', topo,  [1, 0, 3, 2], phi, f'{imp_type}-2')
+                    # add_term('inversion', topo,  [2, 0, 1, 3], phi, f'{imp_type}-2')
+                    # add_term('inversion', topo,  [2, 0, 3, 1], phi, f'{imp_type}-2')
+                    # add_term('inversion', topo,  [3, 0, 1, 2], phi, f'{imp_type}-2')
+                    # add_term('inversion', topo,  [3, 0, 2, 1], phi, f'{imp_type}-2')
+
+        add_term('pitorsion', topo, [1, 0, 3, 2, 4, 5], 0, 'test')
+        # add_term('pitorsion', topo, [0, 2, 3, 1, 4, 5], 0, 'test')
         return terms
 
 

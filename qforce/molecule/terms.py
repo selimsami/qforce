@@ -7,6 +7,8 @@ from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm,
                                  CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm,
                                  CrossDihedAngleTerm, CrossDihedBondTerm)
 from .non_bonded_terms import NonBondedTerms
+from .charge_flux_terms import ChargeFluxTerms
+from .local_frame import LocalFrameTerms
 #
 from .base import MappingIterator
 from .baseterms import TermFactory
@@ -25,20 +27,23 @@ class Terms(MappingIterator):
         '_cross_dihed_bond': CrossDihedBondTerm,
         'dihedral': DihedralTerms,
         'non_bonded': NonBondedTerms,
+        #
+        'charge_flux': ChargeFluxTerms,
+        'local_frame': LocalFrameTerms,
 
     }
     _always_on = ['bond', 'angle']
-    _default_off = ['cross_bond_bond', '_cross_bond_angle',
-                    '_cross_angle_angle', '_cross_dihed_angle', '_cross_dihed_bond']
+    _default_off = ['charge_flux', 'local_frame/bisector', 'cross_bond_bond', 'cross_bond_angle', 'cross_angle_angle',
+                    '_cross_dihed_angle', '_cross_dihed_bond']
 
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
-        self.n_fitted_terms = self._set_fit_term_idx(not_fit_terms)
+        self.n_fitted_terms, self.n_fitted_flux_terms = self._set_fit_term_idx(not_fit_terms)
         self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
         self._term_paths = self._get_term_paths(terms)
 
     @classmethod
-    def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded']):
+    def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded', 'charge_flux', 'local_frame']):
         ignore = [name for name, term_enabled in config.__dict__.items() if not term_enabled]
         not_fit_terms = [term for term in not_fit if term not in ignore]
         terms = {name: factory.get_terms(topo, non_bonded)
@@ -107,14 +112,18 @@ class Terms(MappingIterator):
             names = list(set(str(term) for term in self))
             for term in self:
                 term.set_idx(names.index(str(term)))
-
         n_fitted_terms = len(names)
+
+        names = list(set(str(term) for term in self['charge_flux']))
+        for term in self['charge_flux']:
+            term.set_flux_idx(names.index(str(term)))
+        n_fitted_flux_terms = len(names)
 
         for key in not_fit_terms:
             for term in self[key]:
                 term.set_idx(n_fitted_terms)
 
-        return n_fitted_terms
+        return n_fitted_terms, n_fitted_flux_terms
 
     def _get_term_paths(self, terms):
         paths = {}

@@ -113,9 +113,10 @@ def scriptify(writer):
 
 
 class HessianOutput():
-    def __init__(self, vib_scaling, n_atoms, charge, multiplicity, elements, coords, hessian,
-                 b_orders, point_charges, lone_e=None, n_bonds=None):
+    def __init__(self, vib_scaling, fchk_file, n_atoms, charge, multiplicity, elements, coords, hessian,
+                 b_orders, point_charges, dipole_deriv, lone_e=None, n_bonds=None):
 
+        self.fchk_file = fchk_file
         self.n_atoms = self.check_type(n_atoms, 'n_atoms', int)
         self.charge = self.check_type(charge, 'charge', int)
         self.multiplicity = self.check_type(multiplicity, 'n_atoms', int)
@@ -127,6 +128,10 @@ class HessianOutput():
         self.n_bonds = self.b_orders.sum(axis=1).round().astype(int)
         self.point_charges = self.check_type_and_shape(point_charges, 'point_charges', float,
                                                        (n_atoms,))
+        if dipole_deriv != []:
+            self.dipole_deriv = np.array(dipole_deriv).reshape((-1, 3, 3))
+        else:
+            self.dipole_deriv = None
 
         if lone_e is not None or n_bonds is not None:
             warn('HessianOutput no longer needs "lone_e" or "n_bonds" arguments and they will be '

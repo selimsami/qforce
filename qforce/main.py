@@ -8,6 +8,7 @@ from .fragment import fragment
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian
+from .charge_flux import fit_dipole_derivative
 
 from .misc import check_if_file_exists, LOGO
 from colt import from_commandline
@@ -58,7 +59,12 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
     ff = ForceField(config.ff.output_software, job.name, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, qm_hessian_out.coords)
 
+    if qm_hessian_out.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
+        fit_dipole_derivative(qm_hessian_out, mol)
+
     print_outcome(job.dir, config.ff.output_software)
+
+    return mol
 
 
 def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,

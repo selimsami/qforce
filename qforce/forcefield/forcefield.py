@@ -26,6 +26,9 @@ n_excl = 2 :: int :: [2, 3]
 # Lennard jones method for the forcefield
 lennard_jones = opls_auto :: str :: [gromos_auto, gromos, opls_auto, opls, gaff, gaff2, charmm36, ext]
 
+# Use GDMA to compute multipoles
+do_multipole = false :: bool
+
 # Use externally provided point charges in the file "ext_q" in the job directyory
 ext_charges = no :: bool
 
@@ -63,8 +66,20 @@ ext_h_cap = :: str, optional
 # Set all dihedrals as rigid (no dihedral scans)
 all_rigid = no :: bool
 
+# Only put bond-angle coupling when both bond atoms overlap with angle atoms
+ba_couple_1_shared = no :: bool
+
+# TEMP: Chosen period for dihedrals
+cosine_dihed_period = 2 :: int :: [2, 3]
+
 # write the force field with Morse potential
 morse = no :: bool
+
+# beta for bond-bond coupling (TEST)
+beta = 22 :: float
+
+# beta for bond-angle coupling (TEST)
+beta_ba = 22 :: float
 
 # write the force field with cosine angle potential
 cos_angle = no :: bool
@@ -113,7 +128,10 @@ _ext_alpha = no :: bool
         self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
         self.pairs = self.make_pairs(neighbors, mol.non_bonded)
         self.morse = config.ff.morse
+        self.beta = config.ff.beta
+        self.beta_ba = config.ff.beta_ba
         self.cos_angle = config.ff.cos_angle
+        self.cosine_dihed_period = config.ff.cosine_dihed_period
         self.terms = mol.terms
         self.topo = mol.topo
         self.non_bonded = mol.non_bonded

@@ -26,62 +26,6 @@ class BondTerm(TermBase):
             bond['vers'] = f"{type1}({b_order_half_rounded}){type2}"
             bond_terms.append(cls([a1, a2], dist, bond['vers']))
 
-        # # Ethene
-        #
-        # atoms = [1, 4]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test1'))
-        #
-        # atoms = [1, 5]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test2'))
-        #
-        # atoms = [2, 4]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test2'))
-        #
-        # atoms = [2, 5]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test1'))
-
-        # Ethane
-
-        # atoms = [1, 5]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test1'))
-
-        # atoms = [1, 6]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test1'))
-
-        # atoms = [1, 7]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test2'))
-
-        # atoms = [2, 6]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test1'))
-
-        # atoms = [2, 7]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test1'))
-
-        # atoms = [2, 5]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test2'))
-
-        # atoms = [3, 5]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test1'))
-
-        # atoms = [3, 7]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test1'))
-
-        # atoms = [3, 6]
-        # dist = dist = get_dist(topo.coords[atoms[0]], topo.coords[atoms[1]])[1]
-        # bond_terms.append(cls(atoms, dist, 'test2'))
-
         return bond_terms
 
 
@@ -164,8 +108,8 @@ class CrossBondBondTerm(TermBase):
 
                 n_shared = sum([a1 in [a3, a4], a2 in [a3, a4]])
 
-                # if n_shared == 0:
-                #     continue
+                if n_shared == 0:
+                    continue
 
                 b21 = topo.edge(a2, a1)['vers']
                 b_type1 = sorted([topo.types[a1], topo.types[a2]])
@@ -194,7 +138,6 @@ class CrossBondAngleTerm(TermBase):
 
         cross_bond_angle_terms = cls.get_terms_container()
 
-        z = 0
         for a1, a2, a3 in topo.angles:
             theta = get_angle(topo.coords[[a1, a2, a3]])[0]
             #  No CrossBondAngle term  if linear angle (>170) or if in 3-member ring
@@ -218,48 +161,18 @@ class CrossBondAngleTerm(TermBase):
                 is_angle_centered = a2 in [a4, a5]
 
                 # For formaldehyde, methane, ethene
-                # if n_shared == 1:
-                #     continue
+                if n_shared == 1 and not topo.ba_couple_1_shared:
+                    continue
 
                 a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
                                  f"{topo.types[a2]}({b23}){topo.types[a3]}"])
                 a_type = f"{a_type[0]}_{a_type[1]}"
                 b_type = sorted([topo.types[a4], topo.types[a5]])
-                b45 = topo.edge(a4, a5)['vers']
                 b_type = f"{b_type[0]}({b45}){b_type[1]}"
 
-                ba_type = f'{a_type}-{b_type}-{n_shared}-{is_angle_centered}-{z}'
+                ba_type = f'{a_type}-{b_type}-{n_shared}-{is_angle_centered}'
 
                 cross_bond_angle_terms.append(cls([a1, a2, a3, a4, a5], equ, ba_type))
-                # z += 1
-
-            # for a4 in topo.neighbors[0][a2]:
-
-            #     dist = get_dist(topo.coords[a4], topo.coords[a2])[1]
-
-            #     equ = np.array([theta, dist])
-
-            #     b21 = topo.edge(a2, a1)['vers']
-            #     b23 = topo.edge(a2, a3)['vers']
-
-            #     if a4 in topo.neighbors[0][a2]:
-            #         b24 = topo.edge(a2, a4)['vers']
-            #     else:
-            #         b24 = 'far'
-
-            #     if a4 == a1 or a4 == a3:
-            #         pos = 'in'
-            #     elif b24 == 'far':
-            #         pos = 'far'
-            #     else:
-            #         continue
-            #         pos = 'out'
-
-            #     a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
-            #                      f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-            #     a_type = f"{a_type[0]}_{a_type[1]}-({b24}){topo.types[a4]}-{pos}-{z}"
-
-            #     cross_bond_angle_terms.append(cls([a1, a2, a3, a2, a4], equ, a_type))
 
         return cross_bond_angle_terms
 
@@ -371,7 +284,7 @@ class CrossAngleAngleTerm(TermBase):
         cross_angle_angle_terms = cls.get_terms_container()
 
         angles_arr = np.array(topo.angles)
-        z = 0
+
         for i, (a1, a2, a3) in enumerate(topo.angles):
             theta1 = get_angle(topo.coords[[a1, a2, a3]])[0]
             #  No CrossBondAngle term  if linear angle (>170) or if in 3-member ring
@@ -401,11 +314,17 @@ class CrossAngleAngleTerm(TermBase):
                 # if sum([a1 == a5, a3 == a5, a4 == a2, a6 == a2]) != 2:
                 #     continue
 
-                n_shared = sum([a1 in [a4, a5, a6], a3 in [a4, a5, a6]])
-
+                n_shared = sum([a1 in [a4, a5, a6], a2 in [a4, a5, a6], a3 in [a4, a5, a6]])
+                n_matched = sum([a1 == a4 or a1 == a6, a2 == a5, a3 == a6 or a3 == a4])
                 # For methane
-                if n_shared == 0:
+                # if n_shared == 0:
+                #     continue
+
+                # For ethene
+                if n_shared < 2:
                     continue
+                # if n_matched == 0:
+                #     continue
 
                 theta2 = get_angle(topo.coords[[a4, a5, a6]])[0]
                 equ = np.array([theta1, theta2])
@@ -423,66 +342,12 @@ class CrossAngleAngleTerm(TermBase):
                 a2_type = f"{a2_type[0]}_{a2_type[1]}"
 
                 aa_type = sorted([a1_type, a2_type])
-                aa_type = f"{aa_type[0]}-{aa_type[1]}-{n_shared}-{z}"
+                aa_type = f"{aa_type[0]}-{aa_type[1]}-{n_shared}-{n_matched}"
 
                 cross_angle_angle_terms.append(cls([a1, a2, a3, a4, a5, a6], equ, aa_type))
                 # z += 1
 
         return cross_angle_angle_terms
-
-
-# class CrossAngleAngleTerm(TermBase):
-#     name = 'CrossAngleAngleTerm'
-
-#     def _calc_forces(self, crd, force, fconst):
-#         return calc_cross_angle_angle(crd, self.atomids, self.equ, fconst, force)
-
-#     @classmethod
-#     def get_terms(cls, topo, non_bonded):
-
-#         cross_angle_angle_terms = cls.get_terms_container()
-
-#         arr_angles = np.array(topo.angles)
-#         arr_central = arr_angles[:, 1]
-#         uniques = np.unique(arr_central)
-#         print(uniques)
-#         from itertools import combinations
-
-#         for unique in uniques:
-#             match = arr_central == unique
-#             print(match)
-#             print(unique)
-#             print(list(combinations(arr_angles[match], 2)))
-#             for (a1_1, a1_2, a1_3), (a2_1, a2_2, a2_3) in combinations(arr_angles[match], 2):
-
-#                 theta1 = get_angle(topo.coords[[a1_1, a1_2, a1_3]])[0]
-#                 theta2 = get_angle(topo.coords[[a2_1, a2_2, a2_3]])[0]
-
-#                 # #  No CrossBondAngle term  if linear angle (>170) or if in 3-member ring
-#                 # if theta1 < 2.9671 and (not topo.edge(a2, a1)['in_ring3'] or
-#                 #                        not topo.edge(a2, a3)['in_ring3']):
-
-#                 equ = np.array([theta1, theta2])
-
-#                 b1_21 = topo.edge(a1_2, a1_1)['vers']
-#                 b1_23 = topo.edge(a1_2, a1_3)['vers']
-#                 a1_type = sorted([f"{topo.types[a1_2]}({b1_21}){topo.types[a1_1]}",
-#                                   f"{topo.types[a1_2]}({b1_23}){topo.types[a1_3]}"])
-#                 a1_type = f"{a1_type[0]}_{a1_type[1]}"
-
-#                 b2_21 = topo.edge(a2_2, a2_1)['vers']
-#                 b2_23 = topo.edge(a2_2, a2_3)['vers']
-#                 a2_type = sorted([f"{topo.types[a2_2]}({b2_21}){topo.types[a2_1]}",
-#                                   f"{topo.types[a2_2]}({b2_23}){topo.types[a2_3]}"])
-#                 a2_type = f"{a2_type[0]}_{a2_type[1]}"
-
-#                 a_type = sorted([a1_type, a2_type])
-#                 a_type = f"{a_type[0]}_{a_type[1]}"
-
-#                 cross_angle_angle_terms.append(
-#                     cls([[a1_1, a1_2, a1_3], [a2_1, a2_2, a2_3]], equ, a_type))
-
-#         return cross_angle_angle_terms
 
 
 class CrossDihedAngleTerm(TermBase):
@@ -525,73 +390,13 @@ class CrossDihedAngleTerm(TermBase):
                     d_type.reverse()
                     t23.reverse()
 
-                d_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
-                phi = get_dihed(topo.coords[atoms])[0]
+                da_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
 
-                for j, (a5, a6, a7) in enumerate(topo.angles):
+                theta1 = get_angle(topo.coords[[a1, a2, a3]])[0]
+                theta2 = get_angle(topo.coords[[a2, a3, a4]])[0]
 
-                    theta = get_angle(topo.coords[[a5, a6, a7]])[0]
-                    equ = [phi, theta]
-
-                    b1_21 = topo.edge(a6, a5)['vers']
-                    b1_23 = topo.edge(a6, a7)['vers']
-                    a1_type = sorted([f"{topo.types[a6]}({b1_21}){topo.types[a5]}",
-                                      f"{topo.types[a6]}({b1_23}){topo.types[a7]}"])
-                    a_type = f"{a1_type[0]}_{a1_type[1]}"
-
-                    # if a4 != a2 and a6 != a2:
-                    #     continue
-
-                    # if a4 != a2 and a6 != a2:
-                    #     continue
-
-                    # if i <= j:
-                    #     continue
-
-                    # if i >= j:
-                    #     continue
-
-                    # if a2 == a5:
-                    #     continue
-
-                    # # if a1 not in [a4, a5, a6] and a2 not in [a4, a5, a6] and a3 not in [a4, a5, a6]:
-                    # #     continue
-
-                    # if sum([a1 == a5, a3 == a5, a4 == a2, a6 == a2]) != 2:
-                    #     continue
-
-                    n_shared = sum([a5 in atoms, a6 in atoms, a7 in atoms])
-
-                # # For methane
-                # # if n_shared == 0:
-                # #     continue
-
-                    da_type = f'{d_type}-{a_type}'
-                    print(da_type)
-
-                    cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], equ, da_type))
-                    # z += 1
-
-                #
-                # equ = np.array([theta1, theta2])
-
-                # b1_21 = topo.edge(a2, a1)['vers']
-                # b1_23 = topo.edge(a2, a3)['vers']
-                # a1_type = sorted([f"{topo.types[a2]}({b1_21}){topo.types[a1]}",
-                #                   f"{topo.types[a2]}({b1_23}){topo.types[a3]}"])
-                # a1_type = f"{a1_type[0]}_{a1_type[1]}"
-
-                # b2_21 = topo.edge(a5, a4)['vers']
-                # b2_23 = topo.edge(a5, a6)['vers']
-                # a2_type = sorted([f"{topo.types[a5]}({b2_21}){topo.types[a4]}",
-                #                   f"{topo.types[a5]}({b2_23}){topo.types[a6]}"])
-                # a2_type = f"{a2_type[0]}_{a2_type[1]}"
-
-                # aa_type = sorted([a1_type, a2_type])
-                # aa_type = f"{aa_type[0]}-{aa_type[1]}-{n_shared}-{z}"
-
-                # cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6], equ, aa_type))
-                # z += 1
+                cross_dihed_angle_terms.append(cls([a1, a2, a3, a4], theta1, da_type))
+                cross_dihed_angle_terms.append(cls([a4, a3, a2, a1], theta2, da_type))
 
         return cross_dihed_angle_terms
 
@@ -637,12 +442,9 @@ class CrossDihedBondTerm(TermBase):
                     t23.reverse()
 
                 d_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
-                phi = get_dihed(topo.coords[atoms])[0]
 
                 for j, (a5, a6) in enumerate(topo.bonds):
-
                     dist = get_dist(topo.coords[a5], topo.coords[a6])[1]
-                    equ = np.array([phi, dist])
 
                     b_type = sorted([topo.types[a5], topo.types[a6]])
                     b56 = topo.edge(a5, a6)['vers']
@@ -672,13 +474,12 @@ class CrossDihedBondTerm(TermBase):
                     n_shared = sum([a5 in atoms, a6 in atoms])
 
                 # # For methane
-                # # if n_shared == 0:
-                # #     continue
+                    if n_shared != 2:
+                        continue
 
                     db_type = f'{d_type}-{b_type}-{n_shared}-{z}'
-                    print(db_type)
 
-                    cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], equ, db_type))
+                    cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], dist, db_type))
                     # z += 1
 
                 #

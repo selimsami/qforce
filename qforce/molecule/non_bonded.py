@@ -7,13 +7,15 @@ from scipy.optimize import curve_fit
 from itertools import combinations_with_replacement
 #
 from ..elements import ATOM_SYM
-
+from ..qm.gdma import compute_gdma
 
 class NonBonded():
-    def __init__(self, n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
+    def __init__(self, n_atoms, q, dipoles, quadrupoles, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
                  n_excl, comb_rule, fudge_lj, fudge_q, h_cap, alpha):
         self.n_atoms = n_atoms
         self.q = q
+        self.dipole = dipoles
+        self.quadrupole = quadrupoles
         self.lj_types = lj_types
         self.lj_pairs = lj_pairs
         self.lj_1_4 = lj_1_4
@@ -30,6 +32,9 @@ class NonBonded():
 
     @classmethod
     def from_topology(cls, config, job, qm_out, topo, ext_q, ext_lj):
+        dipoles = np.zeros((qm_out.n_atoms, 3))
+        quadrupoles = np.zeros((qm_out.n_atoms, 5))
+
         comb_rule, fudge_lj, fudge_q, h_cap = set_non_bonded_props(config)
 
         exclusions = cls._set_custom_exclusions_and_pairs(config.exclusions)
@@ -40,8 +45,11 @@ class NonBonded():
         # RUN D4 if necessary
         if config._d4:
             q, lj_a, lj_b = handle_d4(job, comb_rule, qm_out, topo)
-
         # CHARGES
+        elif config.do_multipole:
+            if not qm_out.fchk_file:
+                raise KeyError('QM method does not have fchk file - This is not supported for GDMA')
+            q, dipoles, quadrupoles = compute_gdma(job, qm_out.fchk_file)
         elif ext_q:
             q = np.array(ext_q)
         elif config.ext_charges:
@@ -78,7 +86,7 @@ class NonBonded():
         # POLARIZABILITY
         alpha = set_polar(q, topo, config, job)
 
-        return cls(topo.n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions,
+        return cls(topo.n_atoms, q, dipoles, quadrupoles, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions,
                    pairs, config.n_excl, comb_rule, fudge_lj, fudge_q, h_cap, alpha)
 
     @classmethod
@@ -91,6 +99,9 @@ class NonBonded():
             q = frag_charges
         else:
             q = np.array([non_bonded.q[rev_map[i]] for i in range(n_atoms)])
+
+        dipoles = np.array([non_bonded.dipoles[rev_map[i]] for i in range(n_atoms)])
+        quadrupoles = np.array([non_bonded.quadrupoles[rev_map[i]] for i in range(n_atoms)])
 
         lj_types = [non_bonded.lj_types[rev_map[i]] for i in range(n_atoms)]
         lj_pairs = {key: val for key, val in list(non_bonded.lj_pairs.items())
@@ -108,7 +119,7 @@ class NonBonded():
         alpha = {mapping[key]: val for key, val in list(non_bonded.alpha.items())
                  if key in mapping.keys()}
 
-        return cls(n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
+        return cls(n_atoms, q, dipoles, quadrupoles, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
                    non_bonded.n_excl, non_bonded.comb_rule, non_bonded.fudge_lj,
                    non_bonded.fudge_q, non_bonded.h_cap, alpha)
 

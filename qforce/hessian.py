@@ -17,8 +17,26 @@ def fit_hessian(config, mol, qm):
     max_arr = np.full(mol.terms.n_fitted_terms, np.inf)
     bnd_ndx = np.unique([term.idx for term in mol.terms['bond']])
     ang_ndx = np.unique([term.idx for term in mol.terms['angle']])
-    # min_arr[bnd_ndx] = 0
-    # min_arr[ang_ndx] = 0
+    # imp_ndx = np.unique([term.idx for term in mol.terms['dihedral/improper']])
+    # aa_ndx = np.unique([term.idx for term in mol.terms['cross_angle_angle']])
+
+    # if 'cross_bond_angle' in mol.terms and len(mol.terms['cross_bond_angle']) > 0:
+    #     ndx = np.unique([term.idx for term in mol.terms['cross_bond_angle']])
+    #     min_arr[ndx] = -500
+    #     max_arr[ndx] = 500
+
+    # name = 'dihedral/improper'
+    # if name in mol.terms and len(mol.terms[name]) > 0:
+    #     ndx = np.unique([term.idx for term in mol.terms[name]])
+    #     min_arr[ndx] = -1000
+    #     max_arr[ndx] = 1000
+
+    min_arr[bnd_ndx] = 0
+    if len(mol.terms['angle']) != 0:
+        min_arr[ang_ndx] = 0
+    # min_arr[aa_ndx] = 0
+    # if imp_ndx:
+    #     min_arr[imp_ndx] = 0
 
     for i in range(mol.topo.n_atoms*3):
         for j in range(i+1):
@@ -36,6 +54,7 @@ def fit_hessian(config, mol, qm):
     # la.lstsq or nnls could also be used:
 
     fit = optimize.lsq_linear(hessian, difference, bounds=(min_arr, max_arr)).x
+    # fit = optimize.lsq_linear(hessian, difference, bounds=(-np.inf, np.inf)).x
     print("Done!\n")
 
     for term in mol.terms:
@@ -87,7 +106,7 @@ def calc_forces(coords, mol):
 
     force = np.zeros((mol.terms.n_fitted_terms+1, mol.topo.n_atoms, 3))
 
-    with mol.terms.add_ignore(['dihedral/flexible']):
+    with mol.terms.add_ignore(['dihedral/flexible', 'charge_flux']):
         for term in mol.terms:
             term.do_fitting(coords, force)
 

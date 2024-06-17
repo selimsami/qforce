@@ -16,6 +16,7 @@ class TermABC(ABC):
         self.atomids = np.array(atomids)
         self.equ = equ
         self.idx = 0
+        self.flux_idx = 0
         self.fconst = fconst
         self.typename = typename
         self._name = f"{self.name}({typename})"
@@ -28,6 +29,9 @@ class TermABC(ABC):
 
     def set_idx(self, idx):
         self.idx = idx
+
+    def set_flux_idx(self, idx):
+        self.flux_idx = idx
 
     def do_force(self, crd, force):
         """force calculation with given geometry"""

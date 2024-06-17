@@ -58,7 +58,11 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, xtb-torsiondrive]
 
     def read_hessian(self):
         qm_out = self.software.read().hessian(self.config, **self.hessian_files)
-        return HessianOutput(self.config.vib_scaling, *qm_out)
+        if 'fchk_file' in self.hessian_files:
+            fchk_file = self.hessian_files['fchk_file']
+        else:
+            fchk_file = None
+        return HessianOutput(self.config.vib_scaling, fchk_file, *qm_out)
 
     def read_scan(self, files):
         qm_outs = []
