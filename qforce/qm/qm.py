@@ -131,11 +131,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         software = self.softwares['software']
         folder = self.pathways.getdir("hessian", create=True)
 
-
         hessians = []
         for i, (coords, atnums) in enumerate(self._read_init_file(self.pathways['init.xyz'])):
             folder = self.pathways.getdir("hessian_step", i, create=True)
-
             calculation = self.Calculation(self.hessian_name(software),
                                            software.read.hessian_files,
                                            folder=folder,

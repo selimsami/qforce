@@ -249,8 +249,8 @@ class ReadABC(ABC):
                         line = file.readline()
                         hessian.extend(line.split())
 
-        coords = np.asfarray(coords, float)
-        hessian = np.asfarray(hessian, float)
+        coords = np.asarray(coords, float)
+        hessian = np.asarray(hessian, float)
         coords = np.reshape(coords, (-1, 3))
         elements = np.array(elements)
         coords = coords * Bohr

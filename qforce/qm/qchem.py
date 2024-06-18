@@ -17,7 +17,7 @@ class QChem(QMInterface):
     method = PBE :: str
 
     # Dispersion (enter "no"/"false" to turn off)
-    dispersion = d3_bj :: str, optional :: [d3, d3_bj, d3_bjm, d3_zero, d3_op, empirical_grimme]
+    dispersion = d3_bj :: str, optional :: [d3, d3_bj, d3_bjm, d3_zero, d3_op, empirical_grimme, false, no]
 
     # QM basis set to be used (enter "no"/"false" to turn off)
     basis = 6-31+G(D) :: str, optional
@@ -29,7 +29,7 @@ class QChem(QMInterface):
     max_opt_cycles = 100 :: int
 
     # DFT Quadrature grid size
-    xc_grid = 3 :: int :: [0, 1, 2, 3]
+    xc_grid = 3 :: int :: 
 
     # Number of CIS roots to ask
     cis_n_roots = :: int, optional
