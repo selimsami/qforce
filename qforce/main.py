@@ -7,63 +7,56 @@ from .molecule import Molecule
 from .fragment import fragment
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
-from .hessian import fit_hessian
+from .hessian import fit_hessian, multi_hessian_fit
 from .charge_flux import fit_dipole_derivative
 
-from .misc import check_if_file_exists, LOGO
-from colt import from_commandline
-from colt.validator import Validator
 
-
-# define new validator
-Validator.overwrite_validator("file", check_if_file_exists)
-
-
-@from_commandline("""
-# Input coordinate file mol.ext (ext: pdb, xyz, gro, ...)
-# or directory (mol or mol_qforce) name.
-file = :: file
-
-# File name for the optional options.
-options = :: file, optional, alias=o
-""", description={
-    'logo': LOGO,
-    'alias': 'qforce',
-    'arg_format': {
-        'name': 12,
-        'comment': 60,
-        },
-})
-def run(file, options):
-    run_qforce(input_arg=file, config=options)
-
-
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
-    config, job = initialize(input_arg, config, presets)
-
+def runjob(config, job, ext_q=None, ext_lj=None):
     if config.ff._polarize:
         polarize(job, config.ff)
 
+    # setup qm calculation
     qm = QM(job, config.qm)
-    qm_hessian_out = qm.read_hessian()
+    # do the preoptimization if selected
+    qm.preopt()
+    # get hessian output
+    qm_hessian_out = qm.get_hessian()
+    main_hessian = qm_hessian_out[0]
 
-    mol = Molecule(config, job, qm_hessian_out, ext_q, ext_lj)
+    # check molecule
+    mol = Molecule(config, job, main_hessian, ext_q, ext_lj)
 
-    md_hessian = fit_hessian(config.terms, mol, qm_hessian_out)
-
+    # change the order
+    fragments = None
     if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
+        # get fragments with qm
         fragments = fragment(mol, qm, job, config)
+
+    # hessian fitting
+    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out)
+
+    # do the scans
+    if fragments is not None:
         DihedralScan(fragments, mol, job, config)
 
-    calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
+    calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
+
     ff = ForceField(config.ff.output_software, job.name, config, mol, mol.topo.neighbors)
-    ff.software.write(job.dir, qm_hessian_out.coords)
+    ff.software.write(job.dir, main_hessian.coords)
 
     if qm_hessian_out.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
         fit_dipole_derivative(qm_hessian_out, mol)
 
-    print_outcome(job.dir, config.ff.output_software)
+    print_outcome(job.logger, job.dir, config.ff.output_software)
 
+    return mol
+
+
+def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
+    """Execute Qforce from python directly """
+    config, job = initialize(input_arg, config, presets)
+    #
+    mol = runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
     return mol
 
 
@@ -75,21 +68,22 @@ def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
 
     mol = Molecule(config, job, qm_hessian_out, ext_q, ext_lj)
 
-    md_hessian = fit_hessian(config.terms, mol, qm_hessian_out)
+    md_hessian = fit_hessian(job.logger, config.terms, mol, qm_hessian_out)
     calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
 
     ff = ForceField(config.ff.output_software, job.name, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, qm_hessian_out.coords)
 
-    print_outcome(job.dir, config.ff.output_software)
+    print_outcome(job.logger, job.dir, config.ff.output_software)
 
     return mol.terms
 
 
-def print_outcome(job_dir, output_software):
-    print(f'Output files can be found in the directory: {job_dir}.')
-    print(f'- Q-Force force field parameters in {output_software.upper()} format.')
-    print('- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,'
-          ' frequencies.pdf).')
-    print('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
-    print('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.\n')
+def print_outcome(logger, job_dir, output_software):
+    logger.info(f'Output files can be found in the directory: {job_dir}.')
+    logger.info(f'- Q-Force force field parameters in {output_software.upper()} format.')
+    logger.info('- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,'
+                ' frequencies.pdf).')
+    logger.info('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
+    logger.info('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.')
+

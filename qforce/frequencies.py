@@ -5,7 +5,7 @@ from scipy.linalg import eigh
 import seaborn as sns
 import matplotlib
 matplotlib.use('Agg')
-#
+import matplotlib.pyplot as plt
 
 
 def calc_qm_vs_md_frequencies(job, qm, md_hessian):

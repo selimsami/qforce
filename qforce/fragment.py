@@ -1,14 +1,16 @@
 import networkx as nx
 import os
 import hashlib
-import sys
 import networkx.algorithms.isomorphism as iso
 import numpy as np
 import json
 import pickle
+from pathlib import Path
 #
 from .elements import ELE_COV, ATOM_SYM, ELE_ENEG
 from .forces import get_dihed
+from calkeeper import CalculationIncompleteError
+from .logger import LoggerExit
 
 """
 
@@ -25,8 +27,8 @@ def fragment(mol, qm, job, config):
     unique_dihedrals = {}
 
     os.makedirs(config.scan.frag_lib, exist_ok=True)
-    os.makedirs(job.frag_dir, exist_ok=True)
-    reset_data_files(job.frag_dir)
+    frag_dir = job.pathways.getdir('fragments', create=True)
+    reset_data_files(frag_dir)
 
     for term in mol.terms['dihedral/flexible']:
         name = term.typename.partition('_')[0]
@@ -35,12 +37,17 @@ def fragment(mol, qm, job, config):
             unique_dihedrals[name] = term.atomids
 
     generated = []  # Number of fragments generated but not computed
+    error = ''
     for name, atomids in unique_dihedrals.items():
-        frag = Fragment(job, config, mol, qm, atomids, name)
-        if frag.has_data:
-            fragments.append(frag)
-        elif config.scan.batch_run and frag.has_inp:
-            generated.append(frag)
+        try:
+            frag = Fragment(job, config, mol, qm, atomids, name)
+            if frag.has_data:
+                fragments.append(frag)
+            elif config.scan.batch_run and frag.has_inp:
+                generated.append(frag)
+        except (CalculationIncompleteError, LoggerExit):
+            # ignore these errors, checking is done in check_and_notify!
+            pass
 
     check_and_notify(job, config.scan, len(unique_dihedrals), len(fragments), len(generated))
 
@@ -57,27 +64,25 @@ def reset_data_files(frag_dir):
 def check_and_notify(job, config, n_unique, n_have, n_generated):
     n_missing = n_unique - n_have
     if n_unique == 0:
-        print('There are no flexible dihedrals.')
+        job.logger.info('There are no flexible dihedrals.')
     else:
-        print(f"There are {n_unique} unique flexible dihedrals.")
+        job.logger.info(f"There are {n_unique} unique flexible dihedrals.")
         if n_missing == 0:
-            print("All scan data is available. Fitting the dihedrals...\n")
+            job.logger.info("All scan data is available. Fitting the dihedrals...\n")
         else:
-            print(f"{n_missing} of them are missing the scan data.")
+            job.logger.info(f"{n_missing} of them are missing the scan data.")
             if n_generated > 0:
-                print(
-                    f"{n_generated} of them generated previously (Batch run enabled).")
+                job.logger.info(f"{n_generated} of them generated previously (Batch run enabled).")
             if n_missing - n_generated > 0:
-                print(f"QM input files for them are created in: {job.frag_dir}")
+                job.logger.info(f"QM input files for them are created in: {job.frag_dir}")
 
             if config.avail_only:
-                print('Continuing without the missing dihedrals...\n')
+                job.logger.info('Continuing without the missing dihedrals...\n')
             else:
-                print('Exiting...\n')
-                raise SystemExit
+                job.logger.exit('Exiting...')
 
 
-class Fragment():
+class Fragment:
     """
     Issue: using capping categorization is not ideal - different capped fragments can be identical
     For now necessary because of the mapping - but should be fixed at some point
@@ -111,17 +116,29 @@ class Fragment():
         self.charge_scaling = config.ff.charge_scaling
         self.ext_charges = config.ff.ext_charges
         self.use_ext_charges_for_frags = config.ff.use_ext_charges_for_frags
-        self.charge_method = config.qm.charge_method
+        # set charge_method
+        self.charge_method = qm.get_scan_software().config.charge_method
 
-        self.check_fragment(job, config.scan, mol, qm)
+        self.check_fragment(job, config.scan, mol, qm, config.qm.dihedral_scanner)
 
-    def check_fragment(self, job, config, mol, qm):
+    def check_fragment(self, job, config, mol, qm, scanner):
         self.identify_fragment(mol, config)
         self.make_fragment_graph(mol)
         self.make_fragment_identifier(config, mol, qm)
         self.check_for_fragment(job, config, qm)
+        self.folder = job.pathways.getdir('frag', self.id, create=True)
+        software = qm.get_scan_software()
+        if scanner == 'torsiondrive':
+            self.calc = job.Calculation(f'{self.id}_torsiondrive.inp',
+                                        software.required_scan_torsiondrive_files,
+                                        folder=self.folder, software='torsiondrive')
+        elif scanner == 'relaxed_scan':
+            self.calc = job.Calculation(f'{self.id}.inp', software.required_scan_files,
+                                        folder=self.folder, software=software.name)
+        else:
+            raise ValueError("scanner can only be 'torsiondrive' or 'relaxed_scan'")
         self.check_for_qm_data(job, config, mol, qm)
-        self.make_fragment_terms(mol)
+        # self.make_fragment_terms(mol)
 
     def check_single_ring_rules(self, mol, bond, a1, a2):
         ring = [ring for ring in mol.topo.rings if {a1, a2}.issubset(ring)][0]
@@ -148,7 +165,7 @@ class Fragment():
                     pass
                 elif (config.frag_threshold < 1 or  # fragmentation turned off
                       n_neigh < config.frag_threshold  # don't break first n neighbors
-                      or bond['order'] >= 1.4  # don't break bonds conjugated more than 1.4
+                      or bond['order'] >= config.conj_bo_cutoff  # don't break bonds conjugated more than 1.4 (default)
                       or ELE_ENEG[mol.elements[a]] > 3  # don't break if very electronegative
                       or (config.break_co_bond and ELE_ENEG[mol.elements[n]] > 3)
                       or mol.topo.n_neighbors[n] == 1  # don't break terminal atoms
@@ -292,22 +309,25 @@ class Fragment():
         self.id = f'{self.hash}~{self.hash_idx}'
 
     def check_new_scan_data(self, job, mol, config, qm):
-        files = [f for f in os.listdir(job.frag_dir) if f.startswith(self.id) and
+        files = [f for f in os.listdir(self.folder) if f.startswith(self.id) and
                  f.endswith(('log', 'out'))]
 
         if files:
             self.has_data = True
-            qm_out = qm.read_scan(files)
+            qm_out = qm.read_scan(self.folder, files)
+            qm_out = qm.do_scan_sp_calculations(self.folder, self.id, qm_out, mol.elements)
+            # get qm out energies
             self.qm_energies = qm_out.energies
             self.qm_coords = qm_out.coords
+            #
             self.assign_frag_charge(mol, qm_out.charges)
-
+            #
             if qm_out.mismatch:
                 if config.avail_only:
-                    print('"\navail_only" requested, attempting to continue with the missing '
-                          'points...\n\n')
+                    job.logger.info('"\navail_only" requested, attempting to continue with '
+                                    'the missing points...\n\n')
                 else:
-                    sys.exit('Exiting...\n\n')
+                    job.logger.exit('Exiting...\n\n')
             else:
                 with open(f'{self.dir}/scandata_{self.hash_idx}', 'w') as data:
                     for angle, energy in zip(qm_out.angles, qm_out.energies):
@@ -363,6 +383,7 @@ class Fragment():
                                           map_mol_to_db[neigh] < self.n_atoms])
 
     def check_for_qm_data(self, job, config, mol, qm):
+
         if self.has_data:
             self.qm_energies = np.loadtxt(f'{self.dir}/scandata_{self.hash_idx}', unpack=True)[1]
             self.qm_coords = np.load(f'{self.dir}/scancoords_{self.hash_idx}.npy')
@@ -381,6 +402,10 @@ class Fragment():
 
             self.write_xyz()
             with open(f"{self.dir}/qm_method_{self.hash_idx}", 'w') as file:
+                if not isinstance(self.graph.graph['qm_method']['software'], str):
+                    self.graph.graph['qm_method']['software'] = (self.graph
+                                                                 .graph['qm_method']['software']
+                                                                 .value)
                 json.dump(self.graph.graph['qm_method'], file, sort_keys=True, indent=4)
 
             if not (self.has_data or (config.batch_run and self.has_inp)):
@@ -414,7 +439,7 @@ class Fragment():
         coords = np.array(coords)
         start_angle = np.degrees(get_dihed(coords[self.scanned_atomids])[0])
 
-        with open(f'{job.frag_dir}/{self.id}.inp', 'w') as file:
+        with open(self.calc.inputfile, 'w') as file:
             qm.write_scan(file, self.id, coords, atnums, self.graph.graph['scan'], start_angle,
                           self.graph.graph['qm_method']['charge'],
                           self.graph.graph['qm_method']['multiplicity'])

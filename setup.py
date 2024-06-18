@@ -4,6 +4,6 @@ setup(
       packages = find_packages(),
       package_data={'qforce': ['data/*']},
       entry_points = {
-        'console_scripts': ['qforce=qforce.main:run',]
+        'console_scripts': ['qforce=qforce.cli:run',]
       },
      )

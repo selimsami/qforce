@@ -3,21 +3,26 @@ import shutil
 from io import StringIO
 from types import SimpleNamespace
 import pkg_resources
-#
 from colt import Colt
+from calkeeper import CalculationKeeper
 #
-from .qm.qm import QM, implemented_qm_software
+from .qm.qm import QM, implemented_qm_software, calculators
 from .forcefield.forcefield import ForceField
 from .molecule.terms import Terms
 from .dihedral_scan import DihedralScan
-from .misc import LOGO
+from .pathkeeper import Pathways
+from .logger import QForceLogger
 
 
 class Initialize(Colt):
-    @staticmethod
-    def _set_config(config):
-        config['qm'].update(config['qm']['software'])
-        config['qm'].update({'software': config['qm']['software'].value})
+    _user_input = """
+[logging]
+# if given log qforce to filename
+filename = :: str, optional
+"""
+
+    @classmethod
+    def _set_config(cls, config):
         config.update({key: SimpleNamespace(**val) for key, val in config.items()})
         return SimpleNamespace(**config)
 
@@ -28,7 +33,21 @@ class Initialize(Colt):
         questions.generate_block("scan", DihedralScan.colt_user_input)
         questions.generate_cases("software", {key: software.colt_user_input for key, software in
                                               implemented_qm_software.items()}, block='qm')
+        questions.generate_cases("preopt", {key: software.colt_user_input for key, software in
+                                            implemented_qm_software.items()}, block='qm')
+        questions.generate_cases("scan_software", {key: software.colt_user_input
+                                                   for key, software in
+                                                   implemented_qm_software.items()},
+                                 block='qm')
+        questions.generate_cases("charge_software", {key: software.colt_user_input
+                                                     for key, software
+                                                     in implemented_qm_software.items()},
+                                 block='qm')
+        # calculator block
         questions.generate_block("terms", Terms.get_questions())
+        questions.generate_block("calculators", "")
+        for name, calculator in calculators.items():
+            questions.generate_block(name, calculator.colt_user_input, block='calculators')
 
     @classmethod
     def from_config(cls, config):
@@ -65,19 +84,40 @@ def _get_job_info(filename):
         job['name'] = base.split('_qforce')[0]
 
     job['dir'] = f'{path}{job["name"]}_qforce'
-    job['frag_dir'] = f'{job["dir"]}/fragments'
+    pathways = Pathways(job['dir'], name=job['name'])
+    job['pathways'] = pathways
+    job['frag_dir'] = str(pathways["fragments"])
+    #
+    if job['coord_file'] is False:
+        init = pathways['init.xyz']
+        if init.exists():
+            job['coord_file'] = init
+        else:
+            preopt = pathways['preopt.xyz']
+            if preopt.exists():
+                job['coord_file'] = preopt
+            else:
+                raise SystemExit(f"Either '{pathways['init.xyz']}' "
+                                 f"or '{pathways['preopt.xyz']}' need to be present")
+
+    # Added calkeeper
+    job['logger'] = None
+    job['calculators'] = {}
+    job['calkeeper'] = CalculationKeeper()
+    job['Calculation'] = job['calkeeper'].get_calcls()
+    #
     job['md_data'] = pkg_resources.resource_filename('qforce', 'data')
     os.makedirs(job['dir'], exist_ok=True)
     return SimpleNamespace(**job)
 
 
-def _check_and_copy_settings_file(job_dir, config_file):
+def _check_and_copy_settings_file(pathways, config_file):
     """
     If options are provided as a file, copy that to job directory.
     If options are provided as StringIO, write that to job directory.
     """
 
-    settings_file = os.path.join(job_dir, 'settings.ini')
+    settings_file = pathways['settings.ini']
 
     if config_file is not None:
         if isinstance(config_file, StringIO):
@@ -91,11 +131,12 @@ def _check_and_copy_settings_file(job_dir, config_file):
 
 
 def initialize(filename, config_file, presets=None):
-    print(LOGO)
-
     job_info = _get_job_info(filename)
-    settings_file = _check_and_copy_settings_file(job_info.dir, config_file)
+    settings_file = _check_and_copy_settings_file(job_info.pathways, config_file)
 
     config = Initialize.from_questions(config=settings_file, presets=presets, check_only=True)
-
+    # get calculators
+    for key, Calculator in calculators.items():
+        job_info.calculators[key] = Calculator.from_config(getattr(config.calculators, key))
+    job_info.logger = QForceLogger(config.logging.filename)
     return config, job_info

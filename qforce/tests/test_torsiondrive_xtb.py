@@ -8,6 +8,7 @@ from qforce.qm.torsiondrive_xtb import TorsiondrivexTB
 
 
 class Test_xtb_torsiondrive_read():
+
     @staticmethod
     @pytest.fixture(scope='class')
     def torsiondrive():
