@@ -54,6 +54,7 @@ def fit_hessian(logger, config, mol, qm):
     difference = qm_hessian - np.array(non_fit)
 
     # la.lstsq or nnls could also be used:
+    print('BOUNDS', min_arr, max_arr)
     fit = optimize.lsq_linear(hessian, difference, bounds=(min_arr, max_arr)).x
     # fit = optimize.lsq_linear(hessian, difference, bounds=(-np.inf, np.inf)).x
     logger.info("Done!\n")
@@ -83,6 +84,31 @@ def multi_hessian_fit(logger, config, mol, qms):
     full_hessian = []
     full_differences = []
 
+    min_arr = np.full(mol.terms.n_fitted_terms, -np.inf)
+    max_arr = np.full(mol.terms.n_fitted_terms, np.inf)
+    bnd_ndx = np.unique([term.idx for term in mol.terms['bond']])
+    ang_ndx = np.unique([term.idx for term in mol.terms['angle']])
+    # imp_ndx = np.unique([term.idx for term in mol.terms['dihedral/improper']])
+    # aa_ndx = np.unique([term.idx for term in mol.terms['cross_angle_angle']])
+
+    # if 'cross_bond_angle' in mol.terms and len(mol.terms['cross_bond_angle']) > 0:
+    #     ndx = np.unique([term.idx for term in mol.terms['cross_bond_angle']])
+    #     min_arr[ndx] = -500
+    #     max_arr[ndx] = 500
+
+    # name = 'dihedral/improper'
+    # if name in mol.terms and len(mol.terms[name]) > 0:
+    #     ndx = np.unique([term.idx for term in mol.terms[name]])
+    #     min_arr[ndx] = -1000
+    #     max_arr[ndx] = 1000
+
+    min_arr[bnd_ndx] = 0
+    if len(mol.terms['angle']) != 0:
+        min_arr[ang_ndx] = 0
+    # min_arr[aa_ndx] = 0
+    # if imp_ndx:
+    #     min_arr[imp_ndx] = 0
+
     logger.info(f"Calculating the MM hessian matrix elements for all structures ...")
     for qm in qms:
         hessian, full_md_hessian_1d = [], []
@@ -108,7 +134,8 @@ def multi_hessian_fit(logger, config, mol, qms):
         full_hessian += hessian
 
     logger.info("Fitting the MD hessian parameters to QM hessian values")
-    fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
+    fit = optimize.lsq_linear(hessian, difference, bounds=(min_arr, max_arr)).x
+    # fit = optimize.lsq_linear(hessian, difference, bounds=(-np.inf, np.inf)).x
     logger.info("Done!\n")
 
     for term in mol.terms:

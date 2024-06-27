@@ -86,7 +86,7 @@ def calc_angles(coords, atoms, theta0, fconst, force):
 
 def calc_cross_bond_bond(coords, atoms, r0s, fconst, force):
     vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
-    vec32, r43 = get_dist(coords[atoms[2]], coords[atoms[3]])
+    vec43, r43 = get_dist(coords[atoms[2]], coords[atoms[3]])
 
     s1 = r12 - r0s[0]
     s2 = r43 - r0s[1]
