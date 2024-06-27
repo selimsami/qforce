@@ -175,6 +175,7 @@ class OpenMM:
                 equ = str(round(bond.equ * 0.1, 9))
                 k = str(round(bond.fconst * 100, 3))
                 e_dis = self.determine_bond_dissociation_energy(ids)
+                print('MORSE:', np.sqrt(k/(2*e_dis)))
                 ET.SubElement(bonds, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]),
                                               'param1': equ, 'param2': k, 'param3': str(e_dis)})
 

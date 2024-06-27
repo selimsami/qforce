@@ -82,14 +82,15 @@ def multi_hessian_fit(logger, config, mol, qms):
 
     full_hessian = []
     full_differences = []
-    for istruct, qm in enumerate(qms):
+
+    logger.info(f"Calculating the MM hessian matrix elements for all structures ...")
+    for qm in qms:
         hessian, full_md_hessian_1d = [], []
         non_fit = []
         qm_hessian = np.copy(qm.hessian)
-        logger.info(f"Calculating the MD hessian matrix elements for Structure {istruct}...")
+
         full_md_hessian = calc_hessian(qm.coords, mol)
         count = 0
-        logger.info("Fitting the MD hessian parameters to QM hessian values")
         for i in range(mol.topo.n_atoms*3):
             for j in range(i+1):
                 hes = (full_md_hessian[i, j] + full_md_hessian[j, i]) / 2
@@ -105,8 +106,11 @@ def multi_hessian_fit(logger, config, mol, qms):
         difference = qm_hessian - np.array(non_fit)
         full_differences += list(difference)
         full_hessian += hessian
+
+    logger.info("Fitting the MD hessian parameters to QM hessian values")
     fit = optimize.lsq_linear(hessian, difference, bounds=(0, np.inf)).x
     logger.info("Done!\n")
+
     for term in mol.terms:
         if term.idx < len(fit):
             term.fconst = fit[term.idx]

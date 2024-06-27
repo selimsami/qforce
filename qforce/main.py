@@ -44,7 +44,7 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     ff = ForceField(config.ff.output_software, job.name, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, main_hessian.coords)
 
-    if qm_hessian_out.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
+    if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
         fit_dipole_derivative(qm_hessian_out, mol)
 
     print_outcome(job.logger, job.dir, config.ff.output_software)
@@ -85,5 +85,5 @@ def print_outcome(logger, job_dir, output_software):
     logger.info('- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,'
                 ' frequencies.pdf).')
     logger.info('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
-    logger.info('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.')
+    logger.info('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.\n')
 

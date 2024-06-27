@@ -326,8 +326,8 @@ class WriteQChem(WriteABC):
         file.write(f'  max_scf_cycles = {self.config.max_scf_cycles}\n')
         file.write(f'  xc_grid = {self.config.xc_grid}\n')
         file.write(f'  scf_convergence = {self.config.scf_convergence}\n')
-        if config.basis_lin_dep_thresh is not None:
+        if self.config.basis_lin_dep_thresh is not None:
             file.write(f'  basis_lin_dep_thresh = {self.config.basis_lin_dep_thresh}\n')
-        if config.thresh is not None:
+        if self.config.thresh is not None:
             file.write(f'  thresh = {self.config.thresh}\n')
         file.write('$end\n')
