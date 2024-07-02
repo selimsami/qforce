@@ -4,7 +4,7 @@ from colt import Colt
 #
 from .gromacs import Gromacs
 from .openmm import OpenMM
-from qforce.elements import ATOM_SYM, ATOMMASS
+from ..elements import ATOM_SYM, ATOMMASS
 
 implemented_md_software = {'gromacs': Gromacs,
                            'openmm': OpenMM,
@@ -12,6 +12,11 @@ implemented_md_software = {'gromacs': Gromacs,
 
 
 class ForceField(Colt):
+
+    implemented_md_software = {'gromacs': Gromacs,
+                               'openmm': OpenMM,
+                               }
+
     _user_input = """
 # MD software to print the final results in
 output_software = gromacs :: str :: gromacs, openmm

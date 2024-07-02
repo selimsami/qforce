@@ -23,6 +23,9 @@ filename = :: str, optional
 
     @classmethod
     def _set_config(cls, config):
+        output_software = config['ff']['output_software']
+        config.update({'terms': config['ff'][output_software]})
+        #
         config.update({key: SimpleNamespace(**val) for key, val in config.items()})
         return SimpleNamespace(**config)
 
@@ -43,8 +46,10 @@ filename = :: str, optional
                                                      for key, software
                                                      in implemented_qm_software.items()},
                                  block='qm')
+        # ff terms
+        for name, ffcls in ForceField.implemented_md_software.items():
+            questions.generate_block(name, ffcls.get_questions(), block='ff')
         # calculator block
-        questions.generate_block("terms", Terms.get_questions())
         questions.generate_block("calculators", "")
         for name, calculator in calculators.items():
             questions.generate_block(name, calculator.colt_user_input, block='calculators')

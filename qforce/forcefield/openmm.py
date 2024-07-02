@@ -1,8 +1,11 @@
 import numpy as np
 import xml.etree.cElementTree as ET
 
+from .forcefield_base import ForcefieldSettings
 
-class OpenMM:
+
+class OpenMM(ForcefieldSettings):
+
     def __init__(self, ff):
         self.ff = ff
 

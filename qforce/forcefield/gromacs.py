@@ -2,14 +2,15 @@ import numpy as np
 #
 from colt import Colt
 #
-from qforce.molecule.non_bonded import calc_sigma_epsilon
-from qforce.forces import convert_to_inversion_rb
-from qforce.misc import LOGO_SEMICOL
+from ..molecule.non_bonded import calc_sigma_epsilon
+from ..forces import convert_to_inversion_rb
+from ..misc import LOGO_SEMICOL
+from .forcefield_base import ForcefieldSettings
 
-class Gromacs():
+class Gromacs(ForcefieldSettings):
+
     def __init__(self, ff):
         self.ff = ff
-
 
     def write(self, directory, coords):
         self.write_itp(directory)
