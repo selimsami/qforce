@@ -2,13 +2,14 @@ from .polarize import polarize
 from .initialize import initialize
 from .qm.qm import QM
 from .qm.qm_base import HessianOutput
-from qforce.forcefield.forcefield import ForceField
+from .forcefield.forcefield import ForceField
 from .molecule import Molecule
 from .fragment import fragment
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian, multi_hessian_fit
 from .charge_flux import fit_dipole_derivative
+from .misc import LOGO
 
 
 def runjob(config, job, ext_q=None, ext_lj=None):
