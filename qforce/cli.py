@@ -5,7 +5,7 @@ from colt.validator import Validator
 from calkeeper import CalculationKeeper, CalculationIncompleteError
 #
 from .initialize import initialize as _initialize
-from .main import runjob
+from .main import runjob, save_jobs, runspjob
 from .misc import check_if_file_exists, LOGO
 from .logger import LoggerExit
 
@@ -52,11 +52,6 @@ def initialize(config):
     return _initialize(config['file'], config['options'], None)
 
 
-def save_jobs(job):
-    with open(job.pathways['calculations.json'], 'w') as fh:
-        fh.write(job.calkeeper.as_json())
-
-
 class RunQforce(Option):
 
     name = 'run'
@@ -75,17 +70,7 @@ class RunQforce(Option):
         return cls(config, job)
 
     def run(self):
-        self.job.logger.info(LOGO)
-        try:
-            runjob(self.config, self.job)
-            save_jobs(self.job)
-        except CalculationIncompleteError:
-            save_jobs(self.job)
-        except LoggerExit as err:
-            save_jobs(self.job)
-            if not self.job.logger.isstdout:
-                self.job.logger.info(str(err))
-            raise err from None
+        runspjob(self.config, self.job)
 
 
 def load_keeper(job):

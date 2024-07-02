@@ -52,11 +52,41 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     return mol
 
 
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
+def save_jobs(job):
+    with open(job.pathways['calculations.json'], 'w') as fh:
+        fh.write(job.calkeeper.as_json())
+
+
+def runspjob(config, job, ext_q=None, ext_lj=None):
+    """Run a single round of Q-Force"""
+    # print qforce logo
+    job.logger.info(LOGO)
+    #
+    try:
+        mol = runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        save_jobs(job)
+        return mol
+    except CalculationIncompleteError:
+        save_jobs(job)
+    except LoggerExit as err:
+        save_jobs(job)
+        if not job.logger.isstdout:
+            job.logger.info(str(err))
+        raise err from None
+    return None
+
+
+def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False):
     """Execute Qforce from python directly """
     config, job = initialize(input_arg, config, presets)
     #
-    mol = runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+    if err is True:
+        return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+    else:
+        try:
+            return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        except LoggerExit as err:
+            print(str(err))
     return mol
 
 
