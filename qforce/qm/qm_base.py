@@ -277,7 +277,7 @@ class ReadABC(ABC):
 
 class HessianOutput():
     def __init__(self, vib_scaling, fchk_file, n_atoms, charge, multiplicity, elements, coords, hessian,
-                 b_orders, point_charges, dipole_deriv, lone_e=None, n_bonds=None):
+                 b_orders, point_charges, dipole_deriv=None, lone_e=None, n_bonds=None):
 
         self.fchk_file = fchk_file
         self.n_atoms = self.check_type(n_atoms, 'n_atoms', int)
@@ -291,6 +291,9 @@ class HessianOutput():
         self.n_bonds = self.b_orders.sum(axis=1).round().astype(int)
         self.point_charges = self.check_type_and_shape(point_charges, 'point_charges', float,
                                                        (n_atoms,))
+        if dipole_deriv is None:
+            dipole_deriv = []
+        #
         if dipole_deriv != []:
             self.dipole_deriv = np.array(dipole_deriv).reshape((-1, 3, 3))
         else:
