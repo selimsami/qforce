@@ -9,6 +9,35 @@ from .forcefield_base import ForcefieldSettings
 
 class Gromacs(ForcefieldSettings):
 
+    _always_on_terms = ['bond', 'angle']
+
+    _optional_terms = {
+            'urey': True,
+            'cross_bond_bond': False, 
+            'cross_bond_angle': False, 
+            'cross_angle_angle': False, 
+            '_cross_dihed_angle': False, 
+            '_cross_dihed_bond': False, 
+            'dihedral/rigid': True, 
+            'dihedral/improper': True, 
+            'dihedral/flexible': True, 
+            'dihedral/inversion': True, 
+            'dihedral/pitorsion': True, 
+            'non_bonded': True, 
+            'charge_flux/bond': False, 
+            'charge_flux/bond_prime': False, 
+            'charge_flux/angle': False, 
+            'charge_flux/angle_prime': False, 
+            'charge_flux/bond_bond': False, 
+            'charge_flux/bond_angle': False, 
+            'charge_flux/angle_angle': False, 
+            'local_frame/bisector': False, 
+            'local_frame/z_then_x': False, 
+            'local_frame/z_only': True, 
+            'local_frame/z_then_bisector': True, 
+            'local_frame/trisector': True,
+    }
+
     def __init__(self, ff):
         self.ff = ff
 
