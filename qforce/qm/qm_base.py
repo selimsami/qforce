@@ -111,6 +111,9 @@ class WriteABC(ABC):
     def hessian(self, ):
         ...
 
+    def gradient(self, ):
+        ...
+
     @abstractmethod
     def scan(self, ):
         ...
@@ -166,6 +169,9 @@ class ReadABC(ABC):
 
     @abstractmethod
     def hessian(self, ):
+        ...
+
+    def gradient(self, ):
         ...
 
     @abstractmethod
@@ -275,7 +281,24 @@ class ReadABC(ABC):
         return None
 
 
-class HessianOutput():
+class EnergyOutput:
+
+    def __init__(self, energy, elements, coords):
+        self.energy = energy
+        self.elements = elements
+        self.coords = coords
+
+
+class GradientOutput:
+
+    def __init__(self, energy, gradient, elements, coords):
+        self.energy = energy
+        self.gradient = gradient
+        self.elements = elements
+        self.coords = coords
+
+
+class HessianOutput:
     def __init__(self, vib_scaling, fchk_file, n_atoms, charge, multiplicity, elements, coords, hessian,
                  b_orders, point_charges, dipole_deriv=None, lone_e=None, n_bonds=None):
 

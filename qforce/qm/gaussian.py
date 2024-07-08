@@ -92,7 +92,7 @@ class ReadGaussian(ReadABC):
                 elif "EUMP2" in line:
                     # if mp2, read mp2 energy
                     energy = round(float(line.split()[-1].replace('D', 'E')), 8)
-        return energy
+        return energy * Hartree * mol / kJ
 
     @staticmethod
     def _get_input_orientation(file):

@@ -21,7 +21,7 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     # do the preoptimization if selected
     qm.preopt()
     # get hessian output
-    qm_hessian_out = qm.get_hessian()
+    qm_hessian_out, qm_energy_out, qm_gradient_out = qm.get_hessian()
     main_hessian = qm_hessian_out[0]
 
     # check molecule
@@ -34,7 +34,7 @@ def runjob(config, job, ext_q=None, ext_lj=None):
         fragments = fragment(mol, qm, job, config)
 
     # hessian fitting
-    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out)
+    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out)
 
     # do the scans
     if fragments is not None:

@@ -110,6 +110,8 @@ class Pathways:
         'preopt': '0_preopt',
         'hessian': '1_hessian',
         'hessian_charge': ['hessian', 'charge'],
+        'hessian_energy': ['hessian', '${idx}_en_conformer'],
+        'hessian_gradient': ['hessian', '${idx}_grad_conformer'],
         'hessian_step': ['hessian', '${idx}_conformer'],
         'fragments': '2_fragments',
         'frag': ['fragments', '${frag_id}'],

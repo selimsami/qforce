@@ -8,7 +8,6 @@ from calkeeper import CalculationKeeper
 #
 from .qm.qm import QM, implemented_qm_software, calculators
 from .forcefield.forcefield import ForceField
-from .molecule.terms import Terms
 from .dihedral_scan import DihedralScan
 from .pathkeeper import Pathways
 from .logger import QForceLogger
@@ -19,6 +18,7 @@ class Initialize(Colt):
 [logging]
 # if given log qforce to filename
 filename = :: str, optional
+
 """
 
     @classmethod

@@ -186,6 +186,37 @@ class xTBCalculator(Calculator):
 
 class WritexTB(WriteABC):
 
+    def gradient(self, file, job_name, settings, coords, atnums):
+        """ Write the input file for sp gradient
+
+        Parameters
+        ----------
+        file : file
+            The file object to write the command line.
+        job_name : string
+            The name of the job.
+        settings: SimpleNamespace
+            A configparser object with all the parameters.
+        coords : array
+            A coordinates array of shape (N,3), where N is the number of atoms.
+        atnums : list
+            A list of atom elements represented as atomic number.
+        """
+        name = file.name
+        base, filename = os.path.split(name)
+        # Given that the xTB input has to be given in the command line.
+        # We create the xTB command template here.
+        cmd = f'xtb {job_name}_input.xyz --grad --chrg {settings.charge} ' \
+              f'--uhf {settings.multiplicity - 1} ' \
+              f'--namespace {job_name} --parallel {settings.n_proc} ' \
+              f'{self.config.xtb_command}'
+        # Write the hessian.inp which is the command line input
+        file.write(cmd)
+        # Write the coordinates, which is the standard xyz file.
+        mol = Atoms(positions=coords, numbers=atnums)
+        write(f'{base}/{job_name}_input.xyz', mol, plain=True,
+              comment=cmd)
+
     def opt(self, file, job_name, settings, coords, atnums):
         """ Write the input file for optimization
 
@@ -382,7 +413,10 @@ class ReadxTB(ReadABC):
 
     opt_files = {'coord_file': ['${base}.xtbopt.xyz'], }
 
+    gradient_files = {'grad_file': ['${base}.gradient'], 'xyz_file': ['${base}_input.xyz']}
+
     sp_files = {'sp_file': ['${base}.sp.inp.out'], }
+    sp_ec_files = {'sp_file': ['${base}.sp.inp.out'], 'xyz_file': ['${base}_input.xyz']}
 
     charge_files = {'pc_file': ['${base}.charges']}
 
@@ -397,7 +431,17 @@ class ReadxTB(ReadABC):
             for line in fh:
                 if 'TOTAL ENERGY' in line:
                     energy = float(line.split()[3])
+        energy = energy * Hartree * mol / kJ
         return energy
+
+    def sp_ec(self, config, sp_file, xyz_file):
+        molecule = read(xyz_file)
+        with open(sp_file, 'r') as fh:
+            for line in fh:
+                if 'TOTAL ENERGY' in line:
+                    energy = float(line.split()[3])
+        energy = energy * Hartree * mol / kJ
+        return energy, molecule.get_atomic_numbers(), molecule.get_positions()
 
     def charges(self, config, pc_file):
         _, point_charges = self._read_xtb_charge(pc_file)
@@ -440,12 +484,59 @@ class ReadxTB(ReadABC):
         """
         n_atoms, point_charges = self._read_xtb_charge(pc_file)
         n_atoms, elements, coords, energy = self._read_xtb_xyz_and_energy(coord_file)
+        #
         charge = config.charge
         multiplicity = config.multiplicity
         b_orders = self._read_xtb_wbo_analysis(wbo_file, elements)
         hessian = self._read_xtb_hess(hess_file, n_atoms)
         return (n_atoms, charge, multiplicity, elements, coords, hessian,
                 b_orders, point_charges)
+
+    def gradient(self, config, grad_file, xyz_file):
+        """ Read data from the grad file.
+
+        Parameters
+        ----------
+        config : config
+            A configparser object with all the parameters.
+
+        grad_file : string
+            File name of the xtb grad file.
+
+        xyz_file : string
+            File name of the xtb input file.
+
+        Returns
+        -------
+        energy : float
+            The scf energy of the system
+
+        gradient : array(dtype=float)
+            The gradient of the molecule.
+
+        """
+        molecule = read(xyz_file)
+        with open(grad_file, 'r') as fh:
+            # skip first line
+            next(fh)
+            # read energy
+            energy = float(next(fh).split()[6])
+            natoms = 0
+            cols = next(fh).split()
+            while len(cols) == 4:
+                natoms += 1
+                cols = next(fh).split()
+
+            grad = []
+
+            while len(cols) == 3:
+                natoms += 1
+                grad.append([float(val) for val in cols])
+                cols = next(fh).split()
+
+        energy = energy * Hartree * mol / kJ
+        grad = np.array(grad) * Hartree * mol / kJ / Bohr
+        return energy, grad, molecule.get_atomic_numbers(), molecule.get_positions()
 
     def scan(self, config, file_name):
         """ Read data from the scan file.
@@ -454,8 +545,9 @@ class ReadxTB(ReadABC):
         ----------
         config : config
             A configparser object with all the parameters.
+
         file_name : string
-            File name of the ORCA log file.
+            File name of the xTB log file.
 
         Returns
         -------
