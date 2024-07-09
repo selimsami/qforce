@@ -41,11 +41,11 @@ def runjob(config, job, ext_q=None, ext_lj=None):
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
-    ff = ForceField(config.ff.output_software, job.name, config, mol, mol.topo.neighbors)
+    ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, main_hessian.coords)
 
     if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
-        fit_dipole_derivative(qm_hessian_out, mol)
+        fit_dipole_derivative(main_hessian, mol)
 
     print_outcome(job.logger, job.dir, config.ff.output_software)
 

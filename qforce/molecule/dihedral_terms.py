@@ -36,7 +36,7 @@ class DihedralBaseTerm(TermABC):
         elif 150 <= phi:
             ang = 180
 
-        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}-{ang}"
+        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"  # -{ang}
 
     @staticmethod
     def remove_linear_angles(coords, a1s, a2, a3, a4s):

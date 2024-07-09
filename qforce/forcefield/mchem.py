@@ -1,13 +1,14 @@
 import numpy as np
 import xml.etree.cElementTree as ET
+from ..elements import ATOM_SYM
 
-
-class OpenMM:
+from datetime import datetime
+from ..misc import LOGO
+class MChem:
     def __init__(self, ff):
         self.ff = ff
 
     def write(self, directory, coords, box=[20., 20., 20.]):
-
         self.write_xml(directory, box)
         self.write_pdb(directory, coords, box)
 
@@ -22,28 +23,31 @@ class OpenMM:
             file.write('ENDMDL\n')
 
     def write_xml(self, directory, box):
-        system = ET.Element('System', {'openmmVersion': '8.1', 'type': 'System', 'version': '1'})
-        box_vec = ET.SubElement(system, 'PeriodicBoxVectors')
-        ET.SubElement(box_vec, 'A', {'x': str(box[0]), 'y': '0', 'z': '0'})
-        ET.SubElement(box_vec, 'B', {'x': '0', 'y': str(box[1]), 'z': '0'})
-        ET.SubElement(box_vec, 'C', {'x': '0', 'y': '0', 'z': str(box[2])})
+        forcefield = ET.Element('Forcefield')
 
-        particles = ET.SubElement(system, 'Particles')
-        for mass in self.ff.masses:
-            ET.SubElement(particles, 'Particle', {'mass': str(mass)})
-        ET.SubElement(system, 'Constraints')
+        self.write_atomtypes(forcefield)
+        self.write_residues(forcefield)
+        self.write_forces(forcefield)
 
-        forces = ET.SubElement(system, 'Forces')
-
-        self.write_forces(forces)
-
-        tree = ET.ElementTree(system)
+        tree = ET.ElementTree(forcefield)
         ET.indent(tree)
         tree.write(f'{directory}/{self.ff.mol_name}_qforce.xml')
 
-    def write_forces(self, forces):
-        n_terms = 2
+    def write_atomtypes(self, forcefield):
+        atomtypes = ET.SubElement(forcefield, 'AtomTypes')
+        for i in range(self.ff.n_atoms):
+                    ET.SubElement(atomtypes, 'Type', {'name': str(i+1), 'class': str(i+1), 'element': self.ff.symbols[i],
+                                                      'mass': str(self.ff.masses[i])})
 
+    def write_residues(self, forcefield):
+        residues = ET.SubElement(forcefield, 'Residues')
+        residue = ET.SubElement(residues, 'Residue', {'name': self.ff.residue})
+        for i, name in enumerate(self.ff.atom_names, start=1):
+            ET.SubElement(residue, 'Atom', {'name': name, 'type': str(i)})
+        for bond in self.ff.terms['bond']:
+            ET.SubElement(residue, 'Bond', {'from': str(bond.atomids[0]+1), 'to': str(bond.atomids[1]+1)})
+
+    def write_forces(self, forces):
         self.write_bonds(forces)
         self.write_angles(forces)
 
@@ -51,111 +55,65 @@ class OpenMM:
             print(term.name, term.atomids+1, term.equ, term.fconst)
 
         if 'dihedral/improper' in self.ff.terms and len(self.ff.terms['dihedral/improper']) > 0:
-            self.write_improper_dihedral(forces, n_terms)
-            n_terms += 1
+            self.write_improper_dihedral(forces)
         if 'dihedral/rigid' in self.ff.terms and len(self.ff.terms['dihedral/rigid']) > 0:
-            self.write_rigid_dihedral(forces, n_terms)
-            n_terms += 1
+            self.write_rigid_dihedral(forces)
         if 'dihedral/pitorsion' in self.ff.terms and len(self.ff.terms['dihedral/pitorsion']) > 0:
-            self.write_pitorsion_dihedral(forces, n_terms)
-            n_terms += 1
+            self.write_pitorsion_dihedral(forces)
         if 'dihedral/inversion' in self.ff.terms and len(self.ff.terms['dihedral/inversion']) > 0:
-            self.write_inversion_dihedral(forces, n_terms)
-            n_terms += 1
+            self.write_inversion_dihedral(forces)
         if 'cross_bond_bond' in self.ff.terms and len(self.ff.terms['cross_bond_bond']) > 0:
-            self.write_cross_bond_bond(forces, n_terms)
-            n_terms += 1
+            self.write_cross_bond_bond(forces)
         if 'cross_bond_angle' in self.ff.terms and len(self.ff.terms['cross_bond_angle']) > 0:
-            self.write_cross_bond_angle(forces, n_terms)
+            self.write_cross_bond_angle(forces)
             print('cross-bond-angle terms: ', len(self.ff.terms['cross_bond_angle']))
-            n_terms += 1
         if 'cross_angle_angle' in self.ff.terms and len(self.ff.terms['cross_angle_angle']) > 0:
-            self.write_cross_angle_angle(forces, n_terms)
+            self.write_cross_angle_angle(forces)
             print('cross-angle-angle terms: ', len(self.ff.terms['cross_angle_angle']))
-            n_terms += 1
         if '_cross_dihed_angle' in self.ff.terms and len(self.ff.terms['_cross_dihed_angle']) > 0:
-            self.write_cross_dihedral_angle(forces, n_terms)
-            n_terms += 1
+            self.write_cross_dihedral_angle(forces)
 
     def write_bonds(self, forces):
         if not self.ff.morse:
-            bond_force = ET.SubElement(forces, 'Force', {'type': 'HarmonicBondForce', 'name': 'Bond',
-                                                         'forceGroup': '0', 'usesPeriodic': '0', 'version': '2'})
-            bonds = ET.SubElement(bond_force, 'Bonds')
+            bond_force = ET.SubElement(forces, 'HarmonicBondForce')
             for bond in self.ff.terms['bond']:
                 ids = bond.atomids
                 equ = str(round(bond.equ * 0.1, 9))
                 k = str(round(bond.fconst * 100, 3))
-                ET.SubElement(bonds, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'd': equ, 'k': k})
+                ET.SubElement(bond_force, 'Bond', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                   'length': equ, 'k': k})
+
         else:
-            morse_bond_eq = 'D*(1-exp(-b*(r-r0)))^2; b = sqrt(k/(2*D))'
-            bond_force = ET.SubElement(forces, 'Force', {'energy': morse_bond_eq, 'name': 'Bond', 'usesPeriodic': '0',
-                                                         'type': 'CustomBondForce', 'forceGroup': '0', 'version': '3'})
-
-            per_bond_params = ET.SubElement(bond_force, 'PerBondParameters')
-            ET.SubElement(per_bond_params, 'Parameter', {'name': 'r0'})
-            ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
-            ET.SubElement(per_bond_params, 'Parameter', {'name': 'D'})
-
-            ET.SubElement(bond_force, 'GlobalParameters')
-            ET.SubElement(bond_force, 'EnergyParameterDerivatives')
-
-            bonds = ET.SubElement(bond_force, 'Bonds')
+            bond_force = ET.SubElement(forces, 'MorseBondForce')
             for bond in self.ff.terms['bond']:
                 ids = bond.atomids
                 equ = str(round(bond.equ * 0.1, 9))
                 k = str(round(bond.fconst * 100, 3))
                 e_dis = self.ff.bond_dissociation_energies[ids[0], ids[1]]
-                ET.SubElement(bonds, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]),
-                                              'param1': equ, 'param2': k, 'param3': str(e_dis)})
+                ET.SubElement(bond_force, 'Bond', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                   'length': equ, 'k': k, 'e_dis': str(e_dis)})
 
     def write_angles(self, forces):
         if not self.ff.cos_angle:
-            angle_force = ET.SubElement(forces, 'Force', {'type': 'HarmonicAngleForce', 'name': 'Angle',
-                                                          'forceGroup': '1', 'usesPeriodic': '0', 'version': '2'})
-            angles = ET.SubElement(angle_force, 'Angles')
+            angle_force = ET.SubElement(forces, 'HarmonicAngleForce')
             for angle in self.ff.terms['angle']:
                 ids = angle.atomids
                 equ = str(round(angle.equ, 8))
                 k = str(round(angle.fconst, 6))
-                ET.SubElement(angles, 'Angle', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]),
-                                                'a': equ, 'k': k})
+                ET.SubElement(angle_force, 'Angle', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                     'class3': str(ids[2]+1), 'angle': equ, 'k': k})
         else:
-            cos_angle_eq = '0.5*k*(cos(theta)-cos(theta0))^2'
-            angle_force = ET.SubElement(forces, 'Force', {'energy': cos_angle_eq, 'name': 'Angle', 'usesPeriodic': '0',
-                                                          'type': 'CustomAngleForce', 'forceGroup': '1', 'version': '3'})
-
-            per_angle_params = ET.SubElement(angle_force, 'PerAngleParameters')
-            ET.SubElement(per_angle_params, 'Parameter', {'name': 'theta0'})
-            ET.SubElement(per_angle_params, 'Parameter', {'name': 'k'})
-
-            ET.SubElement(angle_force, 'GlobalParameters')
-            ET.SubElement(angle_force, 'EnergyParameterDerivatives')
-
-            angles = ET.SubElement(angle_force, 'Angles')
+            angle_force = ET.SubElement(forces, 'CosineAngleForce')
             for angle in self.ff.terms['angle']:
                 ids = angle.atomids
-                equ = str(round(angle.equ, 8))
+                equ = str(round(np.degrees(angle.equ), 8))
                 k = str(round(angle.fconst/np.sin(angle.equ)**2, 6))
-                ET.SubElement(angles, 'Angle', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]),
-                                                'param1': equ, 'param2': k})
+                ET.SubElement(angle_force, 'Angle', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                     'class3': str(ids[2]+1), 'angle': equ, 'k': k})
 
-    def write_cross_bond_bond(self, forces, n_term):
-        bb_cross_eq = 'max(k*(distance(p1,p2)-r1_0)*(distance(p3,p4)-r2_0), -20)'
-        bb_force = ET.SubElement(forces, 'Force', {'energy': bb_cross_eq, 'name': 'BondBond', 'usesPeriodic': '0',
-                                                   'type': 'CustomCompoundBondForce', 'forceGroup': str(n_term),
-                                                   'particles': '4', 'version': '3'})
+    def write_cross_bond_bond(self, forces):
+        bb_force = ET.SubElement(forces, 'StretchStretchHarmonicForce')
 
-        per_bond_params = ET.SubElement(bb_force, 'PerBondParameters')
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'r1_0'})
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'r2_0'})
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
-
-        ET.SubElement(bb_force, 'GlobalParameters')
-        ET.SubElement(bb_force, 'EnergyParameterDerivatives')
-        ET.SubElement(bb_force, 'Functions')
-
-        bb = ET.SubElement(bb_force, 'Bonds')
         for cross_bb in self.ff.terms['cross_bond_bond']:
             ids = cross_bb.atomids
             equ1 = str(round(cross_bb.equ[0] * 0.1, 9))
@@ -164,61 +122,35 @@ class OpenMM:
             k = - cross_bb.fconst * 100
             k = str(round(k, 6))
 
-            ET.SubElement(bb, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
-                                       'param1': equ1, 'param2': equ2, 'param3': k})
+            ET.SubElement(bb_force, 'StretchStretch', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                       'class3': str(ids[2]+1), 'class4': str(ids[3]+1),
+                                                       'length1': equ1, 'length2': equ2, 'k': k})
 
-    def write_cross_bond_angle(self, forces, n_term):
+    def write_cross_bond_angle(self, forces):
         if self.ff.cos_angle:
-            ba_cross_eq = 'max(k*(cos(angle(p1,p2,p3))-cos(theta0))*(distance(p4,p5)-r0), -40)'
+            ba_force = ET.SubElement(forces, 'StretchBendCouplingCosineForce')
         else:
-            ba_cross_eq = 'k*(angle(p1,p2,p3)-theta0)*(distance(p4,p5)-r0)'
-        ba_force = ET.SubElement(forces, 'Force', {'energy': ba_cross_eq, 'name': 'BondAngle', 'usesPeriodic': '0',
-                                                   'type': 'CustomCompoundBondForce', 'forceGroup': str(n_term),
-                                                   'particles': '5', 'version': '3'})
+            ba_force = ET.SubElement(forces, 'StretchBendCouplingHarmonicForce')
 
-        per_bond_params = ET.SubElement(ba_force, 'PerBondParameters')
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta0'})
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'r0'})
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
-
-        ET.SubElement(ba_force, 'GlobalParameters')
-        ET.SubElement(ba_force, 'EnergyParameterDerivatives')
-        ET.SubElement(ba_force, 'Functions')
-
-        ba = ET.SubElement(ba_force, 'Bonds')
         for cross_ba in self.ff.terms['cross_bond_angle']:
             ids = cross_ba.atomids
             equ1 = str(round(cross_ba.equ[0], 8))
             equ2 = str(round(cross_ba.equ[1] * 0.1, 9))
             if self.ff.cos_angle:
                 cross_ba.fconst /= -np.sin(cross_ba.equ[0])
-
             k = -cross_ba.fconst * 10
-
             k = str(round(k, 7))
 
-            ET.SubElement(ba, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
-                                       'p5': str(ids[4]), 'param1': equ1, 'param2': equ2, 'param3': k})
+            ET.SubElement(ba_force, 'StretchBend', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                    'class3': str(ids[2]+1), 'class4': str(ids[3]+1),
+                                                    'class5': str(ids[4]+1), 'length': equ1, 'angle': equ2, 'k': k})
 
-    def write_cross_angle_angle(self, forces, n_term):
+    def write_cross_angle_angle(self, forces):
         if self.ff.cos_angle:
-            aa_cross_eq = 'k*(cos(angle(p1,p2,p3))-cos(theta1_0))*(cos(angle(p4,p5,p6))-cos(theta2_0))'
+            ba_force = ET.SubElement(forces, 'BendBendCosineForce')
         else:
-            aa_cross_eq = 'k*(angle(p1,p2,p3)-theta1_0)*(angle(p4,p5,p6)-theta2_0)'
-        ba_force = ET.SubElement(forces, 'Force', {'energy': aa_cross_eq, 'name': 'AngleAngle', 'usesPeriodic': '0',
-                                                   'type': 'CustomCompoundBondForce', 'forceGroup': str(n_term),
-                                                   'particles': '6', 'version': '3'})
+            ba_force = ET.SubElement(forces, 'BendBendHarmonicForce')
 
-        per_bond_params = ET.SubElement(ba_force, 'PerBondParameters')
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta1_0'})
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta2_0'})
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
-
-        ET.SubElement(ba_force, 'GlobalParameters')
-        ET.SubElement(ba_force, 'EnergyParameterDerivatives')
-        ET.SubElement(ba_force, 'Functions')
-
-        ba = ET.SubElement(ba_force, 'Bonds')
         for cross_aa in self.ff.terms['cross_angle_angle']:
             ids = cross_aa.atomids
             equ1 = str(round(cross_aa.equ[0], 8))
@@ -227,57 +159,26 @@ class OpenMM:
                 cross_aa.fconst /= np.sin(cross_aa.equ[0]) * np.sin(cross_aa.equ[1])
             k = str(round(-cross_aa.fconst, 7))
 
-            ET.SubElement(ba, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
-                                       'p5': str(ids[4]), 'p6': str(ids[5]), 'param1': equ1, 'param2': equ2, 'param3': k})
+            ET.SubElement(ba_force, 'BendBend', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                 'class3': str(ids[2]+1), 'class4': str(ids[3]+1),
+                                                 'class5': str(ids[4]+1), 'class6': str(ids[5]+1),
+                                                 'angle1': equ1, 'angle2': equ2, 'k': k})
 
-    def write_cross_dihedral_bond(self, forces, n_term):
+    def write_cross_dihedral_bond(self, forces):
+        db_force = ET.SubElement(forces, 'StretchTorsionForce')
 
-        # if self.ff.cos_angle:
-        #     aa_cross_eq = 'k*(1-cos(dihedral(p1,p2,p3,p4)))*(cos(angle(p1,p2,p3))-cos(theta1_0))*(cos(angle(p2,p3,p4))-cos(theta2_0))'
-        # else:
-        da_cross_eq = 'k*(1-cos(dihedral(p1,p2,p3,p4)))*(distance(p2,p3)-r0)'
-        da_force = ET.SubElement(forces, 'Force', {'energy': da_cross_eq, 'name': 'DihedralAngle', 'usesPeriodic': '0',
-                                                   'type': 'CustomCompoundBondForce', 'forceGroup': str(n_term),
-                                                   'particles': '6', 'version': '3'})
-
-        per_bond_params = ET.SubElement(da_force, 'PerBondParameters')
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta0'})
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
-
-        ET.SubElement(da_force, 'GlobalParameters')
-        ET.SubElement(da_force, 'EnergyParameterDerivatives')
-        ET.SubElement(da_force, 'Functions')
-
-        ba = ET.SubElement(da_force, 'Bonds')
         for cross_da in self.ff.terms['_cross_dihed_angle']:
             ids = cross_da.atomids
             equ = str(round(cross_da.equ, 8))
-            # if self.ff.cos_angle:
-            #     cross_daa.fconst /= np.sin(cross_daa.equ[0]) * np.sin(cross_daa.equ[1])
             k = str(round(cross_da.fconst, 7))
 
-            ET.SubElement(ba, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
-                                       'param1': equ, 'param2': k})
+            ET.SubElement(db_force, 'StretchTorsion', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                             'class3': str(ids[2]+1), 'class4': str(ids[3]+1),
+                                             'param1': equ, 'param2': k})
 
     def write_cross_dihedral_angle(self, forces, n_term):
+        da_force = ET.SubElement(forces, 'BendTorsionForce')
 
-        # if self.ff.cos_angle:
-        #     aa_cross_eq = 'k*(1-cos(dihedral(p1,p2,p3,p4)))*(cos(angle(p1,p2,p3))-cos(theta1_0))*(cos(angle(p2,p3,p4))-cos(theta2_0))'
-        # else:
-        da_cross_eq = 'k*(1-cos(dihedral(p1,p2,p3,p4)))*(angle(p1,p2,p3)-theta0)'
-        da_force = ET.SubElement(forces, 'Force', {'energy': da_cross_eq, 'name': 'DihedralAngle', 'usesPeriodic': '0',
-                                                   'type': 'CustomCompoundBondForce', 'forceGroup': str(n_term),
-                                                   'particles': '4', 'version': '3'})
-
-        per_bond_params = ET.SubElement(da_force, 'PerBondParameters')
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta0'})
-        ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
-
-        ET.SubElement(da_force, 'GlobalParameters')
-        ET.SubElement(da_force, 'EnergyParameterDerivatives')
-        ET.SubElement(da_force, 'Functions')
-
-        ba = ET.SubElement(da_force, 'Bonds')
         for cross_da in self.ff.terms['_cross_dihed_angle']:
             ids = cross_da.atomids
             equ = str(round(cross_da.equ, 8))
@@ -285,9 +186,9 @@ class OpenMM:
             #     cross_daa.fconst /= np.sin(cross_daa.equ[0]) * np.sin(cross_daa.equ[1])
             k = str(round(cross_da.fconst, 7))
 
-            ET.SubElement(ba, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
-                                       'param1': equ, 'param2': k})
-
+            ET.SubElement(da_force, 'BendTorsion', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                    'class3': str(ids[2]+1), 'class4': str(ids[3]+1),
+                                                    'angle': equ, 'k': k})
 
     def write_inversion_dihedral(self, forces, n_term):
         inv_dih_eq = 'k*(cos(theta)-cos(theta0))^2'

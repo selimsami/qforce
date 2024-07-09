@@ -4,17 +4,19 @@ from colt import Colt
 #
 from .gromacs import Gromacs
 from .openmm import OpenMM
+from .mchem import MChem
 from qforce.elements import ATOM_SYM, ATOMMASS
 
 implemented_md_software = {'gromacs': Gromacs,
                            'openmm': OpenMM,
+                           'mchem': MChem,
                            }
 
 
 class ForceField(Colt):
     _user_input = """
 # MD software to print the final results in
-output_software = gromacs :: str :: gromacs, openmm
+output_software = gromacs :: str :: gromacs, openmm, mchem
 
 # Number of n equivalent neighbors needed to consider two atoms equivalent
 # Negative values turns off equivalence, 0 makes same elements equivalent
@@ -75,12 +77,6 @@ cosine_dihed_period = 2 :: int :: [2, 3]
 # write the force field with Morse potential
 morse = no :: bool
 
-# beta for bond-bond coupling (TEST)
-beta = 22 :: float
-
-# beta for bond-angle coupling (TEST)
-beta_ba = 22 :: float
-
 # write the force field with cosine angle potential
 cos_angle = no :: bool
 
@@ -110,9 +106,9 @@ _ext_alpha = no :: bool
 
 """
 
-    def __init__(self, software, job_name, config, mol, neighbors, exclude_all=[]):
+    def __init__(self, software, job, config, mol, neighbors, exclude_all=[]):
         self.polar = config.ff._polar
-        self.mol_name = job_name
+        self.mol_name = job.name
         self.n_atoms = mol.n_atoms
         self.elements = mol.elements
         self.q = self.set_charge(mol.non_bonded)
@@ -128,13 +124,12 @@ _ext_alpha = no :: bool
         self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
         self.pairs = self.make_pairs(neighbors, mol.non_bonded)
         self.morse = config.ff.morse
-        self.beta = config.ff.beta
-        self.beta_ba = config.ff.beta_ba
         self.cos_angle = config.ff.cos_angle
         self.cosine_dihed_period = config.ff.cosine_dihed_period
         self.terms = mol.terms
         self.topo = mol.topo
         self.non_bonded = mol.non_bonded
+        self.bond_dissociation_energies = self._get_bond_dissociation_energies(job.md_data)
 
         self.software = self._set_md_software(software)
 
@@ -159,6 +154,78 @@ _ext_alpha = no :: bool
                         polar_pairs.append([non_bonded.alpha_map[a1], non_bonded.alpha_map[a2]])
 
         return non_bonded.pairs+polar_pairs
+
+    def _get_bond_dissociation_energies(self, md_data):
+        if not self.morse:
+            return None
+
+        dissociation_energies = {}
+
+        bde_dict = self._read_bond_dissociation_energy_csv(md_data)
+
+        for a1, a2, props in self.topo.graph.edges(data=True):
+            if props['type'] not in bde_dict:
+                raise ValueError('Morse potential chosen, but dissociation energy not known for this atom number pair '
+                                 f'with the bond order in parenthesis: {props["type"]}. '
+                                 'You can add this too csv file in the data directory')
+
+            neighs1 = [edge[2]['type'] for edge in self.topo.graph.edges(a1, data=True)]
+            neighs2 = [edge[2]['type'] for edge in self.topo.graph.edges(a2, data=True)]
+            e_dis, n_matches = self._choose_bond_type(bde_dict[props['type']], neighs1, neighs2)
+
+            if self.elements[a1] == self.elements[a2]:
+                e_dis2, n_matches2 = self._choose_bond_type(bde_dict[props['type']], neighs1, neighs2, 1, 0)
+                if n_matches2 > n_matches:
+                    e_dis = e_dis2
+
+            dissociation_energies[(a1, a2)] = e_dis
+        return dissociation_energies
+
+    def _read_bond_dissociation_energy_csv(self, md_data):
+        bde_dict = {}
+
+        with open(f'{md_data}/bond_dissociation_energy.csv', 'r') as file:
+            file.readline()
+            for line in file:
+                a1, a2, b_order, a1_neighs, a2_neighs, de = line.split(',')[:6]
+                a1_neighs = self._read_bond_dissociation_neighbors(a1, a1_neighs)
+                a2_neighs = self._read_bond_dissociation_neighbors(a2, a2_neighs)
+                name = f'{a1}({float(b_order):.1f}){a2}'
+
+                if name in bde_dict:
+                    bde_dict[name].append((a1_neighs, a2_neighs, de))
+                else:
+                    bde_dict[name] = [(a1_neighs, a2_neighs, de)]
+
+        return bde_dict
+
+    @staticmethod
+    def _choose_bond_type(bde_list, neighs1, neighs2, ndx1=0, ndx2=1):
+        highest_match = 0
+        match_type = None
+
+        for bde_type in bde_list:
+            current_sum1 = sum(typ in neighs1 for typ in bde_type[ndx1])
+            current_sum2 = sum(typ in neighs2 for typ in bde_type[ndx2])
+            current_sum = current_sum1 + current_sum2
+
+            if current_sum > highest_match:
+                highest_match = current_sum
+                match_type = bde_type
+            elif highest_match == 0 and bde_type[0] == [] and bde_type[1] == []:
+                match_type = bde_type
+
+        return match_type[2], highest_match
+
+    @staticmethod
+    def _read_bond_dissociation_neighbors(a, neighs):
+        neighs_formatted = []
+        if neighs != '*' and neighs != '':
+            neighs = neighs.split()
+            for neigh in neighs:
+                a_neigh, bo_neigh = neigh.split('_')
+                neighs_formatted.append(f'{min(a, a_neigh)}({float(bo_neigh):.1f}){max(a, a_neigh)}')
+        return neighs_formatted
 
     def make_exclusions(self, non_bonded, neighbors, exclude_all):
         exclusions = [[] for _ in range(self.n_atoms)]
