@@ -136,17 +136,17 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads):
     for qmen in qmens:
         # Ax=B
         vec = calc_energy(qmen.coords, mol)
-        full_differences.append(qmen.energy)
-        full_hessian.append(vec)
+        full_differences.append(qmen.energy - vec[-1])
+        full_hessian.append(vec[:-1])
 
     for qmgrad in qmgrads:
         evec, fvec = calc_eandforces(qmgrad.coords, mol)
         #
-        full_differences.append(qmgrad.energy)
-        full_hessian.append(evec)
+        full_differences.append(qmgrad.energy - evec[-1])
+        full_hessian.append(evec[:-1])
         #
-        full_hessian += fvec
-        full_differences += list(np.array(qmgrad.gradient).flatten())
+        full_hessian += list(fvec[:-1].T)
+        full_differences += list(np.array(qmgrad.gradient).flatten() - fvec[-1])
 
     logger.info("Fitting the MD hessian parameters to QM hessian values")
     fit = optimize.lsq_linear(hessian, difference, bounds=(min_arr, max_arr)).x
@@ -172,7 +172,7 @@ def calc_energy(coords, mol):
     with mol.terms.add_ignore(['dihedral/flexible', 'charge_flux']):
         for term in mol.terms:
             envec[term.idx] = term.do_fitting(coords, force)
-    return list(envec)[:-1]
+    return list(envec)
 
 
 def calc_hessian(coords, mol):
@@ -211,9 +211,7 @@ def calc_eandforces(coords, mol):
         for term in mol.terms:
             envec[term.idx] = term.do_fitting(coords, force)
 
-    return (list(envec)[:-1],
-            list((force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3))[:-1].T)
-            )
+    return list(envec), force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
 
 
 def calc_forces(coords, mol):
