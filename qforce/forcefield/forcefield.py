@@ -8,16 +8,11 @@ from .mchem import MChem
 from ..elements import ATOM_SYM, ATOMMASS
 
 
-implemented_md_software = {'gromacs': Gromacs,
-                           'openmm': OpenMM,
-                           'mchem': MChem,
-                           }
-
-
 class ForceField(Colt):
 
     implemented_md_software = {'gromacs': Gromacs,
                                'openmm': OpenMM,
+                               'mchem': MChem,
                                }
 
     _user_input = """
@@ -141,7 +136,7 @@ _ext_alpha = no :: bool
 
     def _set_md_software(self, selection):
         try:
-            software = implemented_md_software[selection](self)
+            software = self.implemented_md_software[selection](self)
         except KeyError:
             raise KeyError(f'"{selection}" software is not implemented.')
         return software

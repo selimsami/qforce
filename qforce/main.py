@@ -91,7 +91,6 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, er
             return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
         except LoggerExit as err:
             print(str(err))
-    return mol
 
 
 def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
