@@ -1,3 +1,5 @@
+from calkeeper import CalculationKeeper, CalculationIncompleteError
+
 from .polarize import polarize
 from .initialize import initialize
 from .qm.qm import QM
@@ -10,6 +12,7 @@ from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian, multi_hessian_fit
 from .charge_flux import fit_dipole_derivative
 from .misc import LOGO
+from .logger import LoggerExit
 
 
 def runjob(config, job, ext_q=None, ext_lj=None):

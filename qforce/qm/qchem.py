@@ -91,6 +91,7 @@ class ReadQChem(ReadABC):
     opt_files = {'out_file': ['${base}.out', '${base}.log']}
     sp_files = {'out_file': ['${base}.out', '${base}.log']}
     sp_ec_files = {'out_file': ['${base}.out', '${base}.log']}
+    gradient_files = {'out_file': ['${base}.out', '${base}.log']}
     charge_files = {'out_file': ['${base}.out', '${base}.log']}
     scan_files = {'file_name': ['${base}.out', '${base}.log']}
     scan_torsiondrive_files = {'xyz': ['scan.xyz']}
@@ -213,6 +214,7 @@ class ReadQChem(ReadABC):
                         _, ids, x, y, z = line.split()
                         atomids.append(ids)
                         coords.append([float(x), float(y), float(z)])
+                        line = next(file)
                 if 'Total energy' in line:
                     energy = float(line.split()[-1]) * Hartree * mol / kJ
 
@@ -238,6 +240,7 @@ class ReadQChem(ReadABC):
                         _, ids, x, y, z = line.split()
                         atomids.append(ids)
                         coords.append([float(x), float(y), float(z)])
+                        line = next(file)
                 if 'Total energy' in line:
                     energy = float(line.split()[-1]) * Hartree * mol / kJ
                 if 'Gradient of SCF Energy' in line:
@@ -245,8 +248,10 @@ class ReadQChem(ReadABC):
                     line = next(file)
                     while 'Max gradient' not in line:
                         l1, l2, l3 = next(file).split(), next(file).split(), next(file).split()
-                        for x, y, z in zip(l1[1:], l2[1:], l3[:1]):
+                        for x, y, z in zip(l1[1:], l2[1:], l3[1:]):
                             gradient.append([float(x), float(y), float(z)])
+                        line = next(file)
+                    break
 
         if energy is None or coords is None or gradient is None:
             raise ValueError("Could not find energy in file!")
