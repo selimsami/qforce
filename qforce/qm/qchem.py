@@ -1,7 +1,6 @@
 import sys
-import subprocess
 import numpy as np
-from ase.units import Hartree, mol, kJ
+from ase.units import Hartree, mol, kJ, Bohr
 #
 from .qm_base import WriteABC, ReadABC, QMInterface, Calculator
 from ..elements import ATOM_SYM
@@ -29,17 +28,17 @@ class QChem(QMInterface):
     max_opt_cycles = 100 :: int
 
     # DFT Quadrature grid size
-    xc_grid = 3 :: int :: 
+    xc_grid = 3 :: int ::
 
     # SCF convergence criteria
     scf_convergence = 8 :: int
-    
+
     # Basis set linear dependence threshold
     basis_lin_dep_thresh = :: int, optional
-    
+
     # Threshold for two electron integrals
     thresh = :: int, optional
-    
+
     # Number of CIS roots to ask
     cis_n_roots = :: int, optional
 
@@ -91,6 +90,7 @@ class ReadQChem(ReadABC):
                      'fchk_file': ['${base}.fchk', '${base}.fck']}
     opt_files = {'out_file': ['${base}.out', '${base}.log']}
     sp_files = {'out_file': ['${base}.out', '${base}.log']}
+    sp_ec_files = {'out_file': ['${base}.out', '${base}.log']}
     charge_files = {'out_file': ['${base}.out', '${base}.log']}
     scan_files = {'file_name': ['${base}.out', '${base}.log']}
     scan_torsiondrive_files = {'xyz': ['scan.xyz']}
@@ -115,7 +115,8 @@ class ReadQChem(ReadABC):
                         dip_ders.append([float(val) for val in line.split()])
                         line = file.readline()
 
-        return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges, dip_ders
+        return (n_atoms, charge, multiplicity, elements, coords,
+                hessian, b_orders, point_charges, dip_ders)
 
     def scan(self, config, file_name):
         n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
@@ -157,7 +158,6 @@ class ReadQChem(ReadABC):
     def charges(self, config, out_file):
         """read charge from file"""
         point_charges = {}
-        charge_method = self.config.charge_method
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
                 if "Charge Model 5" in line:
@@ -197,6 +197,63 @@ class ReadQChem(ReadABC):
                     return float(line.split()[-1]) * Hartree * mol / kJ
         raise ValueError("Could not find energy in file!")
 
+    def sp_ec(self, config, out_file):
+        energy = None
+        atomids = None
+        coords = None
+        with open(out_file, "r", encoding='utf-8') as file:
+            for line in file:
+                if 'Standard Nuclear Orientation' in line:
+                    next(file)
+                    next(file)
+                    coords = []
+                    atomids = []
+                    line = next(file)
+                    while '-----------' not in line:
+                        _, ids, x, y, z = line.split()
+                        atomids.append(ids)
+                        coords.append([float(x), float(y), float(z)])
+                if 'Total energy' in line:
+                    energy = float(line.split()[-1]) * Hartree * mol / kJ
+
+        if energy is None or coords is None:
+            raise ValueError("Could not find energy in file!")
+        energy = energy * Hartree * mol / kJ
+        return energy, atomids, np.array(coords)
+
+    def gradient(self, config, out_file):
+        energy = None
+        coords = None
+        atomids = None
+        gradient = None
+        with open(out_file, "r", encoding='utf-8') as file:
+            for line in file:
+                if 'Standard Nuclear Orientation' in line:
+                    next(file)
+                    next(file)
+                    coords = []
+                    atomids = []
+                    line = next(file)
+                    while '-----------' not in line:
+                        _, ids, x, y, z = line.split()
+                        atomids.append(ids)
+                        coords.append([float(x), float(y), float(z)])
+                if 'Total energy' in line:
+                    energy = float(line.split()[-1]) * Hartree * mol / kJ
+                if 'Gradient of SCF Energy' in line:
+                    gradient = []
+                    line = next(file)
+                    while 'Max gradient' not in line:
+                        l1, l2, l3 = next(file).split(), next(file).split(), next(file).split()
+                        for x, y, z in zip(l1[1:], l2[1:], l3[:1]):
+                            gradient.append([float(x), float(y), float(z)])
+
+        if energy is None or coords is None or gradient is None:
+            raise ValueError("Could not find energy in file!")
+        energy = energy * Hartree * mol / kJ
+        gradient = np.array(gradient) * Hartree * mol / kJ / Bohr
+        return energy, gradient, atomids, np.array(coords)
+
     @staticmethod
     def _read_cm5_charges(file):
         point_charges = []
@@ -224,6 +281,7 @@ class ReadQChem(ReadABC):
 
 class WriteQChem(WriteABC):
     sp_rem = {'jobtype': 'sp'}
+    grad_rem = {'jobtype': 'grad'}
     hess_opt_rem = {'jobtype': 'opt'}
     charges_rem = {'jobtype': 'sp', 'cm5': 'true', 'resp_charges': 'true'}
     hess_freq_rem = {'jobtype': 'freq', 'cm5': 'true', 'resp_charges': 'true', 'nbo': 2,
@@ -238,6 +296,11 @@ class WriteQChem(WriteABC):
     def sp(self, file, job_name, settings, coords, atnums):
         self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity)
         self._write_job_setting(file, job_name, settings, self.sp_rem)
+        file.write('\n\n\n\n\n')
+
+    def gradient(self, file, job_name, settings, coords, atnums):
+        self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity)
+        self._write_job_setting(file, job_name, settings, self.grad_rem)
         file.write('\n\n\n\n\n')
 
     def charges(self, file, job_name, settings, coords, atnums):

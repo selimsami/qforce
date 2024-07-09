@@ -1,5 +1,4 @@
 import os
-import subprocess
 import numpy as np
 from ase.units import Hartree, mol, kJ
 #
@@ -69,6 +68,7 @@ class ReadGaussian(ReadABC):
                      'fchk_file': ['${base}.fchk', '${base}.fck']}
     opt_files = {'out_file': ['${base}.out', '${base}.log']}
     sp_files = {'out_file': ['${base}.out', '${base}.log']}
+    sp_ec_files = {'out_file': ['${base}.out', '${base}.log']}
     charge_files = {'out_file': ['${base}.out', '${base}.log']}
     scan_files = {'file_name': ['${base}.out', '${base}.log']}
     scan_torsiondrive_files = {'xyz': ['scan.xyz']}
