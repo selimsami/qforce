@@ -54,7 +54,6 @@ def fit_hessian(logger, config, mol, qm):
     difference = qm_hessian - np.array(non_fit)
 
     # la.lstsq or nnls could also be used:
-    print('BOUNDS', min_arr, max_arr)
     fit = optimize.lsq_linear(hessian, difference, bounds=(min_arr, max_arr)).x
     # fit = optimize.lsq_linear(hessian, difference, bounds=(-np.inf, np.inf)).x
     logger.info("Done!\n")
@@ -158,6 +157,14 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads):
             term.fconst = fit[term.idx]
     # TODO: is this correct? Check
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
+
+    err = full_md_hessian_1d-qm.hessian
+    mae = np.abs(err).mean()
+    rmse = (err**2).mean()**0.5
+    max_err = np.max(np.abs(err))
+    print('mae:', mae*0.2390057361376673)
+    print('rmse:', rmse*0.2390057361376673)
+    print('max_err:', max_err*0.2390057361376673)
 
     # do it
     average_unique_minima(mol.terms, config)
