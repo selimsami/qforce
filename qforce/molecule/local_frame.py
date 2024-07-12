@@ -10,10 +10,10 @@ class LocalFrameTermABC(TermABC):
         self.atomids = np.array(atomids)
         self.center = atomids[center]
         self.type = a_type
+        self._name = f"{self.name}({a_type})"
         self.q = q
         self.equ = None
         self.fconst = None
-
         self.dipole, self.quadrupole = self.convert_multipoles_to_local_frame(coords, dipole, quadrupole)
 
     @classmethod
@@ -48,20 +48,30 @@ class LocalFrameTermABC(TermABC):
 
     def convert_multipoles_to_local_frame(self, coords, dipole, quadrupole):
         rotation_matrix = self.compute_rotation_matrix(coords)
-        print('rot_mat\n', rotation_matrix)
+        print('rot_mat\n', rotation_matrix.round(6))
 
         local_dipole = np.matmul(rotation_matrix, dipole)
-        print('dip glob\n', dipole)
-        print('dip, local\n', local_dipole)
+        print('dip glob\n', np.round(dipole, 6))
+        print('dip, local\n', local_dipole.round(6))
         print()
 
         matmul = np.matmul(self.make_quadrupole_matrix(quadrupole), rotation_matrix.T)
         local_quadrupole = np.matmul(rotation_matrix, matmul)
-        print('quad, glob\n', self.make_quadrupole_matrix(quadrupole))
-        print('quad, local\n', local_quadrupole)
+        print('quad, glob\n', self.make_quadrupole_matrix(quadrupole).round(6))
+        print('quad, local\n', local_quadrupole.round(6))
         print()
 
         return local_dipole, local_quadrupole
+
+    def convert_multipoles_to_cartesian_frame(self, coords):
+        term_coords = coords[self.atomids]
+        rotation_matrix = self.compute_rotation_matrix(term_coords)
+
+        cart_dipole = np.matmul(self.dipole, rotation_matrix)
+        matmul = np.matmul(self.quadrupole, rotation_matrix)
+        cart_quadrupole = np.matmul(rotation_matrix.T, matmul)
+
+        return cart_dipole, cart_quadrupole
 
 
 class BisectorTerm(LocalFrameTermABC):
@@ -156,7 +166,7 @@ class LocalFrameTerms(TermFactory):
     }
 
     _always_on = []
-    _default_off = ['bisector', 'z_then_x']
+    _default_off = ['bisector', 'z_then_x', 'z_only', 'z_then_bisector', 'trisector']
 
     @classmethod
     def get_terms(cls, topo, non_bonded):
@@ -174,6 +184,9 @@ class LocalFrameTerms(TermFactory):
 
         localframes = []
         # print('\nNODES')
+
+        if np.abs(non_bonded.quadrupole).sum() == 0 and np.abs(non_bonded.dipole).sum() == 0:
+            return terms
 
         for i, node in topo.graph.nodes(data=True):
             print('atomid:', i, ', element:', node['elem'])
@@ -217,19 +230,29 @@ class LocalFrameTerms(TermFactory):
                         atomids = [i, node['neighs'][0], other_neighs[0]['idx']]
                         add_term('z_only', non_bonded, atomids, topo.coords[atomids], 1, node["type"])  # doesn't make sense! need diff XX and YY
                     elif neigh['hybrid'] == 'planar' and other_neighs[0]['type'] != other_neighs[1]['type']:  # Asymmetric planar, like H in COH2
-                        print('FOUND: terminal on planar 3-atom center, asymmetric others - like H on COH2')
+                        print('FOUND: terminal on planar 3-atom center, asymmetric others - like H on COH2, z-then-x!')
                         atomids = [i, node['neighs'][0], other_neighs[0]['idx']]
                         add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
 
                     elif neigh['hybrid'] == 'pyramidal' and other_neighs[0]['type'] == other_neighs[1]['type']:
                         print('FOUND: Z-then-bisector, like H in Ammonia or H in dimethyl amine')
+                        atomids = [i, node['neighs'][0], other_neighs[0]['idx'], other_neighs[1]['idx']]
+                        add_term('z_then_bisector', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
+
                     elif neigh['hybrid'] == 'pyramidal' and other_neighs[0]['type'] != other_neighs[1]['type']:
                         print('FOUND: Z-only, like H in methylamine')
+                        atomids = [i, node['neighs'][0], other_neighs[0]['idx']]
+                        add_term('z_only', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
 
                 # 1st neighbor has 4-neighbor
                 elif neigh['n_neighs'] == 4:
                     if neigh['n_unique_neighs'] == 1:
                         print('FOUND: Terminal atom on a tetrahedral center with all same neighbors like H on methane. Z-only!')
+                        other_neigh = [neigh for neigh in topo.node(node['neighs'][0])['neighs'] if neigh != i][0]
+                        atomids = [i, node['neighs'][0], other_neigh]
+                        add_term('z_only', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
+                    else:
+                        ...  # add the rest
 
             elif node['n_neighs'] == 2:  # 2-neighbor atoms
                 if node['hybrid'] == 'linear' and node['n_unique_neighs'] == 1:  # This one has no dipole!
@@ -252,16 +275,27 @@ class LocalFrameTerms(TermFactory):
             elif node['n_neighs'] == 3:  # 3-neighbor atoms
                 # Pyramidal
                 if node['hybrid'] == 'pyramidal' and node['n_unique_neighs'] == 1:
+                    atomids = [i, node['neighs'][0], node['neighs'][1], node['neighs'][2]]
+                    add_term('trisector', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
                     print('FOUND: ammonia N-like, trisector!')
                 elif node['hybrid'] == 'pyramidal' and node['n_unique_neighs'] == 2:
                     print('FOUND: pyramidal, with 2 unique neighbors, like N on methylamine, z-then-bisector!')
+                    lone = [unique for unique in node['unique_neighs'] if len(unique) == 1][0]
+                    equal_pair = [unique for unique in node['unique_neighs'] if len(unique) == 2][0]
+                    atomids = [i, lone, equal_pair[0], equal_pair[1]]
+                    add_term('z_then_bisector', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
                 elif node['hybrid'] == 'pyramidal' and node['n_unique_neighs'] == 3:
-                    print('FOUND: pyramidal, all neighbors different, z-only ??')
+                    print('FOUND: pyramidal, all neighbors different, z-then-x??')
+                    atomids = [i, node['neighs'][0], node['neighs'][1]]
+                    add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
                 # Planar
                 elif node['hybrid'] == 'planar' and node['n_unique_neighs'] == 1:
                     print('FOUND: planar 3-atom center, with all same neighbors, like N on NO3 , z-only??')
                 elif node['hybrid'] == 'planar' and node['n_unique_neighs'] == 2:
                     print('FOUND: planar 3-atom center, with 2 unique neighbors, like C on COH2 or C in benzene, bisector!')
+                    equal_pair = [unique for unique in node['unique_neighs'] if len(unique) == 2][0]
+                    atomids = [i, equal_pair[0], equal_pair[1]]
+                    add_term('bisector', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
                 elif node['hybrid'] == 'planar' and node['n_unique_neighs'] == 3:
                     print('FOUND: planar 3-atom center, with all different neighbors, like C on COHF , z-only??')
 
@@ -269,6 +303,8 @@ class LocalFrameTerms(TermFactory):
                 if node['n_unique_neighs'] == 2 and node['n_nonrepeat_neighs'] == 0:
                     print('FOUND: propane carbon alike, bisector!')
                 else:
-                    print('FOUND: tetrahedral atom, like C on methane ')
+                    atomids = [i, node['neighs'][0], node['neighs'][1]]
+                    print('FOUND: tetrahedral atom, like C on methane, z-only (no dip/quad)')
+                    add_term('z_only', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
 
         return terms

@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from ase.units import Hartree, mol, kJ, Bohr
+from ase.units import Hartree, mol, kJ, Bohr, Debye
 #
 from .qm_base import WriteABC, ReadABC, QMInterface, Calculator
 from ..elements import ATOM_SYM
@@ -217,11 +217,14 @@ class ReadQChem(ReadABC):
                         line = next(file)
                 if 'Total energy' in line:
                     energy = float(line.split()[-1]) * Hartree * mol / kJ
+                if 'Dipole Moment (Debye)' in line:
+                    line = next(file)
+                    dipole = [float(val) for val in line.split()[1::2]]
 
         if energy is None or coords is None:
             raise ValueError("Could not find energy in file!")
         energy = energy * Hartree * mol / kJ
-        return energy, atomids, np.array(coords)
+        return energy, np.array(dipole)*Debye, atomids, np.array(coords)
 
     def gradient(self, config, out_file):
         energy = None
@@ -243,6 +246,9 @@ class ReadQChem(ReadABC):
                         line = next(file)
                 if 'Total energy' in line:
                     energy = float(line.split()[-1]) * Hartree * mol / kJ
+                if 'Dipole Moment (Debye)' in line:
+                    line = next(file)
+                    dipole = [float(val) for val in line.split()[1::2]]
                 if 'Gradient of SCF Energy' in line:
                     gradient = []
                     line = next(file)
@@ -257,7 +263,7 @@ class ReadQChem(ReadABC):
             raise ValueError("Could not find energy in file!")
         energy = energy * Hartree * mol / kJ
         gradient = np.array(gradient) * Hartree * mol / kJ / Bohr
-        return energy, gradient, atomids, np.array(coords)
+        return energy, gradient, np.array(dipole)*Debye, atomids, np.array(coords)
 
     @staticmethod
     def _read_cm5_charges(file):
@@ -286,7 +292,7 @@ class ReadQChem(ReadABC):
 
 class WriteQChem(WriteABC):
     sp_rem = {'jobtype': 'sp'}
-    grad_rem = {'jobtype': 'grad'}
+    grad_rem = {'jobtype': 'force'}
     hess_opt_rem = {'jobtype': 'opt'}
     charges_rem = {'jobtype': 'sp', 'cm5': 'true', 'resp_charges': 'true'}
     hess_freq_rem = {'jobtype': 'freq', 'cm5': 'true', 'resp_charges': 'true', 'nbo': 2,

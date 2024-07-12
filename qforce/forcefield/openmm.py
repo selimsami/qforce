@@ -27,11 +27,11 @@ class OpenMM(ForcefieldSettings):
             'charge_flux/angle_prime': False, 
             'charge_flux/bond_bond': False, 
             'charge_flux/bond_angle': False, 
-            'charge_flux/angle_angle': False, 
-            'local_frame/bisector': False, 
-            'local_frame/z_then_x': False, 
-            'local_frame/z_only': True, 
-            'local_frame/z_then_bisector': True, 
+            'charge_flux/angle_angle': False,
+            'local_frame/bisector': True,
+            'local_frame/z_then_x': True,
+            'local_frame/z_only': True,
+            'local_frame/z_then_bisector': True,
             'local_frame/trisector': True,
     }
 
@@ -426,7 +426,7 @@ class OpenMM(ForcefieldSettings):
         if self.ff.cosine_dihed_period == 2:
             imp_dih_eq = '0.25*k*(1+cos(2*theta - 3.1415926535897932384626433832795))'
         elif self.ff.cosine_dihed_period == 3:
-            imp_dih_eq = '1/9*k*(1+cos(3*theta))'
+            imp_dih_eq = '1/9*k*(1+cos(3*theta ))'
         elif self.ff.cosine_dihed_period == 0:
             imp_dih_eq = '0.5*k*(theta-theta0)^2'
         else:

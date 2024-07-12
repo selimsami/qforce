@@ -33,7 +33,7 @@ class Terms(MappingIterator):
 
     }
     _always_on = ['bond', 'angle']
-    _default_off = ['charge_flux', 'local_frame/bisector', 'cross_bond_bond', 'cross_bond_angle', 'cross_angle_angle',
+    _default_off = ['charge_flux', 'local_frame', 'cross_bond_bond', 'cross_bond_angle', 'cross_angle_angle',
                     '_cross_dihed_angle', '_cross_dihed_bond']
 
     def __init__(self, terms, ignore, not_fit_terms):

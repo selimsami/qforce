@@ -10,7 +10,7 @@ from .fragment import fragment
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian, multi_hessian_fit
-from .charge_flux import fit_dipole_derivative
+from .charge_flux import fit_charge_flux
 from .misc import LOGO
 from .logger import LoggerExit
 
@@ -49,7 +49,7 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     ff.software.write(job.dir, main_hessian.coords)
 
     if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
-        fit_dipole_derivative(main_hessian, mol)
+        fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
 
     print_outcome(job.logger, job.dir, config.ff.output_software)
 

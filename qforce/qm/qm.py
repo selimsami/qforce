@@ -411,13 +411,13 @@ hess_struct = :: existing_file, optional
 
     def _read_energy(self, gradient_files):
         software = self.softwares['software']
-        en, atids, coords = software.read.sp_ec(self.config, **gradient_files)
-        return EnergyOutput(en, atids, coords)
+        en, dipole, atids, coords = software.read.sp_ec(self.config, **gradient_files)
+        return EnergyOutput(en, dipole, atids, coords)
 
     def _read_gradient(self, gradient_files):
         software = self.softwares['software']
-        en, grad, atids, coords = software.read.gradient(self.config, **gradient_files)
-        return GradientOutput(en, grad, atids, coords)
+        en, grad, dipole, atids, coords = software.read.gradient(self.config, **gradient_files)
+        return GradientOutput(en, grad, dipole, atids, coords)
 
     def _read_hessian(self, hessian_files):
         software = self.softwares['software']

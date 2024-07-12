@@ -29,8 +29,8 @@ class MChem(ForcefieldSettings):
             'charge_flux/bond_bond': False,
             'charge_flux/bond_angle': False,
             'charge_flux/angle_angle': False,
-            'local_frame/bisector': False,
-            'local_frame/z_then_x': False,
+            'local_frame/bisector': True,
+            'local_frame/z_then_x': True,
             'local_frame/z_only': True,
             'local_frame/z_then_bisector': True,
             'local_frame/trisector': True,
@@ -221,27 +221,29 @@ class MChem(ForcefieldSettings):
                                                     'class3': str(ids[2]+1), 'class4': str(ids[3]+1),
                                                     'angle': equ, 'k': k})
 
-    def write_inversion_dihedral(self, forces, n_term):
-        inv_dih_eq = 'k*(cos(theta)-cos(theta0))^2'
-        inv_dih_force = ET.SubElement(forces, 'Force', {'energy': inv_dih_eq, 'name': 'InversionDihedral', 'usesPeriodic': '0',
-                                                        'type': 'CustomTorsionForce', 'forceGroup': str(n_term), 'version': '3',
-                                                        })
+    def write_improper_dihedral(self, forces):
+        imp_force = ET.SubElement(forces, 'HarmonicDihedralForce')
 
-        per_torsion_params = ET.SubElement(inv_dih_force, 'PerTorsionParameters')
-        ET.SubElement(per_torsion_params, 'Parameter', {'name': 'theta0'})
-        ET.SubElement(per_torsion_params, 'Parameter', {'name': 'k'})
+        for term in self.ff.terms['dihedral/improper']:
+            ids = term.atomids
+            equ = str(round(term.equ, 8))
+            k = str(round(term.fconst, 7))
 
-        ET.SubElement(inv_dih_force, 'GlobalParameters')
-        ET.SubElement(inv_dih_force, 'EnergyParameterDerivatives')
+            ET.SubElement(imp_force, 'ImproperTorsion', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                         'class3': str(ids[2]+1), 'class4': str(ids[3]+1),
+                                                         'angle': equ, 'k': k})
 
-        inv = ET.SubElement(inv_dih_force, 'Torsions')
+    def write_inversion_dihedral(self, forces):
+        inv_force = ET.SubElement(forces, 'InversionDihedralForce')
+
         for term in self.ff.terms['dihedral/inversion']:
             ids = term.atomids
             equ = str(round(term.equ, 8))
             k = str(round(term.fconst, 7))
 
-            ET.SubElement(inv, 'Torsion', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
-                                           'param1': equ, 'param2': k})
+            ET.SubElement(inv_force, 'InversionTorsion', {'class1': str(ids[0]+1), 'class2': str(ids[1]+1),
+                                                          'class3': str(ids[2]+1), 'class4': str(ids[3]+1),
+                                                          'angle': equ, 'k': k})
 
     def write_pitorsion_dihedral(self, forces, n_term):
         # eq = """k*sin(phi-phi0)^2;
@@ -299,28 +301,6 @@ class MChem(ForcefieldSettings):
             #                            'p5': str(ids[4]), 'p6': str(ids[5]), 'param1': equ, 'param2': k})
             ET.SubElement(ba, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
                                        'p5': str(ids[4]), 'p6': str(ids[5]), 'param1': equ, 'param2': k})
-
-    def write_improper_dihedral(self, forces, n_term):
-        imp_dih_eq = '0.5*k*(theta-theta0)^2'
-        # imp_dih_eq = '-0.25*k*(cos(2*theta)-cos(2*theta0))'
-        imp_dih_force = ET.SubElement(forces, 'Force', {'energy': imp_dih_eq, 'name': 'ImproperDihedral', 'usesPeriodic': '0',
-                                      'type': 'CustomTorsionForce', 'forceGroup': str(n_term), 'version': '3'})
-
-        per_torsion_params = ET.SubElement(imp_dih_force, 'PerTorsionParameters')
-        ET.SubElement(per_torsion_params, 'Parameter', {'name': 'theta0'})
-        ET.SubElement(per_torsion_params, 'Parameter', {'name': 'k'})
-
-        ET.SubElement(imp_dih_force, 'GlobalParameters')
-        ET.SubElement(imp_dih_force, 'EnergyParameterDerivatives')
-
-        imp = ET.SubElement(imp_dih_force, 'Torsions')
-        for term in self.ff.terms['dihedral/improper']:
-            ids = term.atomids
-            equ = str(round(term.equ, 8))
-            k = str(round(term.fconst, 7))
-
-            ET.SubElement(imp, 'Torsion', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
-                                           'param1': equ, 'param2': k})
 
     def write_rigid_dihedral(self, forces, n_term):
         if self.ff.cosine_dihed_period == 2:

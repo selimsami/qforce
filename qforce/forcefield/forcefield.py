@@ -73,7 +73,7 @@ all_rigid = no :: bool
 ba_couple_1_shared = no :: bool
 
 # TEMP: Chosen period for dihedrals
-cosine_dihed_period = 2 :: int :: [2, 3]
+cosine_dihed_period = 0 :: int :: [0, 2, 3]
 
 # write the force field with Morse potential
 morse = no :: bool

@@ -1,17 +1,25 @@
 import subprocess
+import os
+from pathlib import Path
+from ase.units import Bohr
+import numpy as np
+
 
 def compute_gdma(job, fchk_file):
-
-    write_gdma(job, fchk_file)
+    curr_dir = os.getcwd()
+    parts = fchk_file.parts
+    os.chdir(job.dir)
+    write_gdma(job.name, Path(*parts[len(parts)-3:]))
     run_gdma(job)
-    charges, dipoles, quadrupoles = read_gdma(job)
+    charges, dipoles, quadrupoles = read_gdma()
+    os.chdir(curr_dir)
     return charges, dipoles, quadrupoles
 
 
-def write_gdma(job, fchk_file):
+def write_gdma(name, fchk_file):
 
-        input_file = f'''
-Title "{job.name} - GDMA input"
+    input_file = f'''
+Title "{name} - GDMA input"
 File {fchk_file}
 
 Angstrom
@@ -19,29 +27,29 @@ Multipoles
   switch 4
   Limit 2
   Limit 2 H 
-  Radius H 0.325
-  Punch {job.name}.punch
+  Radius H 0.35
+  Punch {name}.punch
 Start
 
 Finish'''
 
-        with open(f'{job.dir}/gdma_input', 'w') as file:
-            file.write(input_file)
+    with open(f'gdma_input', 'w') as file:
+        file.write(input_file)
 
 
 def run_gdma(job):
 
-    with open(f'{job.dir}/gdma_input', 'r') as inp:
-        with open(f'{job.dir}/gdma_result', 'w') as out:
+    with open(f'gdma_input', 'r') as inp:
+        with open('gdma_result', 'w') as out:
             pop = subprocess.Popen(['/Users/ssami/gdma/bin/gdma'],
                                    stdin=inp, stderr=out, stdout=out)
     pop.wait()
 
 
-def read_gdma(job):
+def read_gdma():
     charges, dipoles, quadrupoles = [], [], []
 
-    with open(f'{job.dir}/gdma_result', 'r') as file:
+    with open(f'gdma_result', 'r') as file:
         for line in file:
             if ' Maximum rank =' in line:
                 charges.append(0.)
@@ -89,7 +97,7 @@ def read_gdma(job):
             if 'Total multipoles ' in line:
                 break
 
-    return charges, dipoles, quadrupoles
+    return np.array(charges), np.array(dipoles)*Bohr, np.array(quadrupoles)*Bohr**2
 
 
 def convert_quads_to_cartesian(quads):

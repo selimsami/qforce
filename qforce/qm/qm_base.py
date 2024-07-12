@@ -283,19 +283,21 @@ class ReadABC(ABC):
 
 class EnergyOutput:
 
-    def __init__(self, energy, elements, coords):
+    def __init__(self, energy, dipole, elements, coords):
         self.energy = energy
         self.elements = elements
         self.coords = coords
+        self.dipole = dipole
 
 
 class GradientOutput:
 
-    def __init__(self, energy, gradient, elements, coords):
+    def __init__(self, energy, gradient, dipole, elements, coords):
         self.energy = energy
         self.gradient = gradient
         self.elements = elements
         self.coords = coords
+        self.dipole = dipole
 
 
 class HessianOutput:
