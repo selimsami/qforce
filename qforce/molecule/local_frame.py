@@ -6,22 +6,24 @@ from ..forces import get_dist
 
 
 class LocalFrameTermABC(TermABC):
-    def __init__(self, atomids, q, dipole, quadrupole, coords, center, a_type):
+    def __init__(self, frame_type, atomids, q, dipole, quadrupole, coords, center, a_type):
         self.atomids = np.array(atomids)
         self.center = atomids[center]
+        self.frame_type = frame_type
         self.type = a_type
         self._name = f"{self.name}({a_type})"
         self.q = q
         self.equ = None
         self.fconst = None
         self.dipole, self.quadrupole = self.convert_multipoles_to_local_frame(coords, dipole, quadrupole)
+        self.dipole_spher, self.quad_spher = self.convert_multipoles_to_local_spherical_frame()
 
     @classmethod
-    def get_term(cls, non_bonded, atomids, coords, center, a_type):
+    def get_term(cls, frame_type, non_bonded, atomids, coords, center, a_type):
         q = non_bonded.q[atomids[0]]
         dipole = non_bonded.dipole[atomids[0]]
         quadrupole = non_bonded.quadrupole[atomids[0]]
-        return cls(atomids, q, dipole, quadrupole, coords, center, a_type)
+        return cls(frame_type, atomids, q, dipole, quadrupole, coords, center, a_type)
 
     @abstractmethod
     def compute_rotation_matrix(self, coords):
@@ -72,6 +74,24 @@ class LocalFrameTermABC(TermABC):
         cart_quadrupole = np.matmul(rotation_matrix.T, matmul)
 
         return cart_dipole, cart_quadrupole
+
+    def convert_multipoles_to_local_spherical_frame(self):
+        """
+        Dipoles as: Q_10, Q_11c, Q_11s
+        Quadrupoles as: Q_20, Q_21c, Q_21s, Q_22c, Q_22s
+        See GDMA manual for the reference conversions
+        """
+
+        dipoles = np.array([self.dipole[2], self.dipole[0], self.dipole[1]])
+
+        q_20 = self.quadrupole[2, 2]
+        q_22c = 2 / 3**0.5 * (self.quadrupole[0, 0] + 0.5*q_20)
+        q_22s = 2 / 3**0.5 * self.quadrupole[0, 1]
+        q_21c = 2 / 3**0.5 * self.quadrupole[0, 2]
+        q_21s = 2 / 3**0.5 * self.quadrupole[1, 2]
+        quadrupoles = np.array([q_20, q_21c, q_21s, q_22c, q_22s])
+
+        return np.round(dipoles, 6), np.round(quadrupoles, 6)
 
 
 class BisectorTerm(LocalFrameTermABC):
@@ -174,7 +194,7 @@ class LocalFrameTerms(TermFactory):
 
         # helper functions to improve readability
         def add_term(name, atomids, *args):
-            terms[name].append(cls._term_types[name].get_term(atomids, *args))
+            terms[name].append(cls._term_types[name].get_term(name, atomids, *args))
 
         # print(topo.unique_atomids)
         # print(topo.types)

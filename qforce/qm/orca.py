@@ -18,7 +18,7 @@ class Orca(QMInterface):
 
     _user_input = """
 
-    charge_method = cm5 :: str :: [cm5, esp]
+    charge_method = hirshfeld :: str :: [hirshfeld, esp]
 
     # QM method to be used for hessian calculation
     # Note: The accuracy of this method determines the accuracy of bond,
@@ -281,8 +281,8 @@ class ReadORCA(ReadABC):
         raise ValueError("Could not parse orca file")
 
     def charges(self, settings, out_file):
-        if self.config.charge_method == "cm5":
-            n_atoms, point_charges = self._read_orca_cm5(out_file)
+        if self.config.charge_method == "hirshfeld":
+            n_atoms, point_charges = self._read_orca_hirshfeld(out_file)
         elif self.config.charge_method == "esp":
             base, ext = os.path.splitext(out_file)
             n_atoms, point_charges = self._read_orca_esp(f'{base}_charge.pc_chelpg')
@@ -327,8 +327,8 @@ class ReadORCA(ReadABC):
         """
         hessian = self._read_orca_hess(hess_file)
         #
-        if self.config.charge_method == "cm5":
-            n_atoms, point_charges = self._read_orca_cm5(out_file)
+        if self.config.charge_method == "hirshfeld":
+            n_atoms, point_charges = self._read_orca_hirshfeld(out_file)
         elif self.config.charge_method == "esp":
             base, ext = os.path.splitext(out_file)
             n_atoms, point_charges = self._read_orca_esp(f'{base}_charge.pc_chelpg')
@@ -369,9 +369,9 @@ class ReadORCA(ReadABC):
         base, ext = os.path.splitext(out_file)
         point_charges = {}
         #
-        if self.config.charge_method == "cm5":
-            n_atoms, charges = self._read_orca_cm5(out_file)
-            point_charges["cm5"] = charges
+        if self.config.charge_method == "hirshfeld":
+            n_atoms, charges = self._read_orca_hirshfeld(out_file)
+            point_charges["hirshfeld"] = charges
         elif self.config.charge_method == "esp":
             n_atoms, charges = self._read_orca_esp(f'{base}_charge.pc_chelpg')
             point_charges["esp"] = charges
@@ -459,7 +459,7 @@ class ReadORCA(ReadABC):
         return n_atoms, point_charges
 
     @staticmethod
-    def _read_orca_cm5(out_file):
+    def _read_orca_hirshfeld(out_file):
         """ Read the HIRSHFELD charge file.
 
         Parameters

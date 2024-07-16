@@ -103,6 +103,25 @@ class MChem(ForcefieldSettings):
             print('cross-angle-angle terms: ', len(self.ff.terms['cross_angle_angle']))
         if '_cross_dihed_angle' in self.ff.terms and len(self.ff.terms['_cross_dihed_angle']) > 0:
             self.write_cross_dihedral_angle(forces)
+        # Non-bonded
+        if 'local_frame' in self.ff.terms and len(self.ff.terms['local_frame']) > 0:
+            self.write_multipoles(forces)
+
+    def write_multipoles(self, forces):
+        force = ET.SubElement(forces, 'MultipoleForce')
+        for i, term in enumerate(self.ff.terms['local_frame'], start=1):
+            ids = np.zeros(4, dtype=int)
+            ids[:len(term.atomids)] = term.atomids + 1
+            center = term.atomids[term.center]+1
+
+            ET.SubElement(force, 'Multipole', {'type': str(i), 'class1': str(ids[0]), 'class2': str(ids[1]),
+                                               'class3': str(ids[2]), 'class4': str(ids[3]), 'center': str(center),
+                                               'frametype': term.frame_type, 'q00': str(term.q),
+                                               'q10': str(term.dipole_spher[0]), 'q11c': str(term.dipole_spher[1]),
+                                               'q11s': str(term.dipole_spher[2]), 'q20': str(term.quad_spher[0]),
+                                               'q21c': str(term.quad_spher[1]), 'q21s': str(term.quad_spher[2]),
+                                               'q22c': str(term.quad_spher[3]), 'q22s': str(term.quad_spher[4])
+                                               })
 
     def write_bonds(self, forces):
         if not self.ff.morse:

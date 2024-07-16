@@ -27,7 +27,7 @@ Multipoles
   switch 4
   Limit 2
   Limit 2 H 
-  Radius H 0.35
+  Radius H 0.325
   Punch {name}.punch
 Start
 
