@@ -209,7 +209,7 @@ class Neighbors(list):
     def generate(cls, topo, atomid):
         neighbors = []
         for neigh in topo.neighbors[0][atomid]:
-            elem = topo.elements[neigh]
+            elem = topo.atomids[neigh]
             b_order = topo.edge(atomid, neigh)['order']
             in_ring = topo.edge(atomid, neigh)['n_rings'] > 0
             n_bonds = topo.node(neigh)['n_bonds']
@@ -265,7 +265,7 @@ def determine_opls_atom_types(logger, topo, q):
     logger.note('Automatic atom-type determination (used only for LJ interactions) is new. \n'
                 '      Double check your atom types or enter them manually.\n')
     a_types = []
-    for atomid, elem in enumerate(topo.elements):
+    for atomid, elem in enumerate(topo.atomids):
 
         neighs = Neighbors.generate(topo, atomid)
 
@@ -350,11 +350,11 @@ def determine_gromos_atom_types(logger, topo, q):
     logger.note('Automatic atom-type determination (used only for LJ interactions) is new. \n'
                 '      Double check your atom types or enter them manually.\n')
     a_types = []
-    for i, elem in enumerate(topo.elements):
-        elem_neigh = [topo.elements[atom] for atom in topo.neighbors[0][i]]
+    for i, elem in enumerate(topo.atomids):
+        elem_neigh = [topo.atomids[atom] for atom in topo.neighbors[0][i]]
 
         if elem == 1:
-            if topo.elements[topo.neighbors[0][i]] == 6:
+            if topo.atomids[topo.neighbors[0][i]] == 6:
                 a_type = 'HC'  # bound to C
             else:
                 a_type = 'HS14'
@@ -363,7 +363,7 @@ def determine_gromos_atom_types(logger, topo, q):
             in_ring_and_conj = [all([topo.edge(*edge)['order'] >= 1.25,
                                 topo.edge(*edge)['in_ring']])for edge in topo.graph.edges(i)]
             united_charge = q[i] + sum([q[j] for j in topo.neighbors[0][i] if
-                                        topo.elements[j] == 1])
+                                        topo.atomids[j] == 1])
 
             if any(in_ring_and_conj):
                 a_type = 'CAro'
@@ -390,7 +390,7 @@ def determine_gromos_atom_types(logger, topo, q):
                 a_type = 'OE'
             elif len(elem_neigh) == 1:
                 a_type = 'OEOpt'  # has 1 bond and it is to C
-            # if 1 in topo.elements[topo.neighbors[0][i]]:
+            # if 1 in topo.atomids[topo.neighbors[0][i]]:
             else:
                 a_type = 'OAlc'
 

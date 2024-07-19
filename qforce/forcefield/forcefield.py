@@ -89,7 +89,7 @@ res_name = MOL :: str
     def __init__(self, software, job, config, mol, neighbors, exclude_all=[]):
         self.mol_name = job.name
         self.n_atoms = mol.n_atoms
-        self.elements = mol.elements
+        self.atomids = mol.atomids
         self.q = np.copy(mol.non_bonded.q)
         self.residue = config.ff.res_name[:5]
         self.comb_rule = mol.non_bonded.comb_rule
@@ -98,7 +98,7 @@ res_name = MOL :: str
         self.urey = config.terms.urey
         self.n_excl = config.ff.n_excl
         self.atom_names, self.symbols = self.get_atom_names()
-        self.masses = [round(ATOMMASS[i], 5) for i in self.elements]
+        self.masses = [round(ATOMMASS[i], 5) for i in self.atomids]
         self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
         self.pairs = mol.non_bonded.pairs
         self.morse = config.ff.morse
@@ -136,7 +136,7 @@ res_name = MOL :: str
             neighs2 = [edge[2]['type'] for edge in self.topo.graph.edges(a2, data=True)]
             e_dis, n_matches = self._choose_bond_type(bde_dict[props['type']], neighs1, neighs2)
 
-            if self.elements[a1] == self.elements[a2]:
+            if self.atomids[a1] == self.atomids[a2]:
                 e_dis2, n_matches2 = self._choose_bond_type(bde_dict[props['type']], neighs1, neighs2, 1, 0)
                 if n_matches2 > n_matches:
                     e_dis = e_dis2
@@ -209,7 +209,7 @@ res_name = MOL :: str
         symbols = []
         atom_dict = {}
 
-        for i, elem in enumerate(self.elements):
+        for i, elem in enumerate(self.atomids):
             sym = ATOM_SYM[elem]
             symbols.append(sym)
             if sym not in atom_dict.keys():

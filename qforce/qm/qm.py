@@ -240,7 +240,7 @@ hess_struct = :: existing_file, optional
         if not calculation.input_exists():
             with open(calculation.inputfile, 'w') as file:
                 self.write_charge(file, calculation.base, output.coords,
-                                  output.elements, charge_software)
+                                  output.atomids, charge_software)
         # if files exist
         try:
             charge_files = calculation.check()

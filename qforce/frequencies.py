@@ -50,8 +50,8 @@ def calc_vibrational_frequencies(upper, qm):
     count = 0
     for i in range(3*qm.n_atoms):
         for j in range(i+1):
-            mass_i = ATOMMASS[qm.elements[int(np.floor(i/3))]]
-            mass_j = ATOMMASS[qm.elements[int(np.floor(j/3))]]
+            mass_i = ATOMMASS[qm.atomids[int(np.floor(i/3))]]
+            mass_j = ATOMMASS[qm.atomids[int(np.floor(j/3))]]
             matrix[i, j] = upper[count]/np.sqrt(mass_i*mass_j)
             matrix[j, i] = matrix[i, j]
             count += 1
@@ -62,7 +62,7 @@ def calc_vibrational_frequencies(upper, qm):
     vec = np.reshape(np.transpose(vec), (3*qm.n_atoms, qm.n_atoms, 3))
 
     # mass weight
-    masses = [ATOMMASS[qm.elements[i]] for i in range(qm.n_atoms)]
+    masses = [ATOMMASS[qm.atomids[i]] for i in range(qm.n_atoms)]
     vec /= np.sqrt(masses)[np.newaxis, :, np.newaxis]
 
     # normalize
@@ -121,7 +121,7 @@ def write_vibrational_frequencies(qm_freq, qm_vec, md_freq, md_vec, qm, job):
         nmd.write(f"nmwiz_load {job.name}_qforce.nmd\n")
         nmd.write(f"title {job.name}\n")
         nmd.write("names")
-        for ids in qm.elements:
+        for ids in qm.atomids:
             nmd.write(f" {ATOM_SYM[ids]}")
         nmd.write("\nresnames")
         for i in range(qm.n_atoms):

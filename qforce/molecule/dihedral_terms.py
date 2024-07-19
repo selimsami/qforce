@@ -287,8 +287,8 @@ def find_flexible_atoms(topo, a1s, a2, a3, a4s):
         if len(choices) == 0:
             choices = atom_list
         # if len(choices) > 1:
-        #     heaviest_elem = np.amax(topo.elements[choices])
-        #     choices = choices[topo.elements[choices] == heaviest_elem]
+        #     heaviest_elem = np.amax(topo.atomids[choices])
+        #     choices = choices[topo.atomids[choices] == heaviest_elem]
         return choices
 
     a1s = pick_end_atom(a1s)

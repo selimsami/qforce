@@ -229,7 +229,7 @@ class ReadABC(ABC):
 
     @staticmethod
     def _read_fchk_file(fchk_file):
-        n_atoms, charge, multiplicity, elements, hessian = None, None, None, [], []
+        n_atoms, charge, multiplicity, atomids, hessian = None, None, None, [], []
         with open(fchk_file, "r", encoding='utf-8') as file:
             for line in file:
                 if "Charge                                     I" in line:
@@ -243,7 +243,7 @@ class ReadABC(ABC):
                     for _ in range(n_line):
                         line = file.readline()
                         ids = [int(i) for i in line.split()]
-                        elements.extend(ids)
+                        atomids.extend(ids)
                 if "Current cartesian coordinates   " in line:
                     coords = []
                     n_line = math.ceil(3*n_atoms/5)
@@ -259,10 +259,10 @@ class ReadABC(ABC):
         coords = np.asarray(coords, float)
         hessian = np.asarray(hessian, float)
         coords = np.reshape(coords, (-1, 3))
-        elements = np.array(elements)
+        atomids = np.array(atomids)
         coords = coords * Bohr
         hessian = hessian * Hartree * mol / kJ / Bohr**2
-        return n_atoms, charge, multiplicity, elements, coords, hessian
+        return n_atoms, charge, multiplicity, atomids, coords, hessian
 
     @staticmethod
     def _read_bond_order_from_nbo_analysis(file, n_atoms):
@@ -283,32 +283,32 @@ class ReadABC(ABC):
 
 class EnergyOutput:
 
-    def __init__(self, energy, dipole, elements, coords):
+    def __init__(self, energy, dipole, atomids, coords):
         self.energy = energy
-        self.elements = elements
+        self.atomids = atomids
         self.coords = coords
         self.dipole = dipole
 
 
 class GradientOutput:
 
-    def __init__(self, energy, gradient, dipole, elements, coords):
+    def __init__(self, energy, gradient, dipole, atomids, coords):
         self.energy = energy
         self.gradient = gradient
-        self.elements = elements
+        self.atomids = atomids
         self.coords = coords
         self.dipole = dipole
 
 
 class HessianOutput:
-    def __init__(self, vib_scaling, fchk_file, n_atoms, charge, multiplicity, elements, coords, hessian,
+    def __init__(self, vib_scaling, fchk_file, n_atoms, charge, multiplicity, atomids, coords, hessian,
                  b_orders, point_charges, dipole_deriv=None, lone_e=None, n_bonds=None):
 
         self.fchk_file = fchk_file
         self.n_atoms = self.check_type(n_atoms, 'n_atoms', int)
         self.charge = self.check_type(charge, 'charge', int)
         self.multiplicity = self.check_type(multiplicity, 'n_atoms', int)
-        self.elements = self.check_type_and_shape(elements, 'elements', int, (n_atoms,))
+        self.atomids = self.check_type_and_shape(atomids, 'atomids', int, (n_atoms,))
         self.coords = self.check_type_and_shape(coords, 'coords', float, (n_atoms, 3))
         self.hessian = self.check_type_and_shape(hessian, 'hessian', float,
                                                  (((n_atoms*3)**2+n_atoms*3)/2,)) * vib_scaling**2

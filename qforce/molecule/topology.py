@@ -12,8 +12,8 @@ class Topology(object):
 
     def __init__(self, config, qm_out):
         self.n_equiv = config.n_equiv
-        self.elements = qm_out.elements
-        self.n_atoms = len(self.elements)
+        self.atomids = qm_out.atomids
+        self.n_atoms = len(self.atomids)
         self.coords = qm_out.coords
         self.b_order_matrix = qm_out.b_orders
         #
@@ -23,7 +23,7 @@ class Topology(object):
         self.neighbors = [[[] for j in range(self.n_atoms)] for i in range(3)]  # First 3 neighbors
         self.n_neighbors = []  # number of first neighbors for each atom
         self.list = []  # atom numbers of unique atoms grouped together
-        self.types = [None for _ in self.elements]  # atom types of each atom
+        self.types = [None for _ in self.atomids]  # atom types of each atom
         self.unique_atomids = []  #
         self.atoms = np.zeros(self.n_atoms, dtype='int8')  # unique atom numbers of each atom
         self.all_rigid = config.all_rigid
@@ -40,13 +40,13 @@ class Topology(object):
     def _find_bonds_and_rings(self, qm_out):
         """Setup networkx graph """
         self.graph = nx.Graph()
-        for i_idx, i_elem in enumerate(self.elements):
+        for i_idx, i_elem in enumerate(self.atomids):
             self.graph.add_node(i_idx, idx=i_idx, elem=i_elem, n_bonds=qm_out.n_bonds[i_idx],
                                 q=qm_out.point_charges[i_idx], coords=self.coords[i_idx],
                                 neighs=[], unique_neighs=[], nonrepeat_neighs=[], hybrid=None,
                                 type=None, n_neighs=0, n_unique_neighs=0, n_nonrepeat_neighs=0)
             # add bonds
-            for j_idx, j_elem in enumerate(self.elements):
+            for j_idx, j_elem in enumerate(self.atomids):
                 b_order = qm_out.b_orders[i_idx, j_idx]
                 if b_order > 0.3:
                     id1, id2 = sorted([i_elem, j_elem])
@@ -120,14 +120,14 @@ class Topology(object):
             self.unique_atomids.append(n)
             self.n_types += 1
 
-        types = {i: 1 for i in set(self.elements)}
+        types = {i: 1 for i in set(self.atomids)}
 
         for eq in self.list:
             for i in eq:
-                type = f"{ATOM_SYM[self.elements[i]]}{types[self.elements[i]]}"
+                type = f"{ATOM_SYM[self.atomids[i]]}{types[self.atomids[i]]}"
                 self.types[i] = type
                 self.node(i)['type'] = type
-            types[self.elements[eq[0]]] += 1
+            types[self.atomids[eq[0]]] += 1
         self.types = np.array(self.types, dtype='str')
 
         for i in range(self.n_atoms):
