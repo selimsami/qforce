@@ -81,49 +81,26 @@ morse = no :: bool
 # write the force field with cosine angle potential
 cos_angle = no :: bool
 
-# Use D4 method
-_d4 = no :: bool
-
 # Residue name printed on the force field file (Max 5 characters)
 res_name = MOL :: str
-
-# Polarize a coordinate file and quit (requires itp_file)
-_polarize = no :: bool
-
-# Name of itp file (only needed for polarize option)
-_itp_file = itp_file_missing :: str
-
-# Make a polarizable FF
-_polar = no :: bool
-
-# Scale the C6 dispersion interactions in the polarizable version of the FF
-_polar_c6_scale = 0.8 :: float
-
-# Specifically not scale some of the atoms
-_polar_not_scale_c6 = :: literal
-
-# Manual polarizabilities in the file ext_alpha
-_ext_alpha = no :: bool
 
 """
 
     def __init__(self, software, job, config, mol, neighbors, exclude_all=[]):
-        self.polar = config.ff._polar
         self.mol_name = job.name
         self.n_atoms = mol.n_atoms
         self.elements = mol.elements
-        self.q = self.set_charge(mol.non_bonded)
+        self.q = np.copy(mol.non_bonded.q)
         self.residue = config.ff.res_name[:5]
         self.comb_rule = mol.non_bonded.comb_rule
         self.fudge_lj = mol.non_bonded.fudge_lj
         self.fudge_q = mol.non_bonded.fudge_q
-        self.alpha_map = mol.non_bonded.alpha_map
         self.urey = config.terms.urey
         self.n_excl = config.ff.n_excl
         self.atom_names, self.symbols = self.get_atom_names()
         self.masses = [round(ATOMMASS[i], 5) for i in self.elements]
         self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
-        self.pairs = self.make_pairs(neighbors, mol.non_bonded)
+        self.pairs = mol.non_bonded.pairs
         self.morse = config.ff.morse
         self.cos_angle = config.ff.cos_angle
         self.cosine_dihed_period = config.ff.cosine_dihed_period
@@ -140,21 +117,6 @@ _ext_alpha = no :: bool
         except KeyError:
             raise KeyError(f'"{selection}" software is not implemented.')
         return software
-
-    def make_pairs(self, neighbors, non_bonded):
-        polar_pairs = []
-
-        if self.n_excl == 2:
-            if self.polar:
-                for a1, a2 in non_bonded.pairs:
-                    if a2 in non_bonded.alpha_map.keys():
-                        polar_pairs.append([a1, non_bonded.alpha_map[a2]])
-                    if a1 in non_bonded.alpha_map.keys():
-                        polar_pairs.append([a2, non_bonded.alpha_map[a1]])
-                    if a1 in non_bonded.alpha_map.keys() and a2 in non_bonded.alpha_map.keys():
-                        polar_pairs.append([non_bonded.alpha_map[a1], non_bonded.alpha_map[a2]])
-
-        return non_bonded.pairs+polar_pairs
 
     def _get_bond_dissociation_energies(self, md_data):
         if not self.morse:
@@ -240,31 +202,6 @@ _ext_alpha = no :: bool
         for i in exclude_all:
             exclusions[i].extend(np.arange(1, self.n_atoms+1))
 
-        if self.polar:
-            exclusions = self.polarize_exclusions(non_bonded.alpha_map, non_bonded.exclusions,
-                                                  neighbors, exclude_all, exclusions)
-
-        return exclusions
-
-    def polarize_exclusions(self, alpha_map, input_exclusions, neighbors, exclude_all, exclusions):
-        n_polar_atoms = len(alpha_map.keys())
-        exclusions.extend([[] for _ in range(n_polar_atoms)])
-
-        # input exclusions
-        for exclu in input_exclusions:
-            if exclu[0] in alpha_map.keys():
-                exclusions[alpha_map[exclu[0]]].append(exclu[1]+1)
-            if exclu[1] in alpha_map.keys():
-                exclusions[alpha_map[exclu[1]]].append(exclu[0]+1)
-            if exclu[0] in alpha_map.keys() and exclu[1] in alpha_map.keys():
-                exclusions[alpha_map[exclu[0]]].append(alpha_map[exclu[1]]+1)
-
-        # fragment capping atom exclusions
-        for i in exclude_all:
-            exclusions[i].extend(np.arange(self.n_atoms+1, self.n_atoms+n_polar_atoms+1))
-            if i in alpha_map.keys():
-                exclusions[alpha_map[i]].extend(np.arange(1, self.n_atoms+n_polar_atoms+1))
-
         return exclusions
 
     def get_atom_names(self):
@@ -282,8 +219,3 @@ _ext_alpha = no :: bool
             atom_names.append(f'{sym}{atom_dict[sym]}')
         return atom_names, np.array(symbols)
 
-    def set_charge(self, non_bonded):
-        q = np.copy(non_bonded.q)
-        if self.polar:
-            q[list(non_bonded.alpha_map.keys())] += 8
-        return q

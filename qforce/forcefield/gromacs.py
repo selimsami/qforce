@@ -53,8 +53,6 @@ class Gromacs(ForcefieldSettings):
 
     def write_gro(self, directory, coords, box=[20., 20., 20.]):
         n_atoms = self.ff.n_atoms
-        if self.ff.polar:
-            n_atoms += len(self.ff.alpha_map.keys())
         coords_nm = coords*0.1
         with open(f"{directory}/gas.gro", "w") as gro:
             gro.write(f"{self.ff.mol_name}\n")
@@ -63,19 +61,12 @@ class Gromacs(ForcefieldSettings):
                 gro.write(f"{1:>5}{self.ff.residue:<5}")
                 gro.write(f"{a_name:>5}{i:>5}")
                 gro.write(f"{coord[0]:>8.3f}{coord[1]:>8.3f}{coord[2]:>8.3f}\n")
-            if self.ff.polar:
-                for i, (atom, drude) in enumerate(self.ff.alpha_map.items(), start=1):
-                    gro.write(f"{2:>5}{self.ff.residue:<5}{f'D{i}':>5}{drude+1:>5}")
-                    gro.write(f"{coords_nm[atom][0]:>8.3f}{coords_nm[atom][1]:>8.3f}")
-                    gro.write(f"{coords_nm[atom][2]:>8.3f}\n")
             gro.write(f'{box[0]:>12.5f}{box[1]:>12.5f}{box[2]:>12.5f}\n')
 
     def write_itp(self, directory):
         with open(f"{directory}/{self.ff.mol_name}_qforce.itp", "w") as itp:
             itp.write(LOGO_SEMICOL)
             self.write_itp_atoms_and_molecule(itp)
-            if self.ff.polar:
-                self.write_itp_polarization(itp)
             self.write_itp_bonds(itp)
             self.write_itp_angles(itp)
             self.write_itp_dihedrals(itp)
@@ -129,9 +120,6 @@ class Gromacs(ForcefieldSettings):
                 f'{lj_type:>8} {self.ff.non_bonded.lj_atomic_number[lj_type]:>7} {0:>8.4f} {0:>8.4f} {"A":>5} ')
             itp.write(f'{lj_params[0]:>12.5e} {lj_params[1]:>12.5e}\n')
 
-        if self.ff.polar:
-            itp.write(f'{"DP":>8} {0:>8.4f} {0:>8.4f} {"S":>2} {0:>12.5e} {0:>12.5e}\n')
-
         # non-bonded pair types
         itp.write("\n[ nonbond_params ]\n")
         if self.ff.comb_rule == 1:
@@ -168,27 +156,6 @@ class Gromacs(ForcefieldSettings):
             itp.write(f'{i:>5} {lj_type:>9} {1:>6} {self.ff.residue:>6} {a_name:>7} {i:>5} ')
             itp.write(f'{q:>11.5f} {mass:>10.5f}\n')
 
-        if self.ff.polar:
-            for i, (atom, drude) in enumerate(self.ff.non_bonded.alpha_map.items(), start=1):
-                itp.write(f'{drude+1:>5} {"DP":>9} {2:>6} {"DRU":>6} {f"D{i}":>7} {atom+1:>5}')
-                itp.write(f'{-8.:>11.5f} {0.:>10.5f}\n')
-
-    def write_itp_polarization(self, itp):
-        # polarization
-        itp.write("\n[ polarization ]\n")
-        itp.write(";    i      j      f          alpha\n")
-        for atom, drude in self.ff.non_bonded.alpha_map.items():
-            alpha = self.ff.non_bonded.alpha[atom]*1e-3
-            itp.write(f"{atom+1:>6} {drude+1:>6} {1:>6} {alpha:>14.8f}\n")
-
-        # # thole polarization
-        # if self.thole != []:
-        #     itp.write("\n[ thole_polarization ]\n")
-        #     itp.write(";   ai    di    aj    dj   f      a      alpha(i)      "
-        #               "alpha(j)\n")
-        # for tho in self.thole:
-        #     itp.write("{:>6}{:>6}{:>6}{:>6}{:>4}{:>7.2f}{:>14.8f}{:>14.8f}\n".format(*tho))
-
     def write_itp_pairs(self, itp):
         if self.ff.pairs != []:
             itp.write("\n[ pairs ]\n")
@@ -204,16 +171,6 @@ class Gromacs(ForcefieldSettings):
             equ = bond.equ * 0.1
             fconst = bond.fconst * 100
             itp.write(f'{ids[0]:>6} {ids[1]:>6} {1:>6} {equ:>12.7f} {fconst:>10.0f}\n')
-
-        if self.ff.polar:
-            itp.write(';   ai     aj      f - polar connections\n')
-            for bond in self.ff.terms['bond']:
-                a1, a2 = bond.atomids
-
-                if a2 in self.ff.alpha_map.keys():
-                    itp.write(f'{a1+1:>6} {self.ff.alpha_map[a2]+1:>6} {5:>6}\n')
-                if a1 in self.ff.alpha_map.keys():
-                    itp.write(f'{a2+1:>6} {self.ff.alpha_map[a1]+1:>6} {5:>6}\n')
 
     def write_itp_angles(self, itp):
         itp.write("\n[ angles ]\n")
@@ -352,90 +309,3 @@ class Gromacs(ForcefieldSettings):
                 phi = np.degrees(restraint[1])
                 itp.write(f'{a1:>5} {a2:>5} {a3:>5} {a4:>5} {1:>5} {phi:>10.4f}  0.0  {fc}\n')
 
-
-    # bohr2nm = 0.052917721067
-    # if polar:
-    #     alphas = qm.alpha*bohr2nm**3
-    #     drude = {}
-    #     n_drude = 1
-    #     ff.atom_types.append(["DP", 0, 0, "S", 0, 0])
-
-    #     for i, alpha in enumerate(alphas):
-    #         if alpha > 0:
-    #             drude[i] = mol.topo.n_atoms+n_drude
-    #             ff.atoms[i][6] += 8
-    #             # drude atoms
-    #             ff.atoms.append([drude[i], 'DP', 2, 'MOL', f'D{atoms[i]}',
-    #                              i+1, -8., 0.])
-    #             ff.coords.append(ff.coords[i])
-    #             # polarizability
-    #             ff.polar.append([i+1, drude[i], 1, alpha])
-    #             n_drude += 1
-    #     ff.natom = len(ff.atoms)
-    #     for i, alpha in enumerate(alphas):
-    #         if alpha > 0:
-    #             # exclusions for balancing the drude particles
-    #             for j in (mol.topo.neighbors[self.n_excl-2][i] +
-    #                       mol.topo.neighbors[self.n_excl-1][i]):
-    #                 if alphas[j] > 0:
-    #                     ff.exclu[drude[i]-1].extend([drude[j]])
-    #             for j in mol.topo.neighbors[self.n_excl-1][i]:
-    #                 ff.exclu[drude[i]-1].extend([j+1])
-    #             ff.exclu[drude[i]-1].sort()
-    #             # thole polarizability
-    #             for neigh in [mol.topo.neighbors[n][i] for n in range(self.n_excl)]:
-    #                 for j in neigh:
-    #                     if i < j and alphas[j] > 0:
-    #                         ff.thole.append([i+1, drude[i], j+1, drude[j], "2", 2.6, alpha,
-    #                                          alphas[j]])
-
-    # def read_itp(self, itp_file):
-    #     with open(itp_file, "r") as itp:
-    #         in_section = []
-    #         bond_atoms, bond_r0, bond_k = [], [], []
-
-    #         for line in itp:
-    #             low_line = line.lower().strip().replace(" ", "")
-    #             unsplit = line
-    #             line = line.split()
-    #             if low_line == "" or low_line[0] == ";":
-    #                 continue
-    #             elif "[" in low_line and "]" in low_line:
-    #                 open_bra = low_line.index("[") + 1
-    #                 close_bra = low_line.index("]")
-    #                 in_section = low_line[open_bra:close_bra]
-    #             elif in_section == "atomtypes":
-    #                 self.atom_types.append([line[0], float(line[1]),
-    #                                         float(line[2]), line[3],
-    #                                         float(line[4]), float(line[5])])
-    #                 self.atype.append(line[0])
-    #                 self.c6.append(line[4])
-    #                 self.c12.append(line[5])
-    #             elif in_section == "moleculetype":
-    #                 self.mol_type = line[0]
-    #             elif in_section == "atoms":
-    #                 self.atoms.append([int(line[0]), line[1], int(line[2]),
-    #                                    line[3], line[4], line[5], float(line[6]),
-    #                                    float(line[7])])
-    #                 self.natom += 1
-    #             elif in_section == "bonds":
-    #                 bond_atoms = (line[0:2])
-    #                 bond_r0 = (float(line[3]) * 10)
-    #                 bond_k = (float(line[4]) / 100)
-    #                 self.bond.append([bond_atoms, bond_r0, bond_k])
-    #                 self.bonds.append(unsplit)
-    #             elif in_section == "angles":
-    #                 angle_atoms = (line[0:3])
-    #                 angle_theta0 = float(line[4])
-    #                 angle_k = float(line[5])
-    #                 self.angle.append([angle_atoms, angle_theta0, angle_k])
-    #                 self.angles.append(unsplit)
-    #             elif in_section == "dihedrals":
-    #                 self.dihedrals.append(unsplit)
-    #                 if line[4] == "3":
-    #                     self.rbdihed.append([line[0:4], line[4:]])
-    #                 elif line[4] == "2":
-    #                     self.idihed.append([line[0:4], line[4:]])
-
-    #             elif in_section == "pairs":
-    #                 self.pairs.append(sorted([int(line[0]), int(line[1])]))

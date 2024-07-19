@@ -127,13 +127,13 @@ class ChargeFluxTerms(TermFactory):
         'bond_prime': BondPrimeChargeFluxTerm,
         'angle': AngleChargeFluxTerm,
         'angle_prime': AnglePrimeChargeFluxTerm,
-        'bond_bond': BondBondChargeFluxTerm,
-        'bond_angle': BondAngleChargeFluxTerm,
-        'angle_angle': AngleAngleChargeFluxTerm,
+        '_bond_bond': BondBondChargeFluxTerm,
+        '_bond_angle': BondAngleChargeFluxTerm,
+        '_angle_angle': AngleAngleChargeFluxTerm,
     }
 
     _always_on = []
-    _default_off = ['bond', 'angle', 'bond_prime', 'angle_prime', 'bond_bond', 'bond_angle', 'angle_angle']
+    _default_off = ['bond', 'angle', 'bond_prime', 'angle_prime', '_bond_bond', '_bond_angle', '_angle_angle']
 
     @classmethod
     def get_terms(cls, topo, non_bonded):
@@ -161,7 +161,7 @@ class ChargeFluxTerms(TermFactory):
                     if a2 <= a3:
                         continue
                     dist2 = get_dist(topo.coords[a1], topo.coords[a3])[1]
-                    add_term('bond_bond', [a2, a1, a3], [dist, dist2], 'bond_bond')
+                    add_term('_bond_bond', [a2, a1, a3], [dist, dist2], 'bond_bond')
 
             for a2, _, a3 in angles:
 
@@ -183,17 +183,17 @@ class ChargeFluxTerms(TermFactory):
                 for a4 in neighs:
                     dist = get_dist(topo.coords[a1], topo.coords[a4])[1]
                     if a4 in [a2, a3]:
-                        add_term('bond_angle', [a4, a2, a1, a3], [theta, dist], 'bond_angle')
+                        add_term('_bond_angle', [a4, a2, a1, a3], [theta, dist], 'bond_angle')
                     else:
-                        add_term('bond_angle', [a4, a2, a1, a3], [theta, dist], 'bond_angle_prime')
+                        add_term('_bond_angle', [a4, a2, a1, a3], [theta, dist], 'bond_angle_prime')
 
                 for a4, _, a5 in angles:
                     if a2 == a4 and a3 == a5:
                         continue
                     theta2 = get_angle(topo.coords[[a4, a1, a5]])[0]
                     if a4 in [a2, a3] or a5 in [a2, a3]:
-                        add_term('angle_angle', [a2, a1, a3, a4, a1, a5], [theta, theta2], 'angle_angle')
+                        add_term('_angle_angle', [a2, a1, a3, a4, a1, a5], [theta, theta2], 'angle_angle')
                     else:
-                        add_term('angle_angle', [a2, a1, a3, a4, a1, a5], [theta, theta2], 'angle_angle_prime')
+                        add_term('_angle_angle', [a2, a1, a3, a4, a1, a5], [theta, theta2], 'angle_angle_prime')
 
         return terms

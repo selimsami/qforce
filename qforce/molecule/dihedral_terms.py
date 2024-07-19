@@ -256,7 +256,7 @@ class DihedralTerms(TermFactory):
                     # add_term('inversion', topo,  [3, 0, 1, 2], phi, f'{imp_type}-2')
                     # add_term('inversion', topo,  [3, 0, 2, 1], phi, f'{imp_type}-2')
 
-        add_term('pitorsion', topo, [1, 0, 3, 2, 4, 5], 0, 'test')
+        # add_term('pitorsion', topo, [1, 0, 3, 2, 4, 5], 0, 'test')
         # add_term('pitorsion', topo, [0, 2, 3, 1, 4, 5], 0, 'test')
         return terms
 

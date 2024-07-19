@@ -184,8 +184,7 @@ class Fragment:
                     self.caps.append({'connected': a, 'idx': n, 'n_cap': n_cap, 'coord': coord,
                                       'b_length': bl})
                     n_cap += 1
-            next_neigh = [[a, n] for a in new for n in mol.topo.neighbors[0][a] if n not in
-                          self.atomids]
+            next_neigh = [[a, n] for a in new for n in mol.topo.neighbors[0][a] if n not in self.atomids]
             n_neigh += 1
 
         self.n_atoms_without_cap = len(self.atomids)

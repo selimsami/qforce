@@ -3,9 +3,6 @@ import scipy.optimize as optimize
 
 
 def fit_charge_flux(qm_out, qm_energy_out, qm_gradient_out, mol, weight_dipole=0.1):
-    print(qm_out.coords)
-    print('TOTAL DIP', calc_dipole(qm_out.coords, mol))
-
     differences, cf_contrib = calc_dipole_derivative(qm_out.dipole_deriv, qm_out.coords.copy(), mol.non_bonded.q, mol)
 
     if len(qm_energy_out+qm_gradient_out) > 0:

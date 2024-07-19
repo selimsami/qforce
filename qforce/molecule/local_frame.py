@@ -91,7 +91,21 @@ class LocalFrameTermABC(TermABC):
         q_21s = 2 / 3**0.5 * self.quadrupole[1, 2]
         quadrupoles = np.array([q_20, q_21c, q_21s, q_22c, q_22s])
 
-        return np.round(dipoles, 6), np.round(quadrupoles, 6)
+        return dipoles, quadrupoles
+
+    def convert_multipoles_to_local_cartesian_frame(self):
+
+        dipoles = np.array([self.dipole_spher[1], self.dipole_spher[2], self.dipole_spher[0]])
+
+        q_11 = -0.5 * self.quad_spher[0] + 3**0.5 / 2 * self.quad_spher[3]
+        q_22 = -0.5 * self.quad_spher[0] - 3**0.5 / 2 * self.quad_spher[3]
+        q_33 = self.quad_spher[0]
+        q_12 = 3**0.5 / 2 * self.quad_spher[4]
+        q_13 = 3**0.5 / 2 * self.quad_spher[1]
+        q_23 = 3**0.5 / 2 * self.quad_spher[2]
+        quadrupoles = np.array([q_11, q_22, q_33, q_12, q_13, q_23])
+
+        return dipoles.round(10), quadrupoles.round(10)
 
 
 class BisectorTerm(LocalFrameTermABC):
@@ -196,30 +210,11 @@ class LocalFrameTerms(TermFactory):
         def add_term(name, atomids, *args):
             terms[name].append(cls._term_types[name].get_term(name, atomids, *args))
 
-        # print(topo.unique_atomids)
-        # print(topo.types)
-        # print(topo.n_types)
-        # print(topo.atoms)
-        # print(topo.list)
-
-        localframes = []
-        # print('\nNODES')
-
         if np.abs(non_bonded.quadrupole).sum() == 0 and np.abs(non_bonded.dipole).sum() == 0:
             return terms
 
         for i, node in topo.graph.nodes(data=True):
             print('atomid:', i, ', element:', node['elem'])
-            # print(node['n_neighs'])
-            # print(node['n_unique_neighs'])
-            # print(node['unique_neighs'])
-            # print(node['n_nonrepeat_neighs'])
-            # print(node['nonrepeat_neighs'])
-            # print(node['hybrid'])
-
-            # print('NEIGH PROPS')
-            # for neigh in node['neighs']:
-            #     print(topo.node(neigh)['hybrid'])
 
             if node['n_neighs'] == 1:  # terminal atoms
                 neigh = topo.node(node['neighs'][0])
@@ -327,4 +322,28 @@ class LocalFrameTerms(TermFactory):
                     print('FOUND: tetrahedral atom, like C on methane, z-only (no dip/quad)')
                     add_term('z_only', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
 
+        terms = LocalFrameTerms.average_equivalent_terms(terms)
+
+        return terms
+
+    @staticmethod
+    def average_equivalent_terms(terms):
+        term_dict = {}
+        for term in terms:
+            if term.type in term_dict:
+                term_dict[term.type][0].append(term.dipole_spher)
+                term_dict[term.type][1].append(term.quad_spher)
+            else:
+                term_dict[term.type] = [[term.dipole_spher], [term.quad_spher]]
+
+        for key, val in term_dict.items():
+            term_dict[key][0] = np.mean(val[0], axis=0)
+            term_dict[key][1] = np.mean(val[1], axis=0)
+
+        for term in terms:
+            term.dipole_spher = term_dict[term.type][0].round(10)
+            term.quad_spher = term_dict[term.type][1].round(10)
+
+            term.dipole, term.quadrupole = term.convert_multipoles_to_local_cartesian_frame()
+            term.quadrupole = term.make_quadrupole_matrix(term.quadrupole)
         return terms

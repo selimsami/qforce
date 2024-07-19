@@ -20,14 +20,14 @@ class OpenMM(ForcefieldSettings):
             'dihedral/flexible': True, 
             'dihedral/inversion': True, 
             'dihedral/pitorsion': True, 
-            'non_bonded': True, 
-            'charge_flux/bond': False, 
-            'charge_flux/bond_prime': False, 
-            'charge_flux/angle': False, 
-            'charge_flux/angle_prime': False, 
-            'charge_flux/bond_bond': False, 
-            'charge_flux/bond_angle': False, 
-            'charge_flux/angle_angle': False,
+            'non_bonded': True,
+            'charge_flux/bond': False,
+            'charge_flux/bond_prime': False,
+            'charge_flux/angle': False,
+            'charge_flux/angle_prime': False,
+            'charge_flux/_bond_bond': False,
+            'charge_flux/_bond_angle': False,
+            'charge_flux/_angle_angle': False,
             'local_frame/bisector': True,
             'local_frame/z_then_x': True,
             'local_frame/z_only': True,
@@ -108,6 +108,69 @@ class OpenMM(ForcefieldSettings):
         if '_cross_dihed_angle' in self.ff.terms and len(self.ff.terms['_cross_dihed_angle']) > 0:
             self.write_cross_dihedral_angle(forces, n_terms)
             n_terms += 1
+
+        # Non-bonded
+        if 'local_frame' in self.ff.terms and len(self.ff.terms['local_frame']) > 0:
+            self.write_multipoles(forces, n_terms)
+
+    def write_multipoles(self, forces, n_terms):
+        axis_types = {'z_then_x': '0', 'bisector': '1', 'z_then_bisector': '2', 'trisector': '3', 'z_only': '4'}
+
+        force = ET.SubElement(forces, 'Force', {'type': 'AmoebaMultipoleForce', 'name': 'AmoebaMultipoleForce',
+                                                'forceGroup': str(n_terms), 'version': '4', 'aEwald': '0',
+                                                'cutoffDistance': '1', 'ewaldErrorTolerance': '.0001',
+                                                'mutualInducedMaxIterations': '60', 'nonbondedMethod': '0',
+                                                'mutualInducedTargetEpsilon': '1e-05', 'polarizationType': '0'})
+
+        ET.SubElement(force, 'MultipoleParticleGridDimension', {'d0': '0', 'd1': '0', 'd2': '0'})
+        ET.SubElement(force, 'ExtrapolationCoefficients', {'c0': '-.154', 'c1': '.017', 'c2': '.658', 'c3': '.474'})
+        mults = ET.SubElement(force, 'MultipoleParticles')
+
+        for i, term in enumerate(self.ff.terms['local_frame'], start=1):
+            # ids = term.atomids[1:].copy()
+            # if term.frame_type == 'trisector':
+            #     ids[0], ids[1], ids[2] = -ids[0], -ids[1], -ids[2]
+            # elif term.frame_type == 'z_then_bisector':
+            #     ids[1], ids[2] = -ids[1], -ids[2]
+            # elif term.frame_type == 'bisector':
+            #     ids[1] = -ids[1]
+            #     ids.append(ids)
+            # new_ids = np.array(['' for _ in range(3)])
+            # for j, id in enumerate(ids):
+            #     new_ids[j] = str(id)
+            # ids = new_ids
+
+            ids = - np.ones(3, dtype=int)
+            ids[:len(term.atomids)-1] = term.atomids[1:]
+
+            dips = term.dipole.copy() / 10
+            quads = term.quadrupole.copy() / 100
+
+            part = ET.SubElement(mults, 'Particle', {'axisType': axis_types[term.frame_type],
+                                                     'multipoleAtomZ': str(ids[0]), 'multipoleAtomX': str(ids[1]),
+                                                     'multipoleAtomY': str(ids[2]), 'charge': str(term.q),
+                                                     'damp': '0', 'polarity': '0', 'thole': '0'})
+
+            ET.SubElement(part, 'Dipole', {'d0': str(dips[0]), 'd1': str(dips[1]), 'd2': str(dips[2])})
+
+            ET.SubElement(part, 'Quadrupole', {'q0': str(quads[0, 0]), 'q1': str(quads[0, 1]), 'q2': str(quads[0, 2]),
+                                               'q3': str(quads[1, 0]), 'q4': str(quads[1, 1]), 'q5': str(quads[1, 2]),
+                                               'q6': str(quads[2, 0]), 'q7': str(quads[2, 1]), 'q8': str(quads[2, 2])})
+
+            cov12 = ET.SubElement(part, 'Covalent12')
+            for neigh in self.ff.topo.neighbors[0][term.atomids[0]]:
+                ET.SubElement(cov12, 'Cv', {'v': str(neigh)})
+            cov13 = ET.SubElement(part, 'Covalent13')
+            for neigh in self.ff.topo.neighbors[1][term.atomids[0]]:
+                ET.SubElement(cov13, 'Cv', {'v': str(neigh)})
+            cov14 = ET.SubElement(part, 'Covalent14')
+            for neigh in self.ff.topo.neighbors[2][term.atomids[0]]:
+                ET.SubElement(cov14, 'Cv', {'v': str(neigh)})
+            ET.SubElement(part, 'Covalent15')
+            ET.SubElement(part, 'PolarizationCovalent11')
+            ET.SubElement(part, 'PolarizationCovalent12')
+            ET.SubElement(part, 'PolarizationCovalent13')
+            ET.SubElement(part, 'PolarizationCovalent14')
 
     def write_bonds(self, forces):
         if not self.ff.morse:
@@ -283,10 +346,8 @@ class OpenMM(ForcefieldSettings):
         ba = ET.SubElement(da_force, 'Bonds')
         for cross_da in self.ff.terms['_cross_dihed_angle']:
             ids = cross_da.atomids
-            equ = str(round(cross_da.equ, 8))
-            # if self.ff.cos_angle:
-            #     cross_daa.fconst /= np.sin(cross_daa.equ[0]) * np.sin(cross_daa.equ[1])
-            k = str(round(cross_da.fconst, 7))
+            equ = str(round(cross_da.equ, 8) * 0.1)
+            k = str(round(cross_da.fconst, 7) * 10)
 
             ET.SubElement(ba, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
                                        'param1': equ, 'param2': k})

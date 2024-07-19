@@ -1,6 +1,5 @@
 from calkeeper import CalculationKeeper, CalculationIncompleteError
 
-from .polarize import polarize
 from .initialize import initialize
 from .qm.qm import QM
 from .qm.qm_base import HessianOutput
@@ -16,9 +15,6 @@ from .logger import LoggerExit
 
 
 def runjob(config, job, ext_q=None, ext_lj=None):
-    if config.ff._polarize:
-        polarize(job, config.ff)
-
     # setup qm calculation
     qm = QM(job, config.qm)
     # do the preoptimization if selected
@@ -45,11 +41,49 @@ def runjob(config, job, ext_q=None, ext_lj=None):
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
+    if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
+        fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
+
     ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, main_hessian.coords)
 
+    print_outcome(job.logger, job.dir, config.ff.output_software)
+
+    return mol
+
+
+def runjob_v2(config, job, ext_q=None, ext_lj=None):
+    # setup qm calculation
+    qm = QM(job, config.qm)
+    # do the preoptimization if selected
+    qm.preopt()
+    # get hessian output
+    qm_hessian_out, qm_energy_out, qm_gradient_out = qm.get_hessian()
+    main_hessian = qm_hessian_out[0]
+
+    # check molecule
+    mol = Molecule(config, job, main_hessian, ext_q, ext_lj)
+
+    # change the order
+    fragments = None
+    if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
+        # get fragments with qm
+        fragments = fragment(mol, qm, job, config)
+
+    # hessian fitting
+    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out)
+
+    # do the scans
+    if fragments is not None:
+        DihedralScan(fragments, mol, job, config)
+
+    calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
+
     if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
         fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
+
+    ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
+    ff.software.write(job.dir, main_hessian.coords)
 
     print_outcome(job.logger, job.dir, config.ff.output_software)
 
