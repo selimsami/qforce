@@ -6,6 +6,7 @@ from .qm.qm_base import HessianOutput
 from .forcefield.forcefield import ForceField
 from .molecule import Molecule
 from .fragment import fragment
+from .no_fragment_scanning import do_nofrag_scanning
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian, multi_hessian_fit
@@ -64,18 +65,11 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     # check molecule
     mol = Molecule(config, job, main_hessian, ext_q, ext_lj)
 
-    # change the order
-    fragments = None
-    if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
-        # get fragments with qm
-        fragments = fragment(mol, qm, job, config)
+    if len(mol.terms['dihedral/flexible']) > 0:
+       scans = do_nofrag_scanning(mol, qm, job, config)
 
     # hessian fitting
     md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out)
-
-    # do the scans
-    if fragments is not None:
-        DihedralScan(fragments, mol, job, config)
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
@@ -95,13 +89,16 @@ def save_jobs(job):
         fh.write(job.calkeeper.as_json())
 
 
-def runspjob(config, job, ext_q=None, ext_lj=None):
+def runspjob(config, job, ext_q=None, ext_lj=None, v2=False):
     """Run a single round of Q-Force"""
     # print qforce logo
     job.logger.info(LOGO)
     #
     try:
-        mol = runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        if v2:
+            mol = runjob_v2(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        else:
+            mol = runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
         save_jobs(job)
         return mol
     except CalculationIncompleteError:
@@ -114,15 +111,15 @@ def runspjob(config, job, ext_q=None, ext_lj=None):
     return None
 
 
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False):
+def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False, v2=False):
     """Execute Qforce from python directly """
     config, job = initialize(input_arg, config, presets)
     #
     if err is True:
-        return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj, v2=v2)
     else:
         try:
-            return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+            return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj, v2=v2)
         except LoggerExit as err:
             print(str(err))
 

@@ -216,7 +216,7 @@ class ReadQChem(ReadABC):
                         coords.append([float(x), float(y), float(z)])
                         line = next(file)
                 if 'Total energy' in line:
-                    energy = float(line.split()[-1]) * Hartree * mol / kJ
+                    energy = float(line.split()[-1])
                 if 'Dipole Moment (Debye)' in line:
                     line = next(file)
                     dipole = [float(val) for val in line.split()[1::2]]
@@ -245,7 +245,7 @@ class ReadQChem(ReadABC):
                         coords.append([float(x), float(y), float(z)])
                         line = next(file)
                 if 'Total energy' in line:
-                    energy = float(line.split()[-1]) * Hartree * mol / kJ
+                    energy = float(line.split()[-1])
                 if 'Dipole Moment (Debye)' in line:
                     line = next(file)
                     dipole = [float(val) for val in line.split()[1::2]]
@@ -263,6 +263,7 @@ class ReadQChem(ReadABC):
             raise ValueError("Could not find energy in file!")
         energy = energy * Hartree * mol / kJ
         gradient = np.array(gradient) * Hartree * mol / kJ / Bohr
+
         return energy, gradient, np.array(dipole)*Debye, atomids, np.array(coords)
 
     @staticmethod

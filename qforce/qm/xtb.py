@@ -353,7 +353,7 @@ class WritexTB(WriteABC):
 
         with open(f'{base}/{job_name}.dat', 'w') as f:
             f.write('$constrain\n')
-            f.write('  force constant=15.0\n')
+            f.write('  force constant=0.1\n')
             f.write('$scan\n')
             f.write(f'  dihedral: {a1},{a2},{a3},{a4},{start_angle:.2f}; '
                     f'{start_angle:.2f},{end_angle:.2f},{step_num}\n')

@@ -293,11 +293,11 @@ class EnergyOutput:
 class GradientOutput:
 
     def __init__(self, energy, gradient, dipole, atomids, coords):
-        self.energy = energy
-        self.gradient = gradient
-        self.atomids = atomids
-        self.coords = coords
-        self.dipole = dipole
+        self.energy = np.array(energy, dtype=np.float64)
+        self.gradient = np.array(gradient, dtype=np.float64)
+        self.atomids = np.array(atomids)
+        self.coords = np.array(coords, dtype=np.float64)
+        self.dipole = np.array(dipole, dtype=np.float64)
 
 
 class HessianOutput:
@@ -356,6 +356,7 @@ class ScanOutput:
     def __init__(self, file,  n_steps, n_atoms, coords, angles, energies, charges):
         self.n_atoms = n_atoms
         self.n_steps = n_steps
+        self.forces = np.zeros((n_steps, n_atoms, 3))
         angles, energies, coords, self.charges, self.mismatch = self.check_shape(angles, energies,
                                                                                  coords, charges,
                                                                                  file)
@@ -372,7 +373,6 @@ class ScanOutput:
     @energies.setter
     def energies(self, energies):
         energies = np.asarray(energies, dtype=self._energies.dtype)
-        energies -= energies.min()
         if energies.size != self.n_steps:
             raise ValueError("Number of energies incomplete!")
         self._energies = energies

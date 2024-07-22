@@ -333,7 +333,8 @@ hess_struct = :: existing_file, optional
             # do not do che charge
             for files in out_files:
                 energies.append(charge_software.read.sp(self.config, **files))
-            scan_out.energies = np.array(energies, dtype=np.float64)
+            energies = np.array(energies, dtype=np.float64)
+            scan_out.energies = energies - energies.min()
 
         # check and read charge software
         if charge_software is not None:
@@ -341,6 +342,52 @@ hess_struct = :: existing_file, optional
             scan_out.point_charges = charge_software.read.charges(self.config, **charge_files)
 
         return scan_out
+
+    def do_scan_sp_calculations_v2(self, parent, scan_id, scan_out, atnums):
+        """do scan sp calculations if necessary and update the scan out"""
+        software = self.softwares['software']
+        scan_software = self.softwares['scan_software']
+        # check if sp should be computed
+        do_sp = not (scan_software is software)
+
+        # setup sp calculations
+        if do_sp is True:
+            software = self.softwares['software']
+            folder = parent
+            os.makedirs(folder, exist_ok=True)
+            calculations = [self.Calculation(self.scan_sp_name(software, i),
+                                             software.read.gradient_files,
+                                             folder=f'{folder}/step_{i}',
+                                             software=software.name)
+                            for i in range(scan_out.n_steps)]
+
+            # setup files
+            for i, calc in enumerate(calculations):
+                if not calc.input_exists():
+                    os.makedirs(calc.folder, exist_ok=True)
+                    with open(calc.inputfile, 'w') as file:
+                        self.write_gradient(file, calc.base, scan_out.coords[i], atnums)
+
+            try:
+                out_files = check(calculations)
+            except CalculationIncompleteError:
+                self.logger.exit(f"Required output file(s) not found in '{parent}/step_XX'.\n"
+                                 'Creating the necessary input file and exiting...\n'
+                                 'Please run the calculation and put the output files in the '
+                                 'same directory.\nNecessary output files and the '
+                                 'corresponding extensions are:\n'
+                                 f"{calculations[0].missing_as_string()}")
+
+            energies, forces = [], []
+            for files in out_files:
+                energy, force, _, _, _ = software.read.gradient(self.config, **files)
+                energies.append(energy)
+                forces.append(force)
+
+            scan_out.energies = np.array(energies, dtype=np.float64)
+            scan_out.forces = np.array(forces, dtype=np.float64)
+        return scan_out
+
 
     @scriptify
     def write_preopt(self, file, job_name, coords, atnums):
@@ -400,7 +447,7 @@ hess_struct = :: existing_file, optional
             The multiplicity of the molecule.
         '''
         software = self.softwares['scan_software']
-        if self.config.dihedral_scanner == 'relaxed_scan':
+        if self.config.dihedral_scanner == 'relaxed_sc`an':
             software.write.scan(file, scan_id, self.config, coords,
                                 atnums, scanned_atoms, start_angle,
                                 charge, multiplicity)
