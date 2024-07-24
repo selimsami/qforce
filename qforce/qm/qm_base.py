@@ -301,7 +301,7 @@ class GradientOutput:
 
 
 class HessianOutput:
-    def __init__(self, vib_scaling, fchk_file, n_atoms, charge, multiplicity, atomids, coords, hessian,
+    def __init__(self, vib_scaling, fchk_file, n_atoms, charge, multiplicity, atomids, coords, energy, hessian,
                  b_orders, point_charges, dipole_deriv=None, lone_e=None, n_bonds=None):
 
         self.fchk_file = fchk_file
@@ -310,6 +310,7 @@ class HessianOutput:
         self.multiplicity = self.check_type(multiplicity, 'n_atoms', int)
         self.atomids = self.check_type_and_shape(atomids, 'atomids', int, (n_atoms,))
         self.coords = self.check_type_and_shape(coords, 'coords', float, (n_atoms, 3))
+        self.energy = energy
         self.hessian = self.check_type_and_shape(hessian, 'hessian', float,
                                                  (((n_atoms*3)**2+n_atoms*3)/2,)) * vib_scaling**2
         self.b_orders = self.check_type_and_shape(b_orders, 'b_orders', float, (n_atoms, n_atoms))
@@ -353,14 +354,13 @@ class HessianOutput:
 class ScanOutput:
     """Store the output of a scan calculation"""
 
-    def __init__(self, file,  n_steps, n_atoms, coords, angles, energies, charges):
+    def __init__(self, file,  n_steps, n_atoms, coords, angles, energies, dipoles, charges):
         self.n_atoms = n_atoms
         self.n_steps = n_steps
         self.forces = np.zeros((n_steps, n_atoms, 3))
-        angles, energies, coords, self.charges, self.mismatch = self.check_shape(angles, energies,
-                                                                                 coords, charges,
-                                                                                 file)
-        self._angles, self._energies, self.coords = self._rearrange(angles, energies, coords)
+        angles, energies, coords, dipoles, self.charges, self.mismatch = self.check_shape(angles, energies, coords,
+                                                                                          dipoles, charges, file)
+        self._angles, self._energies, self.coords, self.dipoles = self._rearrange(angles, energies, coords, dipoles)
 
     @property
     def angles(self):
@@ -377,18 +377,20 @@ class ScanOutput:
             raise ValueError("Number of energies incomplete!")
         self._energies = energies
 
-    def check_shape(self, angles, energies, coords, charges, file):
+    def check_shape(self, angles, energies, coords, dipoles, charges, file):
         mismatched = []
         if not isinstance(self.n_atoms, int):
             mismatched.append('n_atoms')
         if not isinstance(self.n_steps, int):
             mismatched.append('n_steps')
 
-        angles, coords, energies = np.asarray(angles), np.asarray(coords), np.asarray(energies)
+        angles, coords, energies, dipoles = (np.asarray(angles), np.asarray(coords), np.asarray(energies),
+                                             np.asarray(dipoles))
 
         for prop, name, shape in [(angles, 'angles', (self.n_steps,)),
                                   (energies, 'energies', (self.n_steps,)),
-                                  (coords, 'coords', (self.n_steps, self.n_atoms, 3))]:
+                                  (coords, 'coords', (self.n_steps, self.n_atoms, 3)),
+                                  (dipoles, 'dipoles', (self.n_steps, 3))]:
             if prop.shape != shape:
                 mismatched.append(name)
 
@@ -400,18 +402,19 @@ class ScanOutput:
 
         if mismatched:
             print(f'WARNING: {mismatched} properties have missing/extra data in the file:\n{file}')
-        return angles, energies, coords, charges, mismatched
+        return angles, energies, coords, dipoles, charges, mismatched
 
     @staticmethod
-    def _rearrange(angles, energies, coords):
+    def _rearrange(angles, energies, coords, dipoles):
         if energies.size != 0:
             angles = (angles % 360).round(4)
             order = np.argsort(angles)
             angles = angles[order]
             coords = coords[order]
+            dipoles = dipoles[order]
             energies = energies[order]
             energies -= energies.min()
-        return angles, energies, coords
+        return angles, energies, coords, dipoles
 
 
 def scriptify(writer):

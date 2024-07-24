@@ -5,7 +5,7 @@ import numpy as np
 from .fragment import check_and_notify
 from .logger import LoggerExit
 from .forces import get_dihed
-
+from .qm.qm_base import GradientOutput
 
 def do_nofrag_scanning(mol, qm, job, config):
     scans = []
@@ -14,7 +14,7 @@ def do_nofrag_scanning(mol, qm, job, config):
     os.makedirs(config.scan.frag_lib, exist_ok=True)
     scan_dir = job.pathways.getdir('fragments', create=True)
 
-    for term in mol.terms['dihedral/flexible']:
+    for term in mol.terms['dihedral/rigid']:
         name = term.typename.partition('_')[0]
 
         if name not in unique_dihedrals:
@@ -26,26 +26,37 @@ def do_nofrag_scanning(mol, qm, job, config):
         try:
             scan = Scan(job, config, mol, qm, atomids, name)
             if scan.has_data:
-                scans.append(scan)
+                scans.extend(convert_to_grad_out(scan))
             elif config.scan.batch_run and scan.has_inp:
-                generated.append(scan)
+                generated.extend(convert_to_grad_out(scan))
         except (CalculationIncompleteError, LoggerExit):
             # ignore these errors, checking is done in check_and_notify!
             pass
 
-    check_and_notify(job, config.scan, len(unique_dihedrals), len(scans), len(generated))
+    n_scan_steps = int(np.ceil(360/config.qm.scan_step_size))
+
+    check_and_notify(job, config.scan, len(unique_dihedrals), len(scans)//n_scan_steps, len(generated)//n_scan_steps)
 
     return scans
+
+
+def convert_to_grad_out(scan):
+    grad_outs = []
+    for i in range(len(scan.coords)):
+        grad_out = GradientOutput(scan.energies[i], scan.forces[i], scan.dipoles[i], scan.atomids, scan.coords[i])
+        grad_outs.append(grad_out)
+    return grad_outs
+
 
 class Scan():
     def __init__(self, job, config, mol, qm, scanned_atomids, name):
         self.central_atoms = tuple(scanned_atomids[1:3])
         self.scanned_atomids = scanned_atomids
         self.atomids = mol.atomids
-        self.coords = mol.coords
+        self.opt_coords = mol.coords
         self.charge = mol.charge
         self.multiplicity = mol.multiplicity
-        self.equil_angle = np.degrees(get_dihed(self.coords[self.scanned_atomids])[0])
+        self.equil_angle = np.degrees(get_dihed(self.opt_coords[self.scanned_atomids])[0])
         self.name = name
         self.n_atoms = len(self.atomids)
         self.has_data = False
@@ -56,8 +67,10 @@ class Scan():
         self.folder = job.pathways.getdir('frag', self.hash, create=True)
         self.calc = self.set_calc(config, job)
 
-        self.qm_energies = []
-        self.qm_coords = []
+        self.energies = []
+        self.qcoords = []
+        self.forces = []
+        self.dipoles = []
 
         self.check_for_qm_data(job, config, mol, qm)
 
@@ -87,9 +100,10 @@ class Scan():
             qm_out = qm.read_scan(self.folder, files)
             qm_out = qm.do_scan_sp_calculations_v2(self.folder, self.hash, qm_out, mol.atomids)
 
-            self.qm_energies = qm_out.energies
-            self.qm_forces = qm_out.forces
-            self.qm_coords = qm_out.coords
+            self.energies = qm_out.energies
+            self.forces = qm_out.forces
+            self.coords = qm_out.coords
+            self.dipoles = qm_out.dipoles
 
             if qm_out.mismatch:
                 if config.avail_only:
@@ -103,5 +117,5 @@ class Scan():
 
     def make_qm_input(self, qm):
         with open(self.calc.inputfile, 'w') as file:
-            qm.write_scan(file, self.hash, self.coords, self.atomids, self.scanned_atomids+1, self.equil_angle,
-                          self.charge, self.multiplicity)
+            qm.write_scan(file, self.hash, self.opt_coords, self.atomids, self.scanned_atomids+1,
+                          self.equil_angle, self.charge, self.multiplicity)

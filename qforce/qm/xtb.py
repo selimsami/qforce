@@ -578,7 +578,9 @@ class ReadxTB(ReadABC):
             '{}.dat'.format(os.path.join(base, name)))
 
         energies = np.array(energies) * Hartree * mol / kJ
-        return n_atoms, coords, angles, energies, point_charges
+        dipoles = [[None, None, None] for _ in angles]
+
+        return n_atoms, coords, angles, energies, dipoles, point_charges
 
     @staticmethod
     def _read_xtb_hess(hess_file, n_atoms):

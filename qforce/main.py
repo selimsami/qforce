@@ -61,12 +61,17 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     # get hessian output
     qm_hessian_out, qm_energy_out, qm_gradient_out = qm.get_hessian()
     main_hessian = qm_hessian_out[0]
+    e_lowest = min([out.energy for out in qm_hessian_out])
 
     # check molecule
     mol = Molecule(config, job, main_hessian, ext_q, ext_lj)
 
-    if len(mol.terms['dihedral/flexible']) > 0:
-       scans = do_nofrag_scanning(mol, qm, job, config)
+    # if len(mol.terms['dihedral/flexible']) > 0:
+    scans = do_nofrag_scanning(mol, qm, job, config)
+    qm_gradient_out.extend(scans)
+
+    for out in qm_hessian_out + qm_energy_out + qm_gradient_out:
+        out.energy -= e_lowest
 
     # hessian fitting
     md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out)

@@ -378,14 +378,16 @@ hess_struct = :: existing_file, optional
                                  'corresponding extensions are:\n'
                                  f"{calculations[0].missing_as_string()}")
 
-            energies, forces = [], []
+            energies, forces, dipoles = [], [], []
             for files in out_files:
-                energy, force, _, _, _ = software.read.gradient(self.config, **files)
+                energy, force, dipole, atomids, coords = software.read.gradient(self.config, **files)
                 energies.append(energy)
                 forces.append(force)
+                dipoles.append(dipole)
 
             scan_out.energies = np.array(energies, dtype=np.float64)
             scan_out.forces = np.array(forces, dtype=np.float64)
+            scan_out.dipoles = np.array(dipoles, dtype=np.float64)
         return scan_out
 
 
@@ -421,9 +423,9 @@ hess_struct = :: existing_file, optional
         software.write.gradient(file, job_name, self.config, coords, atnums)
 
     @scriptify
-    def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge,
-                   multiplicity):
-        '''Generate the input file for the dihedral scan.
+    def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge, multiplicity):
+        """
+        Generate the input file for the dihedral scan.
         Parameters
         ----------
         file : file
@@ -445,9 +447,11 @@ hess_struct = :: existing_file, optional
             The total charge of the fragment.
         multiplicity : int
             The multiplicity of the molecule.
-        '''
+        """
+
         software = self.softwares['scan_software']
-        if self.config.dihedral_scanner == 'relaxed_sc`an':
+
+        if self.config.dihedral_scanner == 'relaxed_scan':
             software.write.scan(file, scan_id, self.config, coords,
                                 atnums, scanned_atoms, start_angle,
                                 charge, multiplicity)
@@ -480,24 +484,26 @@ hess_struct = :: existing_file, optional
         return software.read.opt(self.config, **opt_files)
 
     def _get_unique_scan_points(self, qm_outs, n_scan_steps):
-        all_angles, all_energies, all_coords, chosen_point_charges, final_e = [], [], [], {}, 0
+        all_angles, all_energies, all_coords, all_dipoles, chosen_point_charges, final_e = [], [], [], [], {}, 0
         all_angles_rounded = []
 
-        for n_atoms, coords, angles, energies, point_charges in qm_outs:
+        for n_atoms, coords, angles, energies, dipoles, point_charges in qm_outs:
             angles = [round(a % 360, 3) for a in angles]
 
-            for angle, coord, energy in zip(angles, coords, energies):
+            for angle, coord, energy, dipole in zip(angles, coords, energies, dipoles):
                 angle_rounded = round(angle)
                 if angle_rounded not in all_angles_rounded:
                     all_angles.append(angle)
                     all_energies.append(energy)
                     all_coords.append(coord)
+                    all_dipoles.append(dipole)
                     all_angles_rounded.append(angle_rounded)
                 else:
                     idx = all_angles_rounded.index(angle_rounded)
                     if energy < all_energies[idx]:
                         all_energies[idx] = energy
                         all_coords[idx] = coord
+                        all_dipoles[idx] = dipole
 
         if not chosen_point_charges:
             chosen_point_charges = point_charges
@@ -505,7 +511,7 @@ hess_struct = :: existing_file, optional
         elif energies[-1] < final_e:
             chosen_point_charges = point_charges
 
-        return n_atoms, all_coords, all_angles, all_energies, chosen_point_charges
+        return n_atoms, all_coords, all_angles, all_energies, all_dipoles, chosen_point_charges
 
     def preopt(self):
         molecule, coords, atnums = self._read_coord_file(self.job.coord_file)

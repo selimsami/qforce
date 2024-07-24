@@ -3,7 +3,8 @@ import numpy as np
 #
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dihed, get_angle
-from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_oop_angle  # , calc_periodic_dihed
+from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_periodic_dihed
+#calc_oop_angle  # ,
 
 
 class DihedralBaseTerm(TermABC):
@@ -65,8 +66,8 @@ class RigidDihedralTerm(DihedralBaseTerm):
     name = 'RigidDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
-
+        # return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
+        return calc_periodic_dihed(crd, self.atomids, self.equ, fconst, force)
 
 class ImproperDihedralTerm(DihedralBaseTerm):
 

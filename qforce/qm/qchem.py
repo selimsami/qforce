@@ -115,14 +115,17 @@ class ReadQChem(ReadABC):
                     while line.strip():
                         dip_ders.append([float(val) for val in line.split()])
                         line = file.readline()
+                elif 'Total energy =  ' in line:
+                    energy = float(line.split()[3])
+        energy *= Hartree * mol / kJ
 
-        return (n_atoms, charge, multiplicity, elements, coords,
+        return (n_atoms, charge, multiplicity, elements, coords, energy,
                 hessian, b_orders, point_charges, dip_ders)
 
     def scan(self, config, file_name):
         n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
         with open(file_name, "r", encoding='utf-8') as file:
-            angles, energies, coords = [], [], []
+            angles, energies, coords, dipoles = [], [], [], []
             found_n_atoms = False
 
             for line in file:
@@ -142,10 +145,15 @@ class ReadQChem(ReadABC):
                 elif "Final energy is" in line:
                     energy = float(line.split()[3])
 
+                elif 'Dipole Moment (Debye)' in line:
+                    next(line)
+                    dipole = [float(val) for val in line.split()[1::2]]
+
                 elif "PES scan, value:" in line:
                     angles.append(float(line.split()[3]))
                     energies.append(energy)
                     coords.append(coord)
+                    dipoles.append(dipole)
 
                 elif "Charge Model 5" in line:
                     point_charges['cm5'] = self._read_cm5_charges(file)
@@ -154,7 +162,7 @@ class ReadQChem(ReadABC):
                     point_charges['resp'] = self._read_resp_charges(file)
 
         energies = np.array(energies) * Hartree * mol / kJ
-        return n_atoms, coords, angles, energies, point_charges
+        return n_atoms, coords, angles, energies, np.array(dipole)*Debye, point_charges
 
     def charges(self, config, out_file):
         """read charge from file"""
