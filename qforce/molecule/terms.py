@@ -44,10 +44,11 @@ class Terms(MappingIterator):
 
     @classmethod
     def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded', 'charge_flux', 'local_frame']):
+        enabled = [name for name, term_enabled in config.__dict__.items() if term_enabled]
         ignore = [name for name, term_enabled in config.__dict__.items() if not term_enabled]
         not_fit_terms = [term for term in not_fit if term not in ignore]
         terms = {name: factory.get_terms(topo, non_bonded)
-                 for name, factory in cls._term_factories.items() if name not in ignore}
+                 for name, factory in cls._term_factories.items() if name in enabled}
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
@@ -114,14 +115,18 @@ class Terms(MappingIterator):
                 term.set_idx(names.index(str(term)))
         n_fitted_terms = len(names)
 
-        names = list(set(str(term) for term in self['charge_flux']))
-        for term in self['charge_flux']:
-            term.set_flux_idx(names.index(str(term)))
-        n_fitted_flux_terms = len(names)
+        if 'charge_flux' not in self:
+            n_fitted_flux_terms = 0
+        else:
+            names = list(set(str(term) for term in self['charge_flux']))
+            for term in self['charge_flux']:
+                term.set_flux_idx(names.index(str(term)))
+            n_fitted_flux_terms = len(names)
 
         for key in not_fit_terms:
-            for term in self[key]:
-                term.set_idx(n_fitted_terms)
+            if key in self:
+                for term in self[key]:
+                    term.set_idx(n_fitted_terms)
 
         return n_fitted_terms, n_fitted_flux_terms
 

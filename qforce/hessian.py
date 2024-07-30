@@ -1,3 +1,5 @@
+from .hessianopt import TermsOptimizer
+from .symforce import SymbolicCalculator
 from scipy import optimize
 import numpy as np
 
@@ -148,14 +150,45 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads):
     #     full_differences.append(qmgrad.energy - mm_energy[-1])
     #     full_hessian.append(mm_energy[:-1])
 
+
     logger.info("Fitting the MD hessian parameters to QM hessian values")
     fit = optimize.lsq_linear(full_hessian, full_differences, bounds=(min_arr, max_arr)).x
     # fit = optimize.lsq_linear(hessian, difference, bounds=(-np.inf, np.inf)).x
     logger.info("Done!\n")
 
+    if False:
+        print(fit)
+        print(len(fit))
+
+        fitter = TermsOptimizer(mol, start_param=fit)
+        fit_linear = fitter.hessian_linearopt(qms)
+        fit_linearopt = fitter.hessian_linear_optimizer(qms)
+        print(fit)
+        print(fit_linear)
+        print(fit_linearopt)
+        fit_new = fitter.hessian_optimization(qms)
+        print(fit_new)
+
+
     for term in mol.terms:
         if term.idx < len(fit):
             term.fconst = fit[term.idx]
+
+
+    force = np.zeros(qm.coords.shape, dtype=float)
+    energy = 0.0
+
+    with mol.terms.add_ignore(['dihedral/flexible', 'charge_flux']):
+        for term in mol.terms:
+            energy += term.do_force(qm.coords, force)
+
+    print("MM Energy = ", energy)
+    cal = SymbolicCalculator(mol.topo.n_atoms, mol.terms)
+
+    energy_sympy = cal.get_energy(qm.coords, list(fit) + [0.0])
+    print("MM Energy Sympy = ", energy_sympy)
+
+    raise
     # TODO: is this correct? Check
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 

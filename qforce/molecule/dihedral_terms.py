@@ -5,6 +5,7 @@ from .baseterms import TermABC, TermFactory
 from ..forces import get_dihed, get_angle
 from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_periodic_dihed
 #calc_oop_angle  # ,
+from .sympyhelper import get_dihedral
 
 
 class DihedralBaseTerm(TermABC):
@@ -93,6 +94,22 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
     @classmethod
     def get_term(cls, topo, atoms, d_type):
         return cls(atoms, np.zeros(6), d_type)
+
+    def get_sympy_term(self, coords, fconst):
+        id1, id2, id3, id4 = self.atomids
+        phi = get_dihedral(coords[id1], coords[id2], coords[id3], coords[id4])
+
+        energy = self.equ[0]
+        cos_phi = sympy.cos(phi)
+
+        ddphi = 0.0
+        cos_factor = 1
+
+        for i in range(1, 6):
+            ddphi += i * cos_factor * self.equ[i]
+            cos_factor *= cos_phi
+            energy += cos_factor * self.equ[i]
+        return energy
 
 
 class InversionDihedralTerm(DihedralBaseTerm):

@@ -9,6 +9,7 @@ from ..elements import ATOM_SYM
 from ..qm.gdma import compute_gdma
 
 class NonBonded():
+
     def __init__(self, n_atoms, q, dipole, quadrupole, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
                  n_excl, comb_rule, fudge_lj, fudge_q, h_cap):
         self.n_atoms = n_atoms

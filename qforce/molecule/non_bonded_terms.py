@@ -5,6 +5,8 @@ from ase.units import _eps0, kJ, mol, J, m
 from .baseterms import TermBase
 from ..forces import calc_pairs
 
+from .sympyhelper import get_r
+
 
 class NonBondedTerms(TermBase):
 
@@ -42,3 +44,14 @@ class NonBondedTerms(TermBase):
 
                     non_bonded_terms.append(cls([i, j], np.array(param), term_type))
         return non_bonded_terms
+
+    def get_sympy_term(self, coords, fconst):
+        id1, id2 = self.atomids
+        c6, c12, qq = self.equ
+        r = get_r(coords[id1], coords[id2])
+        qq_r = qq/r
+        r_6 = 1.0/r**6
+        r_12 = 1.0/r**12
+        c6_r6 = c6 * r_6
+        c12_r12 = c12 * r_12
+        return qq_r + c12_r12 - c6_r6

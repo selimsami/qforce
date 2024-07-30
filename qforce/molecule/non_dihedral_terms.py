@@ -6,6 +6,8 @@ from .baseterms import TermBase
 from ..forces import get_dist, get_angle, get_dihed
 from ..forces import (calc_bonds, calc_angles, calc_cross_bond_angle, calc_cross_bond_bond,
                       calc_cross_angle_angle, calc_cross_dihed_angle, calc_cross_dihed_bond)
+from .sympyhelper import get_r
+from .sympyhelper import get_angle as sym_get_angle
 
 
 class BondTerm(TermBase):
@@ -27,6 +29,11 @@ class BondTerm(TermBase):
             bond_terms.append(cls([a1, a2], dist, bond['vers']))
 
         return bond_terms
+
+    def get_sympy_term(self, coords, fconst):
+        id1, id2 = self.atomids
+        R = get_r(coords[id1], coords[id2])
+        return 0.5*fconst*((R-self.equ)*(R-self.equ))
 
 
 class AngleTerm(TermBase):
@@ -55,6 +62,11 @@ class AngleTerm(TermBase):
 
         return angle_terms
 
+    def get_sympy_term(self, coords, fconst):
+        id1, id2, id3 = self.atomids
+        theta = sym_get_angle(coords[id1], coords[id2], coords[id3], coords[id2])
+        return 0.5*fconst*(theta-self.equ)*(theta-self.equ)
+
 
 class UreyAngleTerm(TermBase):
     name = 'UreyAngleTerm'
@@ -81,6 +93,11 @@ class UreyAngleTerm(TermBase):
                 urey_terms.append(cls([a1, a2, a3], dist, a_type))
 
         return urey_terms
+
+    def get_sympy_term(self, coords, fconst):
+        id1, _, id3 = self.atomids
+        R = get_r(coords[id1], coords[id3])
+        return 0.5*fconst*(R-self.equ)*(R-self.equ)
 
 
 class CrossBondBondTerm(TermBase):
