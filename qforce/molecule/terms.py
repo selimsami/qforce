@@ -3,7 +3,7 @@ from copy import deepcopy
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm,
+from .non_dihedral_terms import (HarmonicBondTerm, HarmonicAngleTerm, UreyAngleTerm,
                                  CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm,
                                  CrossDihedAngleTerm, CrossDihedBondTerm)
 from .non_bonded_terms import NonBondedTerms
@@ -17,8 +17,8 @@ from .baseterms import TermFactory
 class Terms(MappingIterator):
 
     _term_factories = {
-        'bond': BondTerm,
-        'angle': AngleTerm,
+        'bond': HarmonicBondTerm,
+        'angle': HarmonicAngleTerm,
         'urey': UreyAngleTerm,
         'cross_bond_bond': CrossBondBondTerm,
         'cross_bond_angle': CrossBondAngleTerm,

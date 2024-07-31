@@ -132,21 +132,29 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads):
         full_differences += list(difference)
         full_hessian += hessian
 
-    # for qmen in qmens:
-    #     # Ax=B
-    #     energy, _ = calc_forces(qmen.coords, mol)
-    #     full_differences.append(qmen.energy - energy[-1])
-    #     full_hessian.append(energy[:-1])
-    #
-    # for qmgrad in qmgrads:
-    #     mm_energy, mm_force = calc_forces(qmgrad.coords, mol)
-    #
-    #     # mm_force = mm_force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
-    #     # full_hessian += list(mm_force[:-1].T)
-    #     # full_differences += list(np.array(qmgrad.gradient).flatten() - mm_force[-1])
-    #     print(qmgrad.energy, mm_energy)
-    #     full_differences.append(qmgrad.energy - mm_energy[-1])
-    #     full_hessian.append(mm_energy[:-1])
+    for qmen in qmens:
+        # Ax=B
+        energy, _ = calc_forces(qmen.coords, mol)
+        full_differences.append(qmen.energy - energy[-1])
+        full_hessian.append(energy[:-1])
+
+    full_qm_forces = []
+    full_mm_forces = []
+    # for term in mol.terms:
+        # print(term, term.idx)
+    for qmgrad in qmgrads:
+        mm_energy, mm_force = calc_forces(qmgrad.coords, mol)
+        mm_force = mm_force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
+        # print(mm_force)
+        # print()
+        full_qm_forces.append(-qmgrad.gradient)
+        full_mm_forces.append(mm_force[:-1].T)
+
+        # full_hessian += list(mm_force[:-1].T)
+        # full_differences += list(np.array(qmgrad.gradient).flatten() - mm_force[-1])
+        #
+        # full_differences.append(qmgrad.energy - mm_energy[-1])
+        # full_hessian.append(-mm_energy[:-1])
 
     logger.info("Fitting the MD hessian parameters to QM hessian values")
     fit = optimize.lsq_linear(full_hessian, full_differences, bounds=(min_arr, max_arr)).x
@@ -158,6 +166,18 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads):
             term.fconst = fit[term.idx]
     # TODO: is this correct? Check
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
+
+    # full_qm_forces = np.array(full_qm_forces)
+    # print(full_qm_forces.shape)
+    # full_mm_forces = np.array(full_mm_forces)
+    # print(full_mm_forces.shape)
+    # full_mm_forces = np.sum(full_mm_forces * fit, axis=2)
+    #
+    # for struct in range(len(qmgrads)):
+    #     print('QM:\n', full_qm_forces[struct])
+    #     print('MM:\n', full_mm_forces[struct].reshape((mol.n_atoms, 3)))
+    #     print('\n')
+
 
     err = full_md_hessian_1d-qm.hessian
     mae = np.abs(err).mean()

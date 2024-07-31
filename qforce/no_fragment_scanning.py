@@ -11,6 +11,9 @@ def do_nofrag_scanning(mol, qm, job, config):
     scans = []
     unique_dihedrals = {}
 
+    if len(mol.terms['dihedral/rigid']) == 0 or not config.scan.do_scan:
+        return scans
+
     os.makedirs(config.scan.frag_lib, exist_ok=True)
     scan_dir = job.pathways.getdir('fragments', create=True)
 

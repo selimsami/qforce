@@ -141,7 +141,7 @@ res_name = MOL :: str
                 if n_matches2 > n_matches:
                     e_dis = e_dis2
 
-            dissociation_energies[(a1, a2)] = e_dis
+            dissociation_energies[(a1, a2)] = float(e_dis)
         return dissociation_energies
 
     def _read_bond_dissociation_energy_csv(self, md_data):

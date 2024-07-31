@@ -4,12 +4,12 @@ from itertools import product
 from .baseterms import TermBase
 #
 from ..forces import get_dist, get_angle, get_dihed
-from ..forces import (calc_bonds, calc_angles, calc_cross_bond_angle, calc_cross_bond_bond,
-                      calc_cross_angle_angle, calc_cross_dihed_angle, calc_cross_dihed_bond)
+from ..forces import (calc_bonds, calc_morse_bonds, calc_angles, calc_cosine_angles, calc_cross_bond_angle,
+                      calc_cross_bond_bond, calc_cross_angle_angle, calc_cross_dihed_angle, calc_cross_dihed_bond)
 
 
-class BondTerm(TermBase):
-    name = 'BondTerm'
+class HarmonicBondTerm(TermBase):
+    name = 'HarmonicBondTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_bonds(crd, self.atomids, self.equ, fconst, force)
@@ -29,8 +29,29 @@ class BondTerm(TermBase):
         return bond_terms
 
 
-class AngleTerm(TermBase):
-    name = 'AngleTerm'
+class MorseBondTerm(TermBase):
+    name = 'MorseBondTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_morse_bonds(crd, self.atomids, self.equ, fconst, force)
+
+    @classmethod
+    def get_terms(cls, topo, non_bonded):
+        bond_terms = cls.get_terms_container()
+
+        for a1, a2 in topo.bonds:
+            bond = topo.edge(a1, a2)
+            dist = bond['length']
+            b_order_half_rounded = np.round(bond['order']*2)/2
+            type1, type2 = sorted([topo.types[a1], topo.types[a2]])
+            bond['vers'] = f"{type1}({b_order_half_rounded}){type2}"
+            bond_terms.append(cls([a1, a2], [dist, 2.2], bond['vers']))
+
+        return bond_terms
+
+
+class HarmonicAngleTerm(TermBase):
+    name = 'HarmonicAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_angles(crd, self.atomids, self.equ, np.abs(fconst), force)
@@ -54,6 +75,13 @@ class AngleTerm(TermBase):
                 angle_terms.append(cls([a1, a2, a3], theta, a_type))
 
         return angle_terms
+
+
+class CosineAngleTerm(HarmonicAngleTerm):
+    name = 'CosineAngleTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cosine_angles(crd, self.atomids, self.equ, np.abs(fconst), force)
 
 
 class UreyAngleTerm(TermBase):

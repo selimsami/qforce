@@ -17,32 +17,51 @@ def calc_bonds(coords, atoms, r0, fconst, force):
     force[atoms[1]] -= f
     return energy
 
-#
-# @jit(nopython=True)
-# def calc_angles(coords, atoms, theta0, fconst, force):
-#     theta, vec12, vec32, r12, r32 = get_angle(coords[atoms])
-#     cos_theta = math.cos(theta)
-#     cos_theta_sq = cos_theta**2
-#     dtheta = cos_theta - math.cos(theta0)
-#     energy = 0.5 * fconst * dtheta**2
-#
-#     if cos_theta_sq < 1:
-#
-#         for i, a in enumerate(atoms):
-#             for j in range(3):
-#                 c_new = np.copy(coords[atoms])
-#                 c_new[i, j] += 1e-8
-#
-#                 theta, vec12, vec32, r12, r32 = get_angle(c_new)
-#
-#                 cos_theta = math.cos(theta)
-#                 cos_theta_sq = cos_theta**2
-#                 dtheta = cos_theta - math.cos(theta0)
-#                 e_new = 0.5 * fconst * dtheta**2
-#
-#                 force[a, j] += (energy - e_new) / 1e-8
-#
-#     return energy
+
+@jit(nopython=True)
+def calc_morse_bonds(coords, atoms, equ, fconst, force):
+    vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+    r0, beta = equ[0], equ[1]
+
+    energy = 0.5 * fconst / beta**2 * (1-np.exp(-beta*(r12-r0)))**2
+
+    for i, a in enumerate(atoms):
+        for j in range(3):
+            c_new = np.copy(coords[atoms])
+            c_new[i, j] += 1e-8
+
+            vec12, r12 = get_dist(coords[atoms[0]], coords[atoms[1]])
+            r0, beta = equ[0], equ[1]
+
+            e_new = 0.5 * fconst / beta**2 * (1-np.exp(-beta*(r12-r0)))**2
+
+            force[a, j] += (energy - e_new) / 1e-8
+
+    return energy
+
+@jit(nopython=True)
+def calc_cosine_angles(coords, atoms, theta0, fconst, force):
+    theta, vec12, vec32, r12, r32 = get_angle(coords[atoms])
+    cos_theta = math.cos(theta)
+    cos_theta_sq = cos_theta**2
+    dtheta = cos_theta - math.cos(theta0)
+    energy = 0.5 * fconst * dtheta**2
+
+    if cos_theta_sq < 1:
+
+        for i, a in enumerate(atoms):
+            for j in range(3):
+                c_new = np.copy(coords[atoms])
+                c_new[i, j] += 1e-8
+
+                theta, vec12, vec32, r12, r32 = get_angle(c_new)
+                cos_theta = math.cos(theta)
+                dtheta = cos_theta - math.cos(theta0)
+                e_new = 0.5 * fconst * dtheta**2
+
+                force[a, j] += (energy - e_new) / 1e-8
+
+    return energy
 
 @jit(nopython=True)
 def calc_angles(coords, atoms, theta0, fconst, force):
@@ -451,11 +470,11 @@ def calc_inversion(coords, atoms, phi0, fconst, force):
     return energy
 
 
-@ jit(nopython=True)
+#@ jit(nopython=True)
 def calc_periodic_dihed(coords, atoms, phi0, fconst, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     mult = 3
-    phi0 = 0
+    phi0 = np.pi
 
     mdphi = mult * phi - phi0
     ddphi = fconst * mult * np.sin(mdphi)
