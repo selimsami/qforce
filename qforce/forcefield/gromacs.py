@@ -20,6 +20,11 @@ class Gromacs(ForcefieldSettings):
             'non_bonded': True,
     }
 
+    _term_types = {
+            'bond': ('harmonic', ['morse', 'harmonic']),
+            'angle': ('harmonic', ['cosine', 'harmonic']),
+    }
+
     def __init__(self, ff):
         self.ff = ff
 
