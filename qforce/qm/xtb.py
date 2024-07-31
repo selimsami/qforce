@@ -489,8 +489,10 @@ class ReadxTB(ReadABC):
         multiplicity = config.multiplicity
         b_orders = self._read_xtb_wbo_analysis(wbo_file, elements)
         hessian = self._read_xtb_hess(hess_file, n_atoms)
-        return (n_atoms, charge, multiplicity, elements, coords, hessian,
-                b_orders, point_charges)
+        # not defined
+        dip_ders = None
+        return (n_atoms, charge, multiplicity, elements, coords, energy, hessian,
+                b_orders, point_charges, dip_ders)
 
     def gradient(self, config, grad_file, xyz_file):
         """ Read data from the grad file.
