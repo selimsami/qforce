@@ -9,17 +9,14 @@ from .forcefield_base import ForcefieldSettings
 
 class Gromacs(ForcefieldSettings):
 
-    _always_on_terms = ['bond', 'angle']
+    _always_on_terms = [] # 'bond', 'angle']
 
     _optional_terms = {
             'urey': True,
-            'cross_bond_bond': False, 
-            'cross_bond_angle': False, 
+            'cross_bond_bond': False,
+            'cross_bond_angle': False,
             'cross_angle_angle': False,
-            'dihedral/rigid': True, 
-            'dihedral/improper': True, 
-            'dihedral/flexible': True, 
-            'dihedral/inversion': True,
+            'dihedral': True,
             'non_bonded': True,
     }
 

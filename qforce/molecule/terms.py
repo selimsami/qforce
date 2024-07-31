@@ -44,10 +44,28 @@ class Terms(MappingIterator):
 
     @classmethod
     def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded', 'charge_flux', 'local_frame']):
-        ignore = [name for name, term_enabled in config.__dict__.items() if not term_enabled]
-        not_fit_terms = [term for term in not_fit if term not in ignore]
-        terms = {name: factory.get_terms(topo, non_bonded)
-                 for name, factory in cls._term_factories.items() if name not in ignore}
+        terms = {}
+        # handle always on terms
+        bond_type = config.__dict__.get('bond_type', 'harmonic')
+        angle_type = config.__dict__.get('angle_type', 'harmonic')
+        if bond_type == 'harmonic':
+            terms['bond'] = BondTerm.get_terms(topo, non_bonded)
+        if angle_type == 'harmonic':
+            terms['angle'] = AngleTerm.get_terms(topo, non_bonded)
+        # handle all the others
+        ignore = []
+        for name, enabled in config.__dict__.items():
+            print("term = ", name)
+            if name.endswith('_type'):
+                continue
+            if enabled is True:
+                terms[name] = cls._term_factories[name].get_terms(topo, non_bonded)
+            else:
+                ignore.append(name)
+
+
+
+        not_fit_terms = [term for term in not_fit if term not in ignore and term in config.__dict__.keys()]
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
@@ -114,9 +132,12 @@ class Terms(MappingIterator):
                 term.set_idx(names.index(str(term)))
         n_fitted_terms = len(names)
 
-        names = list(set(str(term) for term in self['charge_flux']))
-        for term in self['charge_flux']:
-            term.set_flux_idx(names.index(str(term)))
+        if 'charge_flux' not in self:
+            names = []
+        else:
+            names = list(set(str(term) for term in self['charge_flux']))
+            for term in self['charge_flux']:
+                term.set_flux_idx(names.index(str(term)))
         n_fitted_flux_terms = len(names)
 
         for key in not_fit_terms:
