@@ -49,9 +49,9 @@ class Terms(MappingIterator):
         bond_type = config.__dict__.get('bond_type', 'harmonic')
         angle_type = config.__dict__.get('angle_type', 'harmonic')
         if bond_type == 'harmonic':
-            terms['bond'] = BondTerm.get_terms(topo, non_bonded)
+            terms['bond'] = HarmonicBondTerm.get_terms(topo, non_bonded)
         if angle_type == 'harmonic':
-            terms['angle'] = AngleTerm.get_terms(topo, non_bonded)
+            terms['angle'] = HarmonicAngleTerm.get_terms(topo, non_bonded)
         # handle all the others
         ignore = []
         for name, enabled in config.__dict__.items():
@@ -62,8 +62,6 @@ class Terms(MappingIterator):
                 terms[name] = cls._term_factories[name].get_terms(topo, non_bonded)
             else:
                 ignore.append(name)
-
-
 
         not_fit_terms = [term for term in not_fit if term not in ignore and term in config.__dict__.keys()]
         return cls(terms, ignore, not_fit_terms)
