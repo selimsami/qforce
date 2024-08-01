@@ -122,7 +122,7 @@ class Terms(MappingIterator):
         terms = self._get_terms(termtyp)
         terms.remove_term(name, atomids)
 
-    def _set_fit_term_idx(self, not_fit_terms):
+    def _set_fit_term_idx(self, not_fit_terms, fit_flexible=True):
 
         with self.add_ignore(not_fit_terms):
             names = list(set(str(term) for term in self))
@@ -137,6 +137,14 @@ class Terms(MappingIterator):
             for term in self['charge_flux']:
                 term.set_flux_idx(names.index(str(term)))
         n_fitted_flux_terms = len(names)
+
+        if fit_flexible is True:
+            names = list(set(str(term) for term in self['dihedral/flexible']))
+            for term in self['dihedral/flexible']:
+                term.set_idx(n_fitted_terms + term.idx_buffer*names.index(str(term)))
+            n_fitted_terms += len(names)*term.idx_buffer
+            if 'dihedral/flexible' in not_fit_terms:
+                not_fit_terms.remove('dihedral/flexible')
 
         for key in not_fit_terms:
             for term in self[key]:
