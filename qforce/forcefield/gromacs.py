@@ -16,7 +16,11 @@ class Gromacs(ForcefieldSettings):
             'cross_bond_bond': False,
             'cross_bond_angle': False,
             'cross_angle_angle': False,
-            'dihedral': True,
+            'dihedral/rigid': True,
+            'dihedral/improper': True,
+            'dihedral/flexible': True,
+            'dihedral/inversion': True,
+            'dihedral/pitorsion': True,
             'non_bonded': True,
     }
 
