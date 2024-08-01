@@ -9,6 +9,7 @@ def fit_hessian(logger, config, mol, qm):
 
     logger.info("Calculating the MD hessian matrix elements...")
     full_md_hessian = calc_hessian(qm.coords, mol)
+    print("config = ", config.dihedral)
 
     count = 0
 
@@ -76,7 +77,7 @@ def fit_hessian(logger, config, mol, qm):
     return full_md_hessian_1d
 
 
-def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads):
+def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads, fit_flexible=False):
     if len(qms) == 0:
         raise ValueError("at least one frequency needs to be computed!")
 
@@ -114,7 +115,7 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads):
         non_fit = []
         qm_hessian = np.copy(qm.hessian)
 
-        full_md_hessian = calc_hessian(qm.coords, mol)
+        full_md_hessian = calc_hessian(qm.coords, mol, fit_flexible=fit_flexible)
         count = 0
         for i in range(mol.topo.n_atoms*3):
             for j in range(i+1):
@@ -132,38 +133,44 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads):
         full_differences += list(difference)
         full_hessian += hessian
 
-    for qmen in qmens:
-        # Ax=B
-        energy, _ = calc_forces(qmen.coords, mol)
-        full_differences.append(qmen.energy - energy[-1])
-        full_hessian.append(energy[:-1])
+    if fit_flexible is True:
+        ignore_terms = ['charge_flux']
+    else:
+        ignore_terms = ['dihedral/flexible', 'charge_flux']
 
-    full_qm_forces = []
-    full_mm_forces = []
-    # for term in mol.terms:
-        # print(term, term.idx)
-    for qmgrad in qmgrads:
-        mm_energy, mm_force = calc_forces(qmgrad.coords, mol)
-        mm_force = mm_force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
-        # print(mm_force)
-        # print()
-        full_qm_forces.append(-qmgrad.gradient)
-        full_mm_forces.append(mm_force[:-1].T)
+    with mol.terms.add_ignore(ignore_terms):
+        for qmen in qmens:
+            # Ax=B
+            energy, _ = calc_forces(qmen.coords, mol)
+            full_differences.append(qmen.energy - energy[-1])
+            full_hessian.append(energy[:-1])
 
-        # full_hessian += list(mm_force[:-1].T)
-        # full_differences += list(np.array(qmgrad.gradient).flatten() - mm_force[-1])
+        full_qm_forces = []
+        full_mm_forces = []
         #
-        # full_differences.append(qmgrad.energy - mm_energy[-1])
-        # full_hessian.append(-mm_energy[:-1])
+        for qmgrad in qmgrads:
+            mm_energy, mm_force = calc_forces(qmgrad.coords, mol)
+            mm_force = mm_force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
+            # print(mm_force)
+            # print()
+            full_qm_forces.append(-qmgrad.gradient)
+            full_mm_forces.append(mm_force[:-1].T)
+
+            # full_hessian += list(mm_force[:-1].T)
+            # full_differences += list(np.array(qmgrad.gradient).flatten() - mm_force[-1])
+            #
+            # full_differences.append(qmgrad.energy - mm_energy[-1])
+            # full_hessian.append(-mm_energy[:-1])
 
     logger.info("Fitting the MD hessian parameters to QM hessian values")
     fit = optimize.lsq_linear(full_hessian, full_differences, bounds=(min_arr, max_arr)).x
     # fit = optimize.lsq_linear(hessian, difference, bounds=(-np.inf, np.inf)).x
     logger.info("Done!\n")
 
-    for term in mol.terms:
-        if term.idx < len(fit):
-            term.fconst = fit[term.idx]
+    with mol.terms.add_ignore(ignore_terms):
+        for term in mol.terms:
+            if term.idx < len(fit):
+                term.set_fitparameters(fit)
     # TODO: is this correct? Check
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
@@ -193,7 +200,7 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads):
     return full_md_hessian_1d
 
 
-def calc_hessian(coords, mol):
+def calc_hessian(coords, mol, fit_flexible=False):
     """
     Scope:
     -----
@@ -202,15 +209,21 @@ def calc_hessian(coords, mol):
     full_hessian = np.zeros((3*mol.topo.n_atoms, 3*mol.topo.n_atoms,
                              mol.terms.n_fitted_terms+1))
 
-    for a in range(mol.topo.n_atoms):
-        for xyz in range(3):
-            coords[a][xyz] += 1e-5
-            _, f_plus = calc_forces(coords, mol)
-            coords[a][xyz] -= 2e-5
-            _, f_minus = calc_forces(coords, mol)
-            coords[a][xyz] += 1e-5
-            diff = - (f_plus - f_minus) / 2e-5
-            full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1, 3*mol.topo.n_atoms).T
+    if fit_flexible is True:
+        ignore_terms = ['charge_flux']
+    else:
+        ignore_terms = ['dihedral/flexible', 'charge_flux']
+    #
+    with mol.terms.add_ignore(ignore_terms):
+        for a in range(mol.topo.n_atoms):
+            for xyz in range(3):
+                coords[a][xyz] += 1e-5
+                _, f_plus = calc_forces(coords, mol)
+                coords[a][xyz] -= 2e-5
+                _, f_minus = calc_forces(coords, mol)
+                coords[a][xyz] += 1e-5
+                diff = - (f_plus - f_minus) / 2e-5
+                full_hessian[a*3+xyz] = diff.reshape(mol.terms.n_fitted_terms+1, 3*mol.topo.n_atoms).T
     return full_hessian
 
 
@@ -221,14 +234,13 @@ def calc_forces(coords, mol):
     For each displacement, calculate the forces from all terms.
 
     """
-    energy = np.zeros(mol.terms.n_fitted_terms+1)
+    energies = np.zeros(mol.terms.n_fitted_terms+1)
     force = np.zeros((mol.terms.n_fitted_terms+1, mol.topo.n_atoms, 3))
 
-    with mol.terms.add_ignore(['dihedral/flexible', 'charge_flux']):
-        for term in mol.terms:
-            energy[term.idx] += term.do_fitting(coords, force)
+    for term in mol.terms:
+        term.do_fitting(coords, energies, force)
 
-    return energy, force
+    return energies, force
 
 
 def average_unique_minima(terms, config):
