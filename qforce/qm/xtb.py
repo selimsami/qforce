@@ -441,7 +441,8 @@ class ReadxTB(ReadABC):
                 if 'TOTAL ENERGY' in line:
                     energy = float(line.split()[3])
         energy = energy * Hartree * mol / kJ
-        return energy, molecule.get_atomic_numbers(), molecule.get_positions()
+        dipol = None
+        return energy, dipol, molecule.get_atomic_numbers(), molecule.get_positions()
 
     def charges(self, config, pc_file):
         _, point_charges = self._read_xtb_charge(pc_file)
@@ -538,7 +539,8 @@ class ReadxTB(ReadABC):
 
         energy = energy * Hartree * mol / kJ
         grad = np.array(grad) * Hartree * mol / kJ / Bohr
-        return energy, grad, molecule.get_atomic_numbers(), molecule.get_positions()
+        dipol = None
+        return energy, grad, dipol, molecule.get_atomic_numbers(), molecule.get_positions()
 
     def scan(self, config, file_name):
         """ Read data from the scan file.
