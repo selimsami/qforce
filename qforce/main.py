@@ -34,7 +34,7 @@ def runjob(config, job, ext_q=None, ext_lj=None):
         fragments = fragment(mol, qm, job, config)
 
     # hessian fitting
-    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out)
+    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out, fit_flexible=False)
 
     # do the scans
     if fragments is not None:
@@ -64,7 +64,7 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     e_lowest = min([out.energy for out in qm_hessian_out])
 
     # check molecule
-    mol = Molecule(config, job, main_hessian, ext_q, ext_lj)
+    mol = Molecule(config, job, main_hessian, ext_q, ext_lj, fit_flexible=True)
 
     # if len(mol.terms['dihedral/flexible']) > 0:
     scans = do_nofrag_scanning(mol, qm, job, config)
@@ -74,7 +74,7 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
         out.energy -= e_lowest
 
     # hessian fitting
-    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out)
+    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out, fit_flexible=True)
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
@@ -116,7 +116,7 @@ def runspjob(config, job, ext_q=None, ext_lj=None, v2=False):
     return None
 
 
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False, v2=False):
+def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False, v2=True):
     """Execute Qforce from python directly """
     config, job = initialize(input_arg, config, presets)
     #
