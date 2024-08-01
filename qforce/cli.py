@@ -5,7 +5,7 @@ from colt.validator import Validator
 from calkeeper import CalculationKeeper, CalculationIncompleteError
 #
 from .initialize import initialize as _initialize
-from .main import runjob, save_jobs, runspjob
+from .main import runjob, save_jobs, runspjob, runjob_v2
 from .misc import check_if_file_exists, LOGO
 from .logger import LoggerExit
 
@@ -55,22 +55,28 @@ def initialize(config):
 class RunQforce(Option):
 
     name = 'run'
-    _user_input = STANDARD_USER_INPUT
+    _user_input = STANDARD_USER_INPUT + """
+    version = 1 :: int, alias=v :: [1, 2]
+    """
 
     _colt_description = 'run qforce manually'
     __slots__ = ['config', 'job']
 
-    def __init__(self, config, job):
+    def __init__(self, config, job, version):
         self.config = config
         self.job = job
+        self.version = version
 
     @classmethod
     def from_config(cls, _config):
         config, job = initialize(_config)
-        return cls(config, job)
+        return cls(config, job, _config['version'])
 
     def run(self):
-        runspjob(self.config, self.job)
+        if self.version == 1:
+            runspjob(self.config, self.job)
+        else:
+            runspjob(self.config, self.job, v2=True)
 
 
 def load_keeper(job):
@@ -107,17 +113,20 @@ class RunQforceComplete(Option):
 
     name = 'run_complete'
     _colt_description = 'Run qforce automatically till completion'
-    _user_input = STANDARD_USER_INPUT
+    _user_input = STANDARD_USER_INPUT + """
+    version = 1 :: int, alias=v :: [1, 2]
+    """
     __slots__ = ['config', 'job']
 
-    def __init__(self, config, job):
+    def __init__(self, config, job, version):
         self.config = config
         self.job = job
+        self.version = version
 
     @classmethod
     def from_config(cls, _config):
         config, job = initialize(_config)
-        return cls(config, job)
+        return cls(config, job, _config['version'])
 
     def run(self):
         self.job.logger.info(LOGO)
@@ -127,7 +136,10 @@ class RunQforceComplete(Option):
         running = True
         while running:
             try:
-                runjob(self.config, self.job)
+                if self.version == 1:
+                    runjob(self.config, self.job)
+                else:
+                    runjob_v2(self.config, self.job)
                 running = False
             except CalculationIncompleteError:
                 self.job.calkeeper.do_calculations(methods, ncores)
