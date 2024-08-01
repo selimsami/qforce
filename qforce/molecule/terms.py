@@ -36,14 +36,16 @@ class Terms(MappingIterator):
     _default_off = ['charge_flux', 'local_frame', 'cross_bond_bond', 'cross_bond_angle', 'cross_angle_angle',
                     '_cross_dihed_angle', '_cross_dihed_bond']
 
-    def __init__(self, terms, ignore, not_fit_terms):
+    def __init__(self, terms, ignore, not_fit_terms, fit_flexible=False):
         MappingIterator.__init__(self, terms, ignore)
-        self.n_fitted_terms, self.n_fitted_flux_terms = self._set_fit_term_idx(not_fit_terms)
+        self.n_fitted_terms, self.n_fitted_flux_terms = self._set_fit_term_idx(not_fit_terms, fit_flexible=fit_flexible)
         self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
         self._term_paths = self._get_term_paths(terms)
 
     @classmethod
-    def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded', 'charge_flux', 'local_frame']):
+    def from_topology(cls, config, topo, non_bonded, *,
+                      not_fit=['dihedral/flexible', 'non_bonded', 'charge_flux', 'local_frame'],
+                      fit_flexible=False):
         terms = {}
         # handle always on terms
         bond_type = config.__dict__.get('bond_type', 'harmonic')
@@ -54,17 +56,28 @@ class Terms(MappingIterator):
             terms['angle'] = HarmonicAngleTerm.get_terms(topo, non_bonded)
         # handle all the others
         ignore = []
+        factories = {}
         for name, enabled in config.__dict__.items():
-            print("term = ", name)
             if name.endswith('_type'):
+                continue
+            if '/' in name:
+                maintype, subtype = name.split('/')
+                maintype = maintype.strip()
+                subtype = subtype.strip()
+                if maintype not in factories:
+                    factories[maintype] = {}
+                factories[maintype][subtype] = enabled
                 continue
             if enabled is True:
                 terms[name] = cls._term_factories[name].get_terms(topo, non_bonded)
             else:
                 ignore.append(name)
 
+        for name, settings in factories.items():
+            terms[name] = cls._term_factories[name].get_terms(topo, non_bonded, settings)
+
         not_fit_terms = [term for term in not_fit if term not in ignore and term in config.__dict__.keys()]
-        return cls(terms, ignore, not_fit_terms)
+        return cls(terms, ignore, not_fit_terms, fit_flexible=fit_flexible)
 
     @classmethod
     def from_terms(cls, terms, ignore, not_fit_terms):
@@ -122,7 +135,7 @@ class Terms(MappingIterator):
         terms = self._get_terms(termtyp)
         terms.remove_term(name, atomids)
 
-    def _set_fit_term_idx(self, not_fit_terms, fit_flexible=True):
+    def _set_fit_term_idx(self, not_fit_terms, fit_flexible=False):
 
         with self.add_ignore(not_fit_terms):
             names = list(set(str(term) for term in self))
@@ -140,11 +153,12 @@ class Terms(MappingIterator):
 
         if fit_flexible is True:
             names = list(set(str(term) for term in self['dihedral/flexible']))
-            for term in self['dihedral/flexible']:
-                term.set_idx(n_fitted_terms + term.idx_buffer*names.index(str(term)))
-            n_fitted_terms += len(names)*term.idx_buffer
-            if 'dihedral/flexible' in not_fit_terms:
-                not_fit_terms.remove('dihedral/flexible')
+            if len(names) != 0:
+                for term in self['dihedral/flexible']:
+                    term.set_idx(n_fitted_terms + term.idx_buffer*names.index(str(term)))
+                n_fitted_terms += len(names)*term.idx_buffer
+                if 'dihedral/flexible' in not_fit_terms:
+                    not_fit_terms.remove('dihedral/flexible')
 
         for key in not_fit_terms:
             for term in self[key]:
