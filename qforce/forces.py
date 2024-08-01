@@ -454,7 +454,7 @@ def lsq_rb_diheds(coords, atoms, force):
     cos_phi = np.cos(phi)
     sin_phi = np.sin(phi)
 
-    energy = np.zeros((6,), dtype=float)
+    energy = np.array([0.0 for _ in range(6)])
     energy[0] = 1.0
 
     cos_factor = 1.0
