@@ -28,11 +28,7 @@ class OpenMM(ForcefieldSettings):
             'charge_flux/_bond_bond': False,
             'charge_flux/_bond_angle': False,
             'charge_flux/_angle_angle': False,
-            'local_frame/bisector': True,
-            'local_frame/z_then_x': True,
-            'local_frame/z_only': True,
-            'local_frame/z_then_bisector': True,
-            'local_frame/trisector': True,
+            'local_frame': True,
     }
 
     def __init__(self, ff):

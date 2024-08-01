@@ -6,6 +6,7 @@ from ..forces import get_dist
 
 
 class LocalFrameTermABC(TermABC):
+
     def __init__(self, frame_type, atomids, q, dipole, quadrupole, coords, center, a_type):
         self.atomids = np.array(atomids)
         self.center = atomids[center]
