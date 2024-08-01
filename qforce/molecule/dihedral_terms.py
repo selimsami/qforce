@@ -4,6 +4,7 @@ import numpy as np
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dihed, get_angle
 from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_periodic_dihed
+from ..forces import lsq_rb_diheds
 #calc_oop_angle  # ,
 
 
@@ -86,9 +87,21 @@ class ImproperDihedralTerm(DihedralBaseTerm):
 class FlexibleDihedralTerm(DihedralBaseTerm):
 
     name = 'FlexibleDihedralTerm'
+    idx_buffer = 6
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_rb_diheds(crd, self.atomids, self.equ, fconst, force)
+        """fconst is not used for this term"""
+        return calc_rb_diheds(crd, self.atomids, self.equ, force)
+
+    def do_fitting(self, crd, energies, forces):
+        """compute fitting contributions"""
+        en = lsq_rb_diheds(crd, self.atomids, forces[self.idx:self.idx+self.idx_buffer])
+        for i, ele in enumerate(en):
+            energies[self.idx + i] = ele
+
+    def set_fitparameters(self, parameters):
+        """set the parameters after fitting"""
+        self.equ = np.array([val for val in parameters[self.idx:self.idx+self.idx_buffer]], dtype=float)
 
     @classmethod
     def get_term(cls, topo, atoms, d_type):
