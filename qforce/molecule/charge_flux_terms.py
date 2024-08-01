@@ -136,7 +136,7 @@ class ChargeFluxTerms(TermFactory):
     _default_off = ['bond', 'angle', 'bond_prime', 'angle_prime', '_bond_bond', '_bond_angle', '_angle_angle']
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         terms = cls.get_terms_container()
 
         # helper functions to improve readability
