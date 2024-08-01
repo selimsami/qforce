@@ -427,7 +427,7 @@ def calc_pitorsion_diheds(coords, atoms, phi0, fconst, force):
 
 
 @ jit(nopython=True)
-def calc_rb_diheds(coords, atoms, params, fconst, force):
+def calc_rb_diheds(coords, atoms, params, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     phi += np.pi
     cos_phi = np.cos(phi)
@@ -444,6 +444,42 @@ def calc_rb_diheds(coords, atoms, params, fconst, force):
 
     ddphi *= - sin_phi
     force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
+    return energy
+
+
+@ jit(nopython=True)
+def lsq_rb_diheds(coords, atoms, force):
+    phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
+    phi += np.pi
+    cos_phi = np.cos(phi)
+    sin_phi = np.sin(phi)
+
+    energy = np.zeros((6,), dtype=float)
+    energy[0] = 1.0
+
+    cos_factor = 1.0
+
+    for i in range(1, 6):
+        cos_factor *= cos_phi
+        energy[i] += cos_factor
+
+    # Term
+    # \sum_n C_n * cos(phi)^n
+    #
+    # d/dphi \sum_n C_n * cos(phi)^n = \sum_n C_n * (-n*sin(phi)) * cos(phi)^(n-1)
+    #
+    # d/dri \sum_n C_n * cos(phi)^n =  \sum_n C_n * (-n*sin(phi)) * cos(phi)^(n-1) * d/dri phi
+    #
+
+    tmp_force = np.zeros((4, 3), dtype=coords.dtype)
+    calc_dih_force(tmp_force, np.array([0, 1, 2, 3], dtype=atoms.dtype), vec_ij, vec_kj, vec_kl, cross1, cross2, 1.0)
+    # ddphi = d/dphi
+    ddphi = 0
+    for n in range(1, 6):
+        ddphi = -n * sin_phi * cos_phi**n
+        for i, ia in enumerate(atoms):
+            force[n][ia] += tmp_force[i]*ddphi
+    # Return the energy as an array
     return energy
 
 
