@@ -1,5 +1,7 @@
 from scipy import optimize
 import numpy as np
+#
+from .molecule.non_dihedral_terms import MorseBondTerm
 
 
 def fit_hessian(logger, config, mol, qm):
@@ -253,11 +255,19 @@ def average_unique_minima(terms, config):
     for name in [term_name for term_name in averaged_terms]:
         for term in terms[name]:
             if str(term) in unique_terms.keys():
-                term.equ = unique_terms[str(term)]
+                if isinstance(term, MorseBondTerm):
+                    term.equ[0] = unique_terms[str(term)]
+                else:
+                    term.equ = unique_terms[str(term)]
             else:
                 eq = np.where(np.array(list(oterm.idx for oterm in terms[name])) == term.idx)
-                minimum = np.abs(np.array(list(oterm.equ for oterm in terms[name]))[eq]).mean()
-                term.equ = minimum
+                if isinstance(term, MorseBondTerm):
+                    minimum = np.abs(np.array(list(oterm.equ[0] for oterm in terms[name]))[eq]).mean()
+                    term.equ[0] = minimum
+                else:
+                    minimum = np.abs(np.array(list(oterm.equ for oterm in terms[name]))[eq]).mean()
+                    term.equ = minimum
+
                 unique_terms[str(term)] = minimum
 
     # For Urey, recalculate length based on the averaged bonds/angles

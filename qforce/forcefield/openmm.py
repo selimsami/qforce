@@ -2,6 +2,7 @@ import numpy as np
 import xml.etree.cElementTree as ET
 
 from .forcefield_base import ForcefieldSettings
+from ..molecule.non_dihedral_terms import MorseBondTerm, CosineAngleTerm
 
 
 class OpenMM(ForcefieldSettings):
@@ -15,11 +16,11 @@ class OpenMM(ForcefieldSettings):
             'cross_angle_angle': False, 
             '_cross_dihed_angle': False, 
             '_cross_dihed_bond': False, 
-            'dihedral/rigid': True, 
-            'dihedral/improper': True, 
-            'dihedral/flexible': True, 
-            'dihedral/inversion': True, 
-            'dihedral/pitorsion': True, 
+            'dihedral/rigid': True,
+            'dihedral/improper': True,
+            'dihedral/flexible': True,
+            'dihedral/inversion': True,
+            'dihedral/pitorsion': True,
             'non_bonded': True,
             'charge_flux/bond': False,
             'charge_flux/bond_prime': False,
@@ -29,6 +30,11 @@ class OpenMM(ForcefieldSettings):
             'charge_flux/_bond_angle': False,
             'charge_flux/_angle_angle': False,
             'local_frame': True,
+    }
+
+    _term_types = {
+            'bond': ('morse', ['morse', 'harmonic']),
+            'angle': ('cosine', ['cosine', 'harmonic']),
     }
 
     def __init__(self, ff):
@@ -169,16 +175,11 @@ class OpenMM(ForcefieldSettings):
             ET.SubElement(part, 'PolarizationCovalent14')
 
     def write_bonds(self, forces):
-        if not self.ff.morse:
-            bond_force = ET.SubElement(forces, 'Force', {'type': 'HarmonicBondForce', 'name': 'Bond',
-                                                         'forceGroup': '0', 'usesPeriodic': '0', 'version': '2'})
-            bonds = ET.SubElement(bond_force, 'Bonds')
-            for bond in self.ff.terms['bond']:
-                ids = bond.atomids
-                equ = str(round(bond.equ * 0.1, 9))
-                k = str(round(bond.fconst * 100, 3))
-                ET.SubElement(bonds, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'd': equ, 'k': k})
-        else:
+        write_morse = False
+        if isinstance(list(self.ff.terms['bond'])[0], MorseBondTerm):
+            write_morse = True
+
+        if write_morse:
             morse_bond_eq = 'D*(1-exp(-b*(r-r0)))^2; b = sqrt(k/(2*D))'
             bond_force = ET.SubElement(forces, 'Force', {'energy': morse_bond_eq, 'name': 'Bond', 'usesPeriodic': '0',
                                                          'type': 'CustomBondForce', 'forceGroup': '0', 'version': '3'})
@@ -194,25 +195,28 @@ class OpenMM(ForcefieldSettings):
             bonds = ET.SubElement(bond_force, 'Bonds')
             for bond in self.ff.terms['bond']:
                 ids = bond.atomids
-                equ = str(round(bond.equ * 0.1, 9))
+                equ = str(round(bond.equ[0] * 0.1, 9))
                 k = str(round(bond.fconst * 100, 3))
                 e_dis = self.ff.bond_dissociation_energies[ids[0], ids[1]]
 
                 ET.SubElement(bonds, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]),
                                               'param1': equ, 'param2': k, 'param3': str(e_dis)})
+        else:
+            bond_force = ET.SubElement(forces, 'Force', {'type': 'HarmonicBondForce', 'name': 'Bond',
+                                                         'forceGroup': '0', 'usesPeriodic': '0', 'version': '2'})
+            bonds = ET.SubElement(bond_force, 'Bonds')
+            for bond in self.ff.terms['bond']:
+                ids = bond.atomids
+                equ = str(round(bond.equ * 0.1, 9))
+                k = str(round(bond.fconst * 100, 3))
+                ET.SubElement(bonds, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'd': equ, 'k': k})
 
     def write_angles(self, forces):
-        if not self.ff.cos_angle:
-            angle_force = ET.SubElement(forces, 'Force', {'type': 'HarmonicAngleForce', 'name': 'Angle',
-                                                          'forceGroup': '1', 'usesPeriodic': '0', 'version': '2'})
-            angles = ET.SubElement(angle_force, 'Angles')
-            for angle in self.ff.terms['angle']:
-                ids = angle.atomids
-                equ = str(round(angle.equ, 8))
-                k = str(round(angle.fconst, 6))
-                ET.SubElement(angles, 'Angle', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]),
-                                                'a': equ, 'k': k})
-        else:
+        write_cosine = False
+        if isinstance(list(self.ff.terms['angle'])[0], CosineAngleTerm):
+            write_cosine = True
+
+        if write_cosine:
             cos_angle_eq = '0.5*k*(cos(theta)-cos(theta0))^2'
             angle_force = ET.SubElement(forces, 'Force', {'energy': cos_angle_eq, 'name': 'Angle', 'usesPeriodic': '0',
                                                           'type': 'CustomAngleForce', 'forceGroup': '1', 'version': '3'})
@@ -228,9 +232,20 @@ class OpenMM(ForcefieldSettings):
             for angle in self.ff.terms['angle']:
                 ids = angle.atomids
                 equ = str(round(angle.equ, 8))
-                k = str(round(angle.fconst/np.sin(angle.equ)**2, 6))
+                k = str(round(angle.fconst, 6))
                 ET.SubElement(angles, 'Angle', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]),
                                                 'param1': equ, 'param2': k})
+
+        else:
+            angle_force = ET.SubElement(forces, 'Force', {'type': 'HarmonicAngleForce', 'name': 'Angle',
+                                                          'forceGroup': '1', 'usesPeriodic': '0', 'version': '2'})
+            angles = ET.SubElement(angle_force, 'Angles')
+            for angle in self.ff.terms['angle']:
+                ids = angle.atomids
+                equ = str(round(angle.equ, 8))
+                k = str(round(angle.fconst, 6))
+                ET.SubElement(angles, 'Angle', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]),
+                                                'a': equ, 'k': k})
 
     def write_cross_bond_bond(self, forces, n_term):
         bb_cross_eq = 'max(k*(distance(p1,p2)-r1_0)*(distance(p3,p4)-r2_0), -20)'
@@ -253,7 +268,7 @@ class OpenMM(ForcefieldSettings):
             equ1 = str(round(cross_bb.equ[0] * 0.1, 9))
             equ2 = str(round(cross_bb.equ[1] * 0.1, 9))
 
-            k = - cross_bb.fconst * 100
+            k = cross_bb.fconst * 100
             k = str(round(k, 6))
 
             ET.SubElement(bb, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
@@ -282,10 +297,10 @@ class OpenMM(ForcefieldSettings):
             ids = cross_ba.atomids
             equ1 = str(round(cross_ba.equ[0], 8))
             equ2 = str(round(cross_ba.equ[1] * 0.1, 9))
-            if self.ff.cos_angle:
-                cross_ba.fconst /= -np.sin(cross_ba.equ[0])
+            # if self.ff.cos_angle:
+            #     cross_ba.fconst /= -np.sin(cross_ba.equ[0])
 
-            k = -cross_ba.fconst * 10
+            k = cross_ba.fconst * 10
 
             k = str(round(k, 7))
 
@@ -315,9 +330,9 @@ class OpenMM(ForcefieldSettings):
             ids = cross_aa.atomids
             equ1 = str(round(cross_aa.equ[0], 8))
             equ2 = str(round(cross_aa.equ[1], 8))
-            if self.ff.cos_angle:
-                cross_aa.fconst /= np.sin(cross_aa.equ[0]) * np.sin(cross_aa.equ[1])
-            k = str(round(-cross_aa.fconst, 7))
+            # if self.ff.cos_angle:
+            #     cross_aa.fconst /= np.sin(cross_aa.equ[0]) * np.sin(cross_aa.equ[1])
+            k = str(round(cross_aa.fconst, 7))
 
             ET.SubElement(ba, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
                                        'p5': str(ids[4]), 'p6': str(ids[5]), 'param1': equ1, 'param2': equ2, 'param3': k})

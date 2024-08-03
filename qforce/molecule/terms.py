@@ -3,7 +3,7 @@ from copy import deepcopy
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import (HarmonicBondTerm, HarmonicAngleTerm, UreyAngleTerm,
+from .non_dihedral_terms import (HarmonicBondTerm, MorseBondTerm, HarmonicAngleTerm, CosineAngleTerm, UreyAngleTerm,
                                  CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm,
                                  CrossDihedAngleTerm, CrossDihedBondTerm)
 from .non_bonded_terms import NonBondedTerms
@@ -50,15 +50,21 @@ class Terms(MappingIterator):
         # handle always on terms
         bond_type = config.__dict__.get('bond_type', 'harmonic')
         angle_type = config.__dict__.get('angle_type', 'harmonic')
+
         if bond_type == 'harmonic':
             terms['bond'] = HarmonicBondTerm.get_terms(topo, non_bonded)
+        elif bond_type == 'morse':
+            terms['bond'] = MorseBondTerm.get_terms(topo, non_bonded)
         if angle_type == 'harmonic':
             terms['angle'] = HarmonicAngleTerm.get_terms(topo, non_bonded)
+        elif angle_type == 'cosine':
+            terms['angle'] = CosineAngleTerm.get_terms(topo, non_bonded)
+
         # handle all the others
         ignore = []
         factories = {}
         for name, enabled in config.__dict__.items():
-            if name.endswith('_type'):
+            if name in ['bond', 'angle']:
                 continue
             if '/' in name:
                 maintype, subtype = name.split('/')

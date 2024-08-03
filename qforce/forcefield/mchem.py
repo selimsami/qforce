@@ -31,6 +31,11 @@ class MChem(ForcefieldSettings):
             'local_frame': True,
     }
 
+    _term_types = {
+            'bond': ('morse', ['morse', 'harmonic']),
+            'angle': ('cosine', ['cosine', 'harmonic']),
+    }
+
     def __init__(self, ff):
         self.ff = ff
 
@@ -221,7 +226,7 @@ class MChem(ForcefieldSettings):
             equ2 = str(round(term.equ[1], 8))
             if self.ff.cos_angle:
                 term.fconst /= np.sin(term.equ[0]) * np.sin(term.equ[1])
-            k = str(round(-term.fconst, 7))
+            k = str(round(term.fconst, 7))
 
             ET.SubElement(force, 'BendBend', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
                                               'class5': ids[4], 'class6': ids[5], 'angle1': equ1, 'angle2': equ2,

@@ -4,8 +4,9 @@ from itertools import product
 from .baseterms import TermBase
 #
 from ..forces import get_dist, get_angle, get_dihed
-from ..forces import (calc_bonds, calc_morse_bonds, calc_angles, calc_cosine_angles, calc_cross_bond_angle,
-                      calc_cross_bond_bond, calc_cross_angle_angle, calc_cross_dihed_angle, calc_cross_dihed_bond)
+from ..forces import (calc_bonds, calc_morse_bonds, calc_angles, calc_cosine_angles, calc_cross_bond_bond,
+                      calc_cross_bond_angle, calc_cross_bond_cos_angle, calc_cross_angle_angle,
+                      calc_cross_cos_angle_angle, calc_cross_dihed_angle, calc_cross_dihed_bond)
 
 
 class HarmonicBondTerm(TermBase):
@@ -54,7 +55,7 @@ class HarmonicAngleTerm(TermBase):
     name = 'HarmonicAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_angles(crd, self.atomids, self.equ, np.abs(fconst), force)
+        return calc_angles(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_terms(cls, topo, non_bonded):
@@ -81,7 +82,7 @@ class CosineAngleTerm(HarmonicAngleTerm):
     name = 'CosineAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_cosine_angles(crd, self.atomids, self.equ, np.abs(fconst), force)
+        return calc_cosine_angles(crd, self.atomids, self.equ, fconst, force)
 
 
 class UreyAngleTerm(TermBase):
@@ -159,7 +160,7 @@ class CrossBondAngleTerm(TermBase):
     name = 'CrossBondAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
+        return calc_cross_bond_cos_angle(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_terms(cls, topo, non_bonded):
@@ -205,113 +206,23 @@ class CrossBondAngleTerm(TermBase):
         return cross_bond_angle_terms
 
 
-# class CrossBondAngleTerm(TermBase):
-#     name = 'CrossBondAngleTerm'
+class CrossBondCosineAngleTerm(CrossBondAngleTerm):
+    name = 'CrossBondCosineAngleTerm'
 
-#     def _calc_forces(self, crd, force, fconst):
-#         return calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
-
-#     @classmethod
-#     def get_terms(cls, topo, non_bonded):
-
-#         cross_bond_angle_terms = cls.get_terms_container()
-
-#         for a1, a2, a3 in topo.angles:
-#             theta = get_angle(topo.coords[[a1, a2, a3]])[0]
-#             #  No CrossBondAngle term  if linear angle (>170) or if in 3-member ring
-#             if theta < 2.9671 and (not topo.edge(a2, a1)['in_ring3'] or
-#                                    not topo.edge(a2, a3)['in_ring3']):
-#                 dist12 = get_dist(topo.coords[a1], topo.coords[a2])[1]
-#                 dist32 = get_dist(topo.coords[a3], topo.coords[a2])[1]
-#                 dist13 = get_dist(topo.coords[a1], topo.coords[a3])[1]
-
-#                 equ1 = np.array([theta, dist12])
-#                 equ2 = np.array([theta, dist32])
-
-#                 b21 = topo.edge(a2, a1)['vers']
-#                 b23 = topo.edge(a2, a3)['vers']
-
-#                 a_type1 = f"{topo.types[a2]}({b21}){topo.types[a1]}_{topo.types[a2]}({b23}){topo.types[a3]}"
-#                 a_type2 = f"{topo.types[a2]}({b23}){topo.types[a3]}_{topo.types[a2]}({b21}){topo.types[a1]}"
-
-#                 cross_bond_angle_terms.append(cls([a1, a2, a3], equ1, a_type1))
-#                 cross_bond_angle_terms.append(cls([a3, a2, a1], equ2, a_type2))
-
-#         return cross_bond_angle_terms
-
-# class CrossBondAngleTerm(TermBase):
-#     name = 'CrossBondAngleTerm'
-
-#     def _calc_forces(self, crd, force, fconst):
-#         return calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
-
-#     @classmethod
-#     def get_terms(cls, topo, non_bonded):
-
-#         cross_bond_angle_terms = cls.get_terms_container()
-
-#         for a1, a2, a3 in topo.angles:
-#             theta = get_angle(topo.coords[[a1, a2, a3]])[0]
-#             #  No CrossBondAngle term  if linear angle (>170) or if in 3-member ring
-#             # if theta < 2.9671 and (not topo.edge(a2, a1)['in_ring3'] or
-#             #                        not topo.edge(a2, a3)['in_ring3']):
-#             dist12 = get_dist(topo.coords[a1], topo.coords[a2])[1]
-#             dist32 = get_dist(topo.coords[a3], topo.coords[a2])[1]
-#             dist13 = get_dist(topo.coords[a1], topo.coords[a3])[1]
-#             equ = np.array([theta, dist12, dist32])
-
-#             b21 = topo.edge(a2, a1)['vers']
-#             b23 = topo.edge(a2, a3)['vers']
-#             a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
-#                              f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-#             a_type = f"{a_type[0]}_{a_type[1]}"
-#             cross_bond_angle_terms.append(cls([a1, a2, a3], equ, a_type))
-
-#         return cross_bond_angle_terms
-
-# class CrossBondAngleTerm(TermBase):
-#     name = 'CrossBondAngleTerm'
-
-#     def _calc_forces(self, crd, force, fconst):
-#         return calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
-
-#     @classmethod
-#     def get_terms(cls, topo, non_bonded):
-
-#         cross_bond_angle_terms = cls.get_terms_container()
-
-#         for a1, a2, a3 in topo.angles:
-#             theta = get_angle(topo.coords[[a1, a2, a3]])[0]
-#             #  No CrossBondAngle term  if linear angle (>170) or if in 3-member ring
-#             if theta < 2.9671 and (not topo.edge(a2, a1)['in_ring3'] or
-#                                    not topo.edge(a2, a3)['in_ring3']):
-#                 dist12 = get_dist(topo.coords[a1], topo.coords[a2])[1]
-#                 dist32 = get_dist(topo.coords[a3], topo.coords[a2])[1]
-#                 dist13 = get_dist(topo.coords[a1], topo.coords[a3])[1]
-#                 dists = np.array([dist12, dist32, dist13])
-
-#                 b21 = topo.edge(a2, a1)['vers']
-#                 b23 = topo.edge(a2, a3)['vers']
-#                 a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
-#                                  f"{topo.types[a2]}({b23}){topo.types[a3]}"])
-#                 a_type = f"{a_type[0]}_{a_type[1]}"
-#                 cross_bond_angle_terms.append(cls([a1, a2, a3], dists, a_type))
-
-#         return cross_bond_angle_terms
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cross_bond_cos_angle(crd, self.atomids, self.equ, fconst, force)
 
 
 class CrossAngleAngleTerm(TermBase):
     name = 'CrossAngleAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_cross_angle_angle(crd, self.atomids, self.equ, fconst, force)
+        return calc_cross_cos_angle_angle(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_terms(cls, topo, non_bonded):
 
         cross_angle_angle_terms = cls.get_terms_container()
-
-        angles_arr = np.array(topo.angles)
 
         for i, (a1, a2, a3) in enumerate(topo.angles):
             theta1 = get_angle(topo.coords[[a1, a2, a3]])[0]
@@ -373,9 +284,15 @@ class CrossAngleAngleTerm(TermBase):
                 aa_type = f"{aa_type[0]}-{aa_type[1]}-{n_shared}-{n_matched}"
 
                 cross_angle_angle_terms.append(cls([a1, a2, a3, a4, a5, a6], equ, aa_type))
-                # z += 1
 
         return cross_angle_angle_terms
+
+class CrossCosineAngleAngleTerm(CrossAngleAngleTerm):
+    name = 'CrossCosineAngleAngleTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cross_cos_angle_angle(crd, self.atomids, self.equ, fconst, force)
+
 
 
 class CrossDihedAngleTerm(TermBase):

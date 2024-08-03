@@ -119,9 +119,6 @@ res_name = MOL :: str
         return software
 
     def _get_bond_dissociation_energies(self, md_data):
-        if not self.morse:
-            return None
-
         dissociation_energies = {}
 
         bde_dict = self._read_bond_dissociation_energy_csv(md_data)
