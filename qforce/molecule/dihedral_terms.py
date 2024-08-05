@@ -63,15 +63,20 @@ class DihedralBaseTerm(TermABC):
 
 
 class RigidDihedralTerm(DihedralBaseTerm):
-
     name = 'RigidDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
         # return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
         return calc_periodic_dihed(crd, self.atomids, self.equ, fconst, force)
 
-class ImproperDihedralTerm(DihedralBaseTerm):
+    def write_forcefield(self, software, writer):
+        software.write_harmonic_dihed_term(self, writer)
 
+    def write_ff_header(self, software, writer):
+        return software.write_harmonic_dihed_header(writer)
+
+
+class ImproperDihedralTerm(DihedralBaseTerm):
     name = 'ImproperDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
@@ -83,9 +88,13 @@ class ImproperDihedralTerm(DihedralBaseTerm):
         phi = DihedralBaseTerm.check_angle(phi)
         return cls(atomids, phi, d_type)
 
+    def write_forcefield(self, software, writer):
+        software.write_improper_dihed_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_improper_dihed_header(writer)
 
 class FlexibleDihedralTerm(DihedralBaseTerm):
-
     name = 'FlexibleDihedralTerm'
     idx_buffer = 6
 
@@ -107,9 +116,14 @@ class FlexibleDihedralTerm(DihedralBaseTerm):
     def get_term(cls, topo, atoms, d_type):
         return cls(atoms, np.zeros(6), d_type)
 
+    def write_forcefield(self, software, writer):
+        software.write_flexible_dihed_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_flexible_dihed_header(writer)
+
 
 class InversionDihedralTerm(DihedralBaseTerm):
-
     name = 'InversionDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
@@ -119,9 +133,13 @@ class InversionDihedralTerm(DihedralBaseTerm):
     def get_term(cls, topo, atomids, phi, d_type):
         return cls(atomids, phi, d_type)
 
+    def write_forcefield(self, software, writer):
+        software.write_inversion_dihed_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_inversion_dihed_header(writer)
 
 class PiTorsionDihedralTerm(DihedralBaseTerm):
-
     name = 'PiTorsionDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
@@ -132,9 +150,13 @@ class PiTorsionDihedralTerm(DihedralBaseTerm):
         phi = DihedralBaseTerm.check_angle(phi)
         return cls(atomids, phi, d_type)
 
+    def write_forcefield(self, software, writer):
+        software.write_pitorsion_dihed_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_pitorsion_dihed_header(writer)
 
 class DihedralTerms(TermFactory):
-
     name = 'DihedralTerms'
 
     _term_types = {

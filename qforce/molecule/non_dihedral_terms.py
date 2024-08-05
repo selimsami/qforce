@@ -29,6 +29,12 @@ class HarmonicBondTerm(TermBase):
 
         return bond_terms
 
+    def write_forcefield(self, software, writer):
+        software.write_harmonic_bond_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_harmonic_bond_header(writer)
+
 
 class MorseBondTerm(TermBase):
     name = 'MorseBondTerm'
@@ -49,6 +55,12 @@ class MorseBondTerm(TermBase):
             bond_terms.append(cls([a1, a2], [dist, 2.2], bond['vers']))
 
         return bond_terms
+
+    def write_forcefield(self, software, writer):
+        software.write_morse_bond_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_morse_bond_header(writer)
 
 
 class HarmonicAngleTerm(TermBase):
@@ -77,12 +89,24 @@ class HarmonicAngleTerm(TermBase):
 
         return angle_terms
 
+    def write_forcefield(self, software, writer):
+        software.write_harmonic_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_harmonic_angle_header(writer)
+
 
 class CosineAngleTerm(HarmonicAngleTerm):
     name = 'CosineAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cosine_angles(crd, self.atomids, self.equ, fconst, force)
+
+    def write_forcefield(self, software, writer):
+        software.write_cosine_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cosine_angle_header(writer)
 
 
 class UreyAngleTerm(TermBase):
@@ -110,6 +134,12 @@ class UreyAngleTerm(TermBase):
                 urey_terms.append(cls([a1, a2, a3], dist, a_type))
 
         return urey_terms
+
+    def write_forcefield(self, software, writer):
+        software.write_urey_bradley_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_urey_bradley_header(writer)
 
 
 class CrossBondBondTerm(TermBase):
@@ -154,6 +184,12 @@ class CrossBondBondTerm(TermBase):
                 # z += 1
 
         return cross_bond_bond_terms
+
+    def write_forcefield(self, software, writer):
+        software.write_cross_bond_bond_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_bond_bond_header(writer)
 
 
 class CrossBondAngleTerm(TermBase):
@@ -205,12 +241,23 @@ class CrossBondAngleTerm(TermBase):
 
         return cross_bond_angle_terms
 
+    def write_forcefield(self, software, writer):
+        software.write_cross_bond_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_bond_angle_header(writer)
 
 class CrossBondCosineAngleTerm(CrossBondAngleTerm):
     name = 'CrossBondCosineAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_bond_cos_angle(crd, self.atomids, self.equ, fconst, force)
+
+    def write_forcefield(self, software, writer):
+        software.write_cross_bond_cos_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_bond_cos_angle_header(writer)
 
 
 class CrossAngleAngleTerm(TermBase):
@@ -287,63 +334,24 @@ class CrossAngleAngleTerm(TermBase):
 
         return cross_angle_angle_terms
 
+    def write_forcefield(self, software, writer):
+        software.write_cross_angle_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_angle_angle_header(writer)
+
+
 class CrossCosineAngleAngleTerm(CrossAngleAngleTerm):
     name = 'CrossCosineAngleAngleTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_cos_angle_angle(crd, self.atomids, self.equ, fconst, force)
 
+    def write_forcefield(self, software, writer):
+        software.write_cross_cos_angle_angle_term(self, writer)
 
-
-class CrossDihedAngleTerm(TermBase):
-    name = 'CrossDihedAngleTerm'
-
-    def _calc_forces(self, crd, force, fconst):
-        return calc_cross_dihed_angle(crd, self.atomids, self.equ, fconst, force)
-
-    @classmethod
-    def get_terms(cls, topo, non_bonded, settings):
-
-        cross_dihed_angle_terms = cls.get_terms_container()
-
-        z = 0
-
-        for a2, a3 in topo.bonds:
-            central = topo.edge(a2, a3)
-            a1s = [a1 for a1 in topo.neighbors[0][a2] if a1 != a3]
-            a4s = [a4 for a4 in topo.neighbors[0][a3] if a4 != a2]
-
-            if a1s == [] or a4s == []:
-                continue
-
-            a1s, a4s = np.array(a1s), np.array(a4s)
-            atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
-                          a4s) if d[0] != d[-1]]
-
-            # rigid
-            for atoms in atoms_comb:
-                a1, a2, a3, a4 = atoms
-                b12 = topo.edge(a1, a2)["vers"]
-                b23 = topo.edge(a2, a3)["vers"]
-                b43 = topo.edge(a4, a3)["vers"]
-                t23 = [topo.types[a2], topo.types[a3]]
-                t12 = f"{topo.types[a1]}({b12}){topo.types[a2]}"
-                t43 = f"{topo.types[a4]}({b43}){topo.types[a3]}"
-                d_type = [t12, t43]
-
-                if t12 > t43:
-                    d_type.reverse()
-                    t23.reverse()
-
-                da_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
-
-                theta1 = get_angle(topo.coords[[a1, a2, a3]])[0]
-                theta2 = get_angle(topo.coords[[a2, a3, a4]])[0]
-
-                cross_dihed_angle_terms.append(cls([a1, a2, a3, a4], theta1, da_type))
-                cross_dihed_angle_terms.append(cls([a4, a3, a2, a1], theta2, da_type))
-
-        return cross_dihed_angle_terms
+    def write_ff_header(self, software, writer):
+        return software.write_cross_cos_angle_angle_header(writer)
 
 
 class CrossDihedBondTerm(TermBase):
@@ -449,3 +457,66 @@ class CrossDihedBondTerm(TermBase):
                 # z += 1
 
         return cross_dihed_bond_terms
+
+    def write_forcefield(self, software, writer):
+        software.write_cross_dihed_bond_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_dihed_bond_header(writer)
+
+
+class CrossDihedAngleTerm(TermBase):
+    name = 'CrossDihedAngleTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cross_dihed_angle(crd, self.atomids, self.equ, fconst, force)
+
+    @classmethod
+    def get_terms(cls, topo, non_bonded, settings):
+
+        cross_dihed_angle_terms = cls.get_terms_container()
+
+        z = 0
+
+        for a2, a3 in topo.bonds:
+            central = topo.edge(a2, a3)
+            a1s = [a1 for a1 in topo.neighbors[0][a2] if a1 != a3]
+            a4s = [a4 for a4 in topo.neighbors[0][a3] if a4 != a2]
+
+            if a1s == [] or a4s == []:
+                continue
+
+            a1s, a4s = np.array(a1s), np.array(a4s)
+            atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
+                          a4s) if d[0] != d[-1]]
+
+            # rigid
+            for atoms in atoms_comb:
+                a1, a2, a3, a4 = atoms
+                b12 = topo.edge(a1, a2)["vers"]
+                b23 = topo.edge(a2, a3)["vers"]
+                b43 = topo.edge(a4, a3)["vers"]
+                t23 = [topo.types[a2], topo.types[a3]]
+                t12 = f"{topo.types[a1]}({b12}){topo.types[a2]}"
+                t43 = f"{topo.types[a4]}({b43}){topo.types[a3]}"
+                d_type = [t12, t43]
+
+                if t12 > t43:
+                    d_type.reverse()
+                    t23.reverse()
+
+                da_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
+
+                theta1 = get_angle(topo.coords[[a1, a2, a3]])[0]
+                theta2 = get_angle(topo.coords[[a2, a3, a4]])[0]
+
+                cross_dihed_angle_terms.append(cls([a1, a2, a3, a4], theta1, da_type))
+                cross_dihed_angle_terms.append(cls([a4, a3, a2, a1], theta2, da_type))
+
+        return cross_dihed_angle_terms
+
+    def write_forcefield(self, software, writer):
+        software.write_cross_dihed_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_dihed_angle_header(writer)

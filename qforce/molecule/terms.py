@@ -59,7 +59,7 @@ class Terms(MappingIterator):
             'morse': MorseBondTerm,
             }, 'harmonic'),
         'angle': TermSelector('angle', {
-            'harmonic': HarmonicBondTerm,
+            'harmonic': HarmonicAngleTerm,
             'cosine': CosineAngleTerm,
             }, 'harmonic'),
         'cross_bond_bond': CrossBondBondTerm,

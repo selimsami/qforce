@@ -108,6 +108,12 @@ class LocalFrameTermABC(TermABC):
 
         return dipoles.round(10), quadrupoles.round(10)
 
+    def write_forcefield(self, software, writer):
+        software.write_multipole_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_multipole_header(writer)
+
 
 class BisectorTerm(LocalFrameTermABC):
     name = 'BisectorLocalFrameTerm'
