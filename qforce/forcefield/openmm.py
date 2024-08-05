@@ -7,7 +7,7 @@ from ..molecule.non_dihedral_terms import MorseBondTerm, CosineAngleTerm
 
 class OpenMM(ForcefieldSettings):
 
-    _always_on_terms = ['bond', 'angle']
+    always_on_terms = ['bond', 'angle']
 
     _optional_terms = {
             'urey': True,
@@ -35,6 +35,7 @@ class OpenMM(ForcefieldSettings):
     _term_types = {
             'bond': ('morse', ['morse', 'harmonic']),
             'angle': ('cosine', ['cosine', 'harmonic']),
+            'cross_bond_angle': ('false', ['bond_angle', 'bond_cos_angle', 'false']),
     }
 
     def __init__(self, ff):

@@ -9,7 +9,7 @@ from .forcefield_base import ForcefieldSettings
 
 class Gromacs(ForcefieldSettings):
 
-    _always_on_terms = [] # 'bond', 'angle']
+    always_on_terms = ['bond', 'angle']
 
     _optional_terms = {
             'urey': True,

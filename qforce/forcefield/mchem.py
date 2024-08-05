@@ -9,7 +9,7 @@ from .forcefield_base import ForcefieldSettings
 
 class MChem(ForcefieldSettings):
 
-    _always_on_terms = ['bond', 'angle']
+    always_on_terms = ['bond', 'angle']
 
     _optional_terms = {
             'urey': True,
