@@ -4,10 +4,9 @@ from copy import deepcopy
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import (HarmonicBondTerm, MorseBondTerm, HarmonicAngleTerm, CosineAngleTerm, UreyAngleTerm,
-                                 CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm,
-                                 CrossBondCosineAngleTerm, CrossCosineAngleAngleTerm,
-                                 CrossDihedAngleTerm, CrossDihedBondTerm)
+from .bond_and_angle_terms import HarmonicBondTerm, MorseBondTerm, HarmonicAngleTerm, CosineAngleTerm, UreyBradleyTerm
+from .coupling_terms import (CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm, CrossBondCosineAngleTerm,
+                             CrossCosineAngleAngleTerm, CrossDihedAngleTerm, CrossDihedBondTerm)
 from .non_bonded_terms import NonBondedTerms
 from .charge_flux_terms import ChargeFluxTerms
 from .local_frame import LocalFrameTerms
@@ -63,6 +62,8 @@ class Terms(MappingIterator):
             'cosine': CosineAngleTerm,
             }, 'harmonic'),
         'cross_bond_bond': CrossBondBondTerm,
+        #
+        'urey': UreyBradleyTerm,
         #
         'cross_bond_angle': TermSelector('cross_bond_angle', {
             'bond_angle': CrossBondAngleTerm,

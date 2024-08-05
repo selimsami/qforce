@@ -2,7 +2,6 @@ import numpy as np
 import xml.etree.cElementTree as ET
 
 from .forcefield_base import ForcefieldSettings
-from ..molecule.non_dihedral_terms import MorseBondTerm, CosineAngleTerm
 
 
 class OpenMM(ForcefieldSettings):

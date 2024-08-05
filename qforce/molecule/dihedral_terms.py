@@ -5,7 +5,6 @@ from .baseterms import TermABC, TermFactory
 from ..forces import get_dihed, get_angle
 from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_periodic_dihed
 from ..forces import lsq_rb_diheds
-#calc_oop_angle  # ,
 
 
 class DihedralBaseTerm(TermABC):

@@ -1,7 +1,7 @@
 from scipy import optimize
 import numpy as np
 #
-from .molecule.non_dihedral_terms import MorseBondTerm
+from .molecule.bond_and_angle_terms import MorseBondTerm
 
 
 def fit_hessian(logger, config, mol, qm):
