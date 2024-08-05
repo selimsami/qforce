@@ -16,7 +16,7 @@ class HarmonicBondTerm(TermBase):
         return calc_bonds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         bond_terms = cls.get_terms_container()
 
         for a1, a2 in topo.bonds:
@@ -37,7 +37,7 @@ class MorseBondTerm(TermBase):
         return calc_morse_bonds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         bond_terms = cls.get_terms_container()
 
         for a1, a2 in topo.bonds:
@@ -58,7 +58,7 @@ class HarmonicAngleTerm(TermBase):
         return calc_angles(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         angle_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
@@ -92,7 +92,7 @@ class UreyAngleTerm(TermBase):
         return calc_bonds(crd, self.atomids[::2], self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         urey_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
@@ -119,7 +119,7 @@ class CrossBondBondTerm(TermBase):
         return calc_cross_bond_bond(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
 
         cross_bond_bond_terms = cls.get_terms_container()
 
@@ -163,7 +163,7 @@ class CrossBondAngleTerm(TermBase):
         return calc_cross_bond_cos_angle(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
 
         cross_bond_angle_terms = cls.get_terms_container()
 
@@ -220,7 +220,7 @@ class CrossAngleAngleTerm(TermBase):
         return calc_cross_cos_angle_angle(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
 
         cross_angle_angle_terms = cls.get_terms_container()
 
@@ -302,7 +302,7 @@ class CrossDihedAngleTerm(TermBase):
         return calc_cross_dihed_angle(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
 
         cross_dihed_angle_terms = cls.get_terms_container()
 
@@ -353,7 +353,7 @@ class CrossDihedBondTerm(TermBase):
         return calc_cross_dihed_bond(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
 
         cross_dihed_bond_terms = cls.get_terms_container()
 

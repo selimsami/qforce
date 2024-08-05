@@ -204,7 +204,7 @@ class LocalFrameTerms(TermFactory):
     _default_off = ['bisector', 'z_then_x', 'z_only', 'z_then_bisector', 'trisector']
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         terms = cls.get_terms_container()
 
         # helper functions to improve readability
