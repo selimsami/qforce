@@ -25,7 +25,10 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     main_hessian = qm_hessian_out[0]
 
     # check molecule
-    mol = Molecule(config, job, main_hessian, ext_q, ext_lj)
+    ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
+    if ffcls is None:
+        raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
+    mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj)
 
     # change the order
     fragments = None
@@ -64,7 +67,10 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     e_lowest = min([out.energy for out in qm_hessian_out])
 
     # check molecule
-    mol = Molecule(config, job, main_hessian, ext_q, ext_lj, fit_flexible=True)
+    ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
+    if ffcls is None:
+        raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
+    mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj, fit_flexible=True)
 
     # if len(mol.terms['dihedral/flexible']) > 0:
     scans = do_nofrag_scanning(mol, qm, job, config)
