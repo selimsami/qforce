@@ -1,3 +1,4 @@
+from collections import UserDict
 from contextlib import contextmanager
 from copy import deepcopy
 #
@@ -5,36 +6,86 @@ from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
 from .non_dihedral_terms import (HarmonicBondTerm, MorseBondTerm, HarmonicAngleTerm, CosineAngleTerm, UreyAngleTerm,
                                  CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm,
+                                 CrossBondCosineAngleTerm, CrossCosineAngleAngleTerm,
                                  CrossDihedAngleTerm, CrossDihedBondTerm)
 from .non_bonded_terms import NonBondedTerms
 from .charge_flux_terms import ChargeFluxTerms
 from .local_frame import LocalFrameTerms
 #
 from .base import MappingIterator
-from .baseterms import TermFactory
+from .baseterms import TermFactory, EmptyTerm
+
+
+class DefaultFalseDict(UserDict):
+
+    def get(self, key, default=False):
+        return self.data.get(key, default)
+
+    def __getitem__(self, key):
+        return self.data.get(key, False)
+
+
+
+class TermSelector:
+
+    def __init__(self, name, options, default=None):
+        self.name = name
+        self._options = options
+        self._default = default
+
+    def _select(self, config):
+        typ = config.__dict__.get(f'{self.name}_type', self._default)
+        if typ not in self._options:
+            raise ValueError(f"Unknown term type '{typ}' for term '{self.name}'")
+        return self._options[typ]
+
+    def get_terms_from_config(self, config, topo, non_bonded, settings):
+        factory = self._select(config)
+        return factory.get_terms(topo, non_bonded, settings)
+
+
+def split_name(name):
+    maintype, subtype = name.split('/')
+    maintype = maintype.strip()
+    subtype = subtype.strip()
+    return maintype, subtype
 
 
 class Terms(MappingIterator):
 
     _term_factories = {
-        'bond': HarmonicBondTerm,
-        'angle': HarmonicAngleTerm,
-        'urey': UreyAngleTerm,
+        'bond': TermSelector('bond', {
+            'harmonic': HarmonicBondTerm,
+            'morse': MorseBondTerm,
+            }, 'harmonic'),
+        'angle': TermSelector('angle', {
+            'harmonic': HarmonicBondTerm,
+            'cosine': CosineAngleTerm,
+            }, 'harmonic'),
         'cross_bond_bond': CrossBondBondTerm,
-        'cross_bond_angle': CrossBondAngleTerm,
-        'cross_angle_angle': CrossAngleAngleTerm,
+        #
+        'cross_bond_angle': TermSelector('cross_bond_angle', {
+            'bond_angle': CrossBondAngleTerm,
+            'bond_cos_angle': CrossBondCosineAngleTerm,
+            'false': EmptyTerm,
+        }, 'false'),
+        #
+        'cross_angle_angle': TermSelector('cross_angle_angle', {
+            'harmonic': CrossAngleAngleTerm,
+            'cosine': CrossCosineAngleAngleTerm,
+        }, 'harmonic'),
+        #
         '_cross_dihed_angle': CrossDihedAngleTerm,
         '_cross_dihed_bond': CrossDihedBondTerm,
+        #
         'dihedral': DihedralTerms,
+        #
         'non_bonded': NonBondedTerms,
         #
         'charge_flux': ChargeFluxTerms,
+        #
         'local_frame': LocalFrameTerms,
-
     }
-    _always_on = ['bond', 'angle']
-    _default_off = ['charge_flux', 'local_frame', 'cross_bond_bond', 'cross_bond_angle', 'cross_angle_angle',
-                    '_cross_dihed_angle', '_cross_dihed_bond']
 
     def __init__(self, terms, ignore, not_fit_terms, fit_flexible=False):
         MappingIterator.__init__(self, terms, ignore)
@@ -43,44 +94,44 @@ class Terms(MappingIterator):
         self._term_paths = self._get_term_paths(terms)
 
     @classmethod
-    def from_topology(cls, config, topo, non_bonded, *,
+    def add_terms(cls, terms, name, config, topo, non_bonded, settings=None):
+        _terms = cls._term_factories[name].get_terms_from_config(config, topo, non_bonded, settings)
+        if _terms is not None:
+            terms[name] = _terms
+
+    @classmethod
+    def from_topology(cls, config, topo, non_bonded, ff, *,
                       not_fit=['dihedral/flexible', 'non_bonded', 'charge_flux', 'local_frame'],
                       fit_flexible=False):
         terms = {}
         # handle always on terms
-        bond_type = config.__dict__.get('bond_type', 'harmonic')
-        angle_type = config.__dict__.get('angle_type', 'harmonic')
-
-        if bond_type == 'harmonic':
-            terms['bond'] = HarmonicBondTerm.get_terms(topo, non_bonded)
-        elif bond_type == 'morse':
-            terms['bond'] = MorseBondTerm.get_terms(topo, non_bonded)
-        if angle_type == 'harmonic':
-            terms['angle'] = HarmonicAngleTerm.get_terms(topo, non_bonded)
-        elif angle_type == 'cosine':
-            terms['angle'] = CosineAngleTerm.get_terms(topo, non_bonded)
-
-        # handle all the others
+        for term in ff.always_on_terms:
+            if '/' not in term:
+                cls.add_terms(terms, term, config, topo, non_bonded)
+            else:
+                maintype, subtype = split_name(term)
+                if maintype not in factories:
+                    factories[maintype] = DefaultFalseDict()
+                factories[maintype][subtype] = True
+        # get off terms
         ignore = []
         factories = {}
-        for name, enabled in config.__dict__.items():
-            if name in ['bond', 'angle']:
+        for term, enabled in config.__dict__.items():
+            if term in ff.always_on_terms:
                 continue
-            if '/' in name:
-                maintype, subtype = name.split('/')
-                maintype = maintype.strip()
-                subtype = subtype.strip()
+            if '/' in term:
+                maintype, subtype = split_name(term)
                 if maintype not in factories:
-                    factories[maintype] = {}
+                    factories[maintype] = DefaultFalseDict()
                 factories[maintype][subtype] = enabled
-                continue
-            if enabled is True:
-                terms[name] = cls._term_factories[name].get_terms(topo, non_bonded)
             else:
-                ignore.append(name)
+                if enabled is True:
+                    cls.add_terms(terms, term, config, topo, non_bonded)
+                else:
+                    ignore.append(term)
 
-        for name, settings in factories.items():
-            terms[name] = cls._term_factories[name].get_terms(topo, non_bonded, settings)
+        for term, settings in factories.items():
+            cls.add_terms(terms, term, config, topo, non_bonded, settings)
 
         not_fit_terms = [term for term in not_fit if term not in ignore and term in config.__dict__.keys()]
         return cls(terms, ignore, not_fit_terms, fit_flexible=fit_flexible)
@@ -110,20 +161,6 @@ class Terms(MappingIterator):
         if not isinstance(term, TermFactory):
             raise ValueError('New term needs to be a TermFactory!')
         cls._term_factories[name] = term
-
-    @classmethod
-    def get_questions(cls):
-        tpl = '# Turn {key} FF term on or off\n{key} = {default} :: bool\n\n'
-        questions = ''
-        for name, term in cls._term_factories.items():
-            if name not in cls._always_on:
-                if term._multiple_terms:
-                    for sub_name, sub_term in term._term_types.items():
-                        questions += tpl.format(key=f'{name}/{sub_name}',
-                                                default=(sub_name not in term._default_off))
-                else:
-                    questions += tpl.format(key=name, default=(name not in cls._default_off))
-        return questions
 
     @contextmanager
     def add_ignore(self, ignore_terms):
