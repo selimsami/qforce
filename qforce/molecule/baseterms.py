@@ -86,7 +86,7 @@ class TermFactory(ABC):
 
     @classmethod
     @abstractmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         """
             Args:
                 topo: Topology object, const
@@ -99,7 +99,32 @@ class TermFactory(ABC):
         """
         ...
 
+    @classmethod
+    def get_terms_from_config(cls, config, topo, non_bonded, settings=None):
+        """
+            Args:
+                topo: Topology object, const
+                    Stores all topology information
+                non_bonded: NonBonded object, const
+                    Stores all non bonded interaction information
+
+            Return:
+                list of cls objects
+        """
+        return cls.get_terms(topo, non_bonded, settings)
+
 
 class TermBase(TermFactory, TermABC):
     """Base class for terms that are TermFactories for themselves as well"""
     _multiple_terms = False
+
+
+class EmptyTerm(TermBase):
+    """Return an empty term container"""
+
+    def _calc_forces(self, crd, force, fconst):
+        raise NotImplementedError("should never be created")
+
+    @classmethod
+    def get_terms(cls, topo, non_bonded, settings):
+        return None
