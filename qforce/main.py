@@ -45,8 +45,9 @@ def runjob(config, job, ext_q=None, ext_lj=None):
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
-    if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
-        fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
+    if 'charge_flux' in mol.terms:
+        if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
+            fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
 
     ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, main_hessian.coords)
@@ -84,8 +85,9 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
-    if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
-        fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
+    if 'charge_flux' in mol.terms:
+        if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
+            fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
 
     ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, main_hessian.coords)

@@ -6,15 +6,18 @@ from .forcefield_base import ForcefieldSettings
 
 class OpenMM(ForcefieldSettings):
 
-    always_on_terms = ['bond', 'angle']
+    _always_on_terms = {
+            'bond': ('morse', 'harmonic'),
+            'angle': ('cosine', 'harmonic'),
+    }
 
     _optional_terms = {
             'urey': True,
-            'cross_bond_bond': False, 
-            'cross_bond_angle': False, 
-            'cross_angle_angle': False, 
-            '_cross_dihed_angle': False, 
-            '_cross_dihed_bond': False, 
+            'cross_bond_bond': False,
+            'cross_bond_angle': (False, 'bond_angle', 'bond_cos_angle'),
+            'cross_angle_angle':  (False, 'harmonic', 'cosine'),
+            '_cross_dihed_angle': False,
+            '_cross_dihed_bond': False,
             'dihedral/rigid': True,
             'dihedral/improper': True,
             'dihedral/flexible': True,
@@ -29,13 +32,6 @@ class OpenMM(ForcefieldSettings):
             'charge_flux/_bond_angle': False,
             'charge_flux/_angle_angle': False,
             'local_frame': True,
-    }
-
-    _term_types = {
-            'bond': ('morse', ['morse', 'harmonic']),
-            'angle': ('cosine', ['cosine', 'harmonic']),
-            'cross_bond_angle': ('false', ['bond_angle', 'bond_cos_angle', 'false']),
-            'cross_angle_angle':  ('false', ['harmonic', 'cosine', 'false'])
     }
 
     def __init__(self, ff):
@@ -498,11 +494,11 @@ class OpenMM(ForcefieldSettings):
                      n2x = c2x/norm2; n2y = c2y/norm2; n2z = c2z/norm2;
                      norm1 = sqrt(c1x*c1x + c1y*c1y + c1z*c1z);
                      norm2 = sqrt(c2x*c2x + c2y*c2y + c2z*c2z);
-                     c1x = (d12y*d13z-d12z*d13y); c1y = (d12z*d13x-d12x*d13z); c1z = (d12x*d13y-d12y*d13x); 
-                     c2x = (d45y*d46z-d45z*d46y); c2y = (d45z*d46x-d45x*d46z); c2z = (d45x*d46y-d45y*d46x); 
-                     d12x = x2-x1; d12y = y2-y1; d12z = z2-z1; 
-                     d13x = x3-x1; d13y = y3-y1; d13z = z3-z1; 
-                     d45x = x5-x4; d45y = y5-y4; d45z = z5-z4; 
+                     c1x = (d12y*d13z-d12z*d13y); c1y = (d12z*d13x-d12x*d13z); c1z = (d12x*d13y-d12y*d13x);
+                     c2x = (d45y*d46z-d45z*d46y); c2y = (d45z*d46x-d45x*d46z); c2z = (d45x*d46y-d45y*d46x);
+                     d12x = x2-x1; d12y = y2-y1; d12z = z2-z1;
+                     d13x = x3-x1; d13y = y3-y1; d13z = z3-z1;
+                     d45x = x5-x4; d45y = y5-y4; d45z = z5-z4;
                      d46x = x6-x4; d46y = y6-y4; d46z = z6-z4"""
 
         force = ET.SubElement(forces, 'Force', {'energy': eq, 'name': 'PiTorsionDihedral', 'usesPeriodic': '0',

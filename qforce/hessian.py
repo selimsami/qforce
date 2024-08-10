@@ -271,7 +271,7 @@ def average_unique_minima(terms, config):
                 unique_terms[str(term)] = minimum
 
     # For Urey, recalculate length based on the averaged bonds/angles
-    if config.urey:
+    if config.urey == 'on':
         for term in terms['urey']:
             if str(term) in unique_terms.keys():
                 term.equ = unique_terms[str(term)]
