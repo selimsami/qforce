@@ -16,6 +16,7 @@ from .baseterms import TermFactory, EmptyTerm
 
 
 class DefaultFalseDict(UserDict):
+    """Dictory that return False in case a key is not defined"""
 
     def get(self, key, default=False):
         return self.data.get(key, default)
@@ -24,57 +25,76 @@ class DefaultFalseDict(UserDict):
         return self.data.get(key, False)
 
 
-
 class TermSelector:
 
-    def __init__(self, name, options, default=None):
-        self.name = name
+    def __init__(self, options):
+        if 'off' not in options:
+            options['off'] = EmptyTerm
         self._options = options
-        self._default = default
 
-    def _select(self, config):
-        typ = config.__dict__.get(f'{self.name}_type', self._default)
-        if typ not in self._options:
-            raise ValueError(f"Unknown term type '{typ}' for term '{self.name}'")
-        return self._options[typ]
+    def get_factory(self, value):
+        factory = self._options.get(value, None)
+        if factory is not None:
+            return factory
+        raise ValueError(f"Do not know term factory '{value}'")
 
-    def get_terms_from_config(self, config, topo, non_bonded, settings):
-        factory = self._select(config)
-        return factory.get_terms(topo, non_bonded, settings)
+
+class SingleTermSelector:
+
+    def __init__(self, term):
+        self._term = term
+
+    def get_factory(self, value):
+        if value == 'on':
+            return self._term
+        raise ValueError(f"Do not know term factory '{value}'")
 
 
 def split_name(name):
+    """split the name by '/' and return the names"""
     maintype, subtype = name.split('/')
     maintype = maintype.strip()
     subtype = subtype.strip()
     return maintype, subtype
 
 
+def to_selector(dct):
+    """Convert the dictory to a dict of term selectors"""
+    out = {}
+
+    for name, options in dct.items():
+        # probably should be mapping
+        if isinstance(options, dict):
+            out[name] = TermSelector(options)
+        else:
+            out[name] = SingleTermSelector(options)
+    return out
+
+
 class Terms(MappingIterator):
 
-    _term_factories = {
-        'bond': TermSelector('bond', {
+    _term_factories = to_selector({
+        'bond': {
             'harmonic': HarmonicBondTerm,
             'morse': MorseBondTerm,
-            }, 'harmonic'),
-        'angle': TermSelector('angle', {
+            },
+        'angle': {
             'harmonic': HarmonicAngleTerm,
             'cosine': CosineAngleTerm,
-            }, 'harmonic'),
+            },
         'cross_bond_bond': CrossBondBondTerm,
         #
         'urey': UreyBradleyTerm,
         #
-        'cross_bond_angle': TermSelector('cross_bond_angle', {
+        'cross_bond_angle': {
             'bond_angle': CrossBondAngleTerm,
             'bond_cos_angle': CrossBondCosineAngleTerm,
-            'false': EmptyTerm,
-        }, 'false'),
+        },
         #
-        'cross_angle_angle': TermSelector('cross_angle_angle', {
+        'cross_angle_angle': {
             'harmonic': CrossAngleAngleTerm,
             'cosine': CrossCosineAngleAngleTerm,
-        }, 'harmonic'),
+        },
         #
         '_cross_dihed_angle': CrossDihedAngleTerm,
         '_cross_dihed_bond': CrossDihedBondTerm,
@@ -86,7 +106,7 @@ class Terms(MappingIterator):
         'charge_flux': ChargeFluxTerms,
         #
         'local_frame': LocalFrameTerms,
-    }
+    })
 
     def __init__(self, terms, ignore, not_fit_terms, fit_flexible=False):
         MappingIterator.__init__(self, terms, ignore)
@@ -95,8 +115,10 @@ class Terms(MappingIterator):
         self._term_paths = self._get_term_paths(terms)
 
     @classmethod
-    def add_terms(cls, terms, name, config, topo, non_bonded, settings=None):
-        _terms = cls._term_factories[name].get_terms_from_config(config, topo, non_bonded, settings)
+    def add_terms(cls, terms, name, termcase, topo, non_bonded, settings=None):
+        print(name, termcase)
+        factory = cls._term_factories[name].get_factory(termcase)
+        _terms = factory.get_terms(topo, non_bonded, settings)
         if _terms is not None:
             terms[name] = _terms
 
@@ -104,37 +126,40 @@ class Terms(MappingIterator):
     def from_topology(cls, config, topo, non_bonded, ff, *,
                       not_fit=['dihedral/flexible', 'non_bonded', 'charge_flux', 'local_frame'],
                       fit_flexible=False):
+        config = config.__dict__
+        print("config = ", config)
+        print("ff = ", ff)
+        print("ff = ", ff.terms())
         terms = {}
-        # handle always on terms
-        for term in ff.always_on_terms:
-            if '/' not in term:
-                cls.add_terms(terms, term, config, topo, non_bonded)
-            else:
-                maintype, subtype = split_name(term)
-                if maintype not in factories:
-                    factories[maintype] = DefaultFalseDict()
-                factories[maintype][subtype] = True
-        # get off terms
-        ignore = []
         factories = {}
-        for term, enabled in config.__dict__.items():
-            if term in ff.always_on_terms:
+        ignore = []
+        # handle terms
+        for term in ff.terms():
+            setting = config[term]
+            print("term = ", term, setting)
+            # get if term is turned on/off
+            if setting == 'off':
+                # ignore terms that are turned off
+                ignore.append(term)
                 continue
-            if '/' in term:
+            # 
+            print("term = ", term)
+            if '/' not in term:
+                cls.add_terms(terms, term, setting, topo, non_bonded)
+            else:
                 maintype, subtype = split_name(term)
                 if maintype not in factories:
                     factories[maintype] = DefaultFalseDict()
-                factories[maintype][subtype] = enabled
-            else:
-                if enabled is True:
-                    cls.add_terms(terms, term, config, topo, non_bonded)
+                # Handle the on case in a better way!
+                if setting == 'on':
+                    factories[maintype][subtype] = True
                 else:
-                    ignore.append(term)
-
+                    factories[maintype][subtype] = setting
+        # get factory terms, currently no selector for termfactories
         for term, settings in factories.items():
-            cls.add_terms(terms, term, config, topo, non_bonded, settings)
+            cls.add_terms(terms, term, 'on', topo, non_bonded, settings)
 
-        not_fit_terms = [term for term in not_fit if term not in ignore and term in config.__dict__.keys()]
+        not_fit_terms = [term for term in not_fit if term not in ignore and term in config.keys()]
         return cls(terms, ignore, not_fit_terms, fit_flexible=fit_flexible)
 
     @classmethod
