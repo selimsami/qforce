@@ -99,20 +99,6 @@ class TermFactory(ABC):
         """
         ...
 
-    @classmethod
-    def get_terms_from_config(cls, config, topo, non_bonded, settings=None):
-        """
-            Args:
-                topo: Topology object, const
-                    Stores all topology information
-                non_bonded: NonBonded object, const
-                    Stores all non bonded interaction information
-
-            Return:
-                list of cls objects
-        """
-        return cls.get_terms(topo, non_bonded, settings)
-
 
 class TermBase(TermFactory, TermABC):
     """Base class for terms that are TermFactories for themselves as well"""

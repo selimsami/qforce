@@ -217,10 +217,10 @@ class DihedralTerms(TermFactory):
                     d_type = get_dtype(topo, *atoms)
 
                     if abs(phi) < 0.43625:  # check planarity < 25 degrees
-                        if settings['rigid'] is True:
+                        if settings['rigid'] is not False:
                             add_term('rigid', topo, atoms, d_type)
                     else:
-                        if settings['inversion'] is True:
+                        if settings['inversion'] is not True:
                             add_term('inversion', topo, atoms, phi, d_type)
 
             else:
@@ -230,7 +230,7 @@ class DihedralTerms(TermFactory):
                     if central['vers'].startswith(topo.types[a3]):
                         atypes = atypes[::-1]
                     d_type = f"{central['vers']}_{atypes[0]}-{atypes[1]}"
-                    if settings['flexible'] is True:
+                    if settings['flexible'] is not False:
                         add_term('flexible', topo, dih, d_type)
 
         # improper dihedrals
@@ -267,7 +267,7 @@ class DihedralTerms(TermFactory):
                 imp_type = f"ki_{topo.types[i]}"
                 if abs(phi) < 0.43625:  # check planarity < 25 degrees
                     # add_term('improper', topo, atoms, phi, imp_type)
-                    if settings['improper'] is True:
+                    if settings['improper'] is not False:
                         add_term('improper', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
                         add_term('improper', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
                     # add_term('improper', topo, [0, 2, 1, 3], phi, imp_type)
@@ -282,7 +282,7 @@ class DihedralTerms(TermFactory):
                     # add_term('improper', topo,  [atoms[3], atoms[0], atoms[1], atoms[2]], phi, f'{imp_type}-6')
                     # add_term('improper', topo,  [atoms[3], atoms[0], atoms[2], atoms[1]], phi, f'{imp_type}-7')
                 else:
-                    if settings['inversion'] is True:
+                    if settings['inversion'] is not False:
                         add_term('inversion', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
                         add_term('inversion', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
                         add_term('inversion', topo, [atoms[0], atoms[2], atoms[1], atoms[3]], phi, imp_type)
