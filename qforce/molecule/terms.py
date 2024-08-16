@@ -127,23 +127,18 @@ class Terms(MappingIterator):
                       not_fit=['dihedral/flexible', 'non_bonded', 'charge_flux', 'local_frame'],
                       fit_flexible=False):
         config = config.__dict__
-        print("config = ", config)
-        print("ff = ", ff)
-        print("ff = ", ff.terms())
         terms = {}
         factories = {}
         ignore = []
         # handle terms
         for term in ff.terms():
             setting = config[term]
-            print("term = ", term, setting)
             # get if term is turned on/off
             if setting == 'off':
                 # ignore terms that are turned off
                 ignore.append(term)
                 continue
             # 
-            print("term = ", term)
             if '/' not in term:
                 cls.add_terms(terms, term, setting, topo, non_bonded)
             else:
