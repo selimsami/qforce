@@ -205,7 +205,7 @@ class DihedralTerms(TermFactory):
                 # rigid
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
-                    if settings['rigid'] is True:
+                    if settings['rigid'] is not False:
                         add_term('rigid', topo, atoms, d_type)
 
             elif central['in_ring']:
@@ -220,7 +220,7 @@ class DihedralTerms(TermFactory):
                         if settings['rigid'] is not False:
                             add_term('rigid', topo, atoms, d_type)
                     else:
-                        if settings['inversion'] is not True:
+                        if settings['inversion'] is not False:
                             add_term('inversion', topo, atoms, phi, d_type)
 
             else:
