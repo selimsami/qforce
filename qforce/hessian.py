@@ -70,9 +70,9 @@ def fit_hessian(logger, config, mol, qm):
     mae = np.abs(err).mean()
     rmse = (err**2).mean()**0.5
     max_err = np.max(np.abs(err))
-    print('mae:', mae*0.2390057361376673)
-    print('rmse:', rmse*0.2390057361376673)
-    print('max_err:', max_err*0.2390057361376673)
+    # print('mae:', mae*0.2390057361376673)
+    # print('rmse:', rmse*0.2390057361376673)
+    # print('max_err:', max_err*0.2390057361376673)
 
     average_unique_minima(mol.terms, config)
 
@@ -130,7 +130,7 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads, fit_flexible=Fal
                     hessian.append(hes[:-1])
                     full_md_hessian_1d.append(hes[:-1])
                     non_fit.append(hes[-1])
-
+        #
         difference = qm_hessian - np.array(non_fit)
         full_differences += list(difference)
         full_hessian += hessian
@@ -139,6 +139,9 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads, fit_flexible=Fal
         ignore_terms = ['charge_flux']
     else:
         ignore_terms = ['dihedral/flexible', 'charge_flux']
+
+    weight_e = 0.1
+    weight_f = 0.001
 
     with mol.terms.add_ignore(ignore_terms):
         for qmen in qmens:
@@ -149,20 +152,24 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads, fit_flexible=Fal
 
         full_qm_forces = []
         full_mm_forces = []
-        #
+        full_qm_energies = []
+        full_mm_energies = []
+
         for qmgrad in qmgrads:
             mm_energy, mm_force = calc_forces(qmgrad.coords, mol)
+            mm_force *= -1  # convert from force to gradient
             mm_force = mm_force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
-            # print(mm_force)
-            # print()
-            full_qm_forces.append(-qmgrad.gradient)
-            full_mm_forces.append(mm_force[:-1].T)
 
-            # full_hessian += list(mm_force[:-1].T)
-            # full_differences += list(np.array(qmgrad.gradient).flatten() - mm_force[-1])
-            #
-            # full_differences.append(qmgrad.energy - mm_energy[-1])
-            # full_hessian.append(-mm_energy[:-1])
+            full_qm_forces.append(qmgrad.gradient)
+            full_mm_forces.append(mm_force[:-1].T)
+            full_qm_energies.append(qmgrad.energy)
+            full_mm_energies.append(mm_energy[:-1])
+
+            full_hessian += list(weight_f*mm_force[:-1].T)
+            full_differences += list(weight_f*(np.array(qmgrad.gradient).flatten() - mm_force[-1]))
+
+            full_differences.append(weight_e*(qmgrad.energy - mm_energy[-1]))
+            full_hessian.append(weight_e*mm_energy[:-1])
 
     logger.info("Fitting the MD hessian parameters to QM hessian values")
     fit = optimize.lsq_linear(full_hessian, full_differences, bounds=(min_arr, max_arr)).x
@@ -176,17 +183,23 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads, fit_flexible=Fal
     # TODO: is this correct? Check
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
-    # full_qm_forces = np.array(full_qm_forces)
-    # print(full_qm_forces.shape)
-    # full_mm_forces = np.array(full_mm_forces)
-    # print(full_mm_forces.shape)
-    # full_mm_forces = np.sum(full_mm_forces * fit, axis=2)
-    #
-    # for struct in range(len(qmgrads)):
-    #     print('QM:\n', full_qm_forces[struct])
-    #     print('MM:\n', full_mm_forces[struct].reshape((mol.n_atoms, 3)))
-    #     print('\n')
+    if len(qmgrads) > 0:
+        full_qm_energies = np.array(full_qm_energies)
+        print(full_qm_energies.shape)
+        full_mm_energies = np.array(full_mm_energies)
+        print(full_mm_energies.shape)
+        full_qm_forces = np.array(full_qm_forces)
+        print(full_qm_forces.shape)
+        full_mm_forces = np.array(full_mm_forces)
+        print(full_mm_forces.shape)
+        full_mm_forces = np.sum(full_mm_forces * fit, axis=2)
+        full_mm_energies = np.sum(full_mm_energies * fit, axis=1)
 
+        for struct in range(len(qmgrads)):
+            print('struct', struct)
+            print('QM:\n', full_qm_energies[struct], '\n', full_qm_forces[struct])
+            print('MM:\n', full_mm_energies[struct], '\n', full_mm_forces[struct].reshape((mol.n_atoms, 3)))
+            print('\n')
 
     err = full_md_hessian_1d-qm.hessian
     mae = np.abs(err).mean()
@@ -271,7 +284,7 @@ def average_unique_minima(terms, config):
                 unique_terms[str(term)] = minimum
 
     # For Urey, recalculate length based on the averaged bonds/angles
-    if config.urey == 'on':
+    if 'urey' in terms:
         for term in terms['urey']:
             if str(term) in unique_terms.keys():
                 term.equ = unique_terms[str(term)]

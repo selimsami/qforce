@@ -258,45 +258,12 @@ def calc_cross_cos_angle_angle(coords, atoms, equ, fconst, force):
     return energy
 
 
-def calc_cross_dihed_angle(coords, atoms, equ, fconst, force):
-    phi = get_dihed(coords[atoms])[0]
-    theta = get_angle(coords[atoms[:4]])[0]
-
-    v_angle = theta - equ
-    v_dihed = 1 + np.cos(2*phi+np.pi)
-    energy = fconst * v_dihed * v_angle
-
-    unique_atoms = np.unique(atoms)
-    move = 1e-8
-    for a in unique_atoms:
-        for j in range(3):
-            c_new = np.copy(coords)
-
-            c_new[a, j] += move
-            phi = get_dihed(c_new[atoms])[0]
-            theta = get_angle(c_new[atoms[:4]])[0]
-            v_angle = theta - equ
-            v_dihed = 1 + np.cos(2*phi+np.pi)
-            e_plus = fconst * v_dihed * v_angle
-
-            c_new[a, j] -= 2*move
-            phi = get_dihed(c_new[atoms])[0]
-            theta = get_angle(c_new[atoms[:4]])[0]
-            v_angle = theta - equ
-            v_dihed = 1 + np.cos(2*phi+np.pi)
-            e_minus = fconst * v_dihed * v_angle
-
-            force[a, j] += (e_minus-e_plus)/(2*move)
-
-    return energy
-
-
 def calc_cross_dihed_bond(coords, atoms, equ, fconst, force):
+    phi0 = np.radians(equ[2])
     phi = get_dihed(coords[atoms[:4]])[0]
     _, r = get_dist(coords[atoms[4]], coords[atoms[5]])
-
-    v_dihed = 1 + np.cos(2*phi+np.pi)
-    v_bond = r - equ
+    v_dihed = 1 + np.cos(equ[1]*phi-phi0)
+    v_bond = r - equ[0]
     energy = fconst * v_dihed * v_bond
 
     unique_atoms = np.unique(atoms)
@@ -307,14 +274,16 @@ def calc_cross_dihed_bond(coords, atoms, equ, fconst, force):
 
             c_new[a, j] += move
             phi = get_dihed(c_new[atoms[:4]])[0]
-            v_dihed = 1 + np.cos(2*phi+np.pi)
-            v_bond = r - equ
+            _, r = get_dist(c_new[atoms[4]], c_new[atoms[5]])
+            v_dihed = 1 + np.cos(equ[1]*phi-phi0)
+            v_bond = r - equ[0]
             e_plus = fconst * v_dihed * v_bond
 
             c_new[a, j] -= 2*move
             phi = get_dihed(c_new[atoms[:4]])[0]
-            v_dihed = 1 + np.cos(2*phi+np.pi)
-            v_bond = r - equ
+            _, r = get_dist(c_new[atoms[4]], c_new[atoms[5]])
+            v_dihed = 1 + np.cos(equ[1]*phi-phi0)
+            v_bond = r - equ[0]
             e_minus = fconst * v_dihed * v_bond
 
             force[a, j] += (e_minus-e_plus) / (2*move)
@@ -322,13 +291,36 @@ def calc_cross_dihed_bond(coords, atoms, equ, fconst, force):
     return energy
 
 
-def calc_imp_diheds(coords, atoms, phi0, fconst, force):
-    phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
-    dphi = phi - phi0
-    dphi = np.pi - (dphi + np.pi) % (2 * np.pi)  # dphi between -pi to pi
-    energy = 0.5 * fconst * dphi**2
-    ddphi = - fconst * dphi
-    force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
+def calc_cross_dihed_angle(coords, atoms, equ, fconst, force):
+    phi0 = np.radians(equ[2])
+    phi = get_dihed(coords[atoms[:4]])[0]
+    theta = get_angle(coords[atoms[4:]])[0]
+    v_angle = theta - equ[0]
+    v_dihed = 1 + np.cos(equ[1]*phi-phi0)
+    energy = fconst * v_dihed * v_angle
+
+    unique_atoms = np.unique(atoms)
+    move = 1e-8
+    for a in unique_atoms:
+        for j in range(3):
+            c_new = np.copy(coords)
+
+            c_new[a, j] += move
+            phi = get_dihed(c_new[atoms[:4]])[0]
+            theta = get_angle(c_new[atoms[4:]])[0]
+            v_angle = theta - equ[0]
+            v_dihed = 1 + np.cos(equ[1]*phi-phi0)
+            e_plus = fconst * v_dihed * v_angle
+
+            c_new[a, j] -= 2*move
+            phi = get_dihed(c_new[atoms[:4]])[0]
+            theta = get_angle(c_new[atoms[4:]])[0]
+            v_angle = theta - equ[0]
+            v_dihed = 1 + np.cos(equ[1]*phi-phi0)
+            e_minus = fconst * v_dihed * v_angle
+
+            force[a, j] += (e_minus-e_plus)/(2*move)
+
     return energy
 
 
@@ -354,36 +346,28 @@ def calc_oop_angle(coords, atoms, phi0, fconst, force):
             e_minus = 0.5 * fconst * dphi**2
 
             force[a, j] += (e_minus-e_plus) / (2*move)
-
     return energy
 
 
-def calc_pitorsion_diheds(coords, atoms, phi0, fconst, force):
-    phi, vec12, vec13, vec45, vec46, cross1, cross2 = get_pitorsion(coords[atoms])
+@ jit(nopython=True)
+def calc_harmonic_diheds(coords, atoms, phi0, fconst, force):
+    phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
     dphi = phi - phi0
     dphi = np.pi - (dphi + np.pi) % (2 * np.pi)  # dphi between -pi to pi
-    energy = fconst * np.sin(dphi)**2
+    energy = 0.5 * fconst * dphi**2
+    ddphi = - fconst * dphi
 
-    unique_atoms = np.unique(atoms)
-    move = 1e-8
-    for a in unique_atoms:
-        for j in range(3):
-            c_new = np.copy(coords)
+    calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
+    return energy
 
-            c_new[a, j] += move
-            phi, vec12, vec13, vec45, vec46, cross1, cross2 = get_pitorsion(c_new[atoms])
-            dphi = phi - phi0
-            dphi = np.pi - (dphi + np.pi) % (2 * np.pi)  # dphi between -pi to pi
-            e_plus = fconst * np.sin(dphi)**2
 
-            c_new[a, j] -= 2*move
-            phi, vec12, vec13, vec45, vec46, cross1, cross2 = get_pitorsion(c_new[atoms])
-            dphi = phi - phi0
-            dphi = np.pi - (dphi + np.pi) % (2 * np.pi)  # dphi between -pi to pi
-            e_minus = fconst * np.sin(dphi)**2
-
-            force[a, j] += (e_minus-e_plus) / (2*move)
-
+@ jit(nopython=True)
+def calc_periodic_dihed(coords, atoms, equ, fconst, force):
+    phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
+    mdphi = equ[0] * phi - equ[1]
+    ddphi = - fconst * equ[0] * np.sin(mdphi)
+    energy = fconst * (1 + np.cos(mdphi))
+    calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
     return energy
 
 
@@ -467,18 +451,32 @@ def calc_inversion(coords, atoms, phi0, fconst, force):
     return energy
 
 
-#@ jit(nopython=True)
-def calc_periodic_dihed(coords, atoms, phi0, fconst, force):
-    phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
-    mult = 3
-    phi0 = np.pi
+def calc_pitorsion_diheds(coords, atoms, phi0, fconst, force):
+    phi, vec12, vec13, vec45, vec46, cross1, cross2 = get_pitorsion(coords[atoms])
+    dphi = phi - phi0
+    dphi = np.pi - (dphi + np.pi) % (2 * np.pi)  # dphi between -pi to pi
+    energy = fconst * np.sin(dphi)**2
 
-    mdphi = mult * phi - phi0
-    ddphi = fconst * mult * np.sin(mdphi)
+    unique_atoms = np.unique(atoms)
+    move = 1e-8
+    for a in unique_atoms:
+        for j in range(3):
+            c_new = np.copy(coords)
 
-    energy = fconst * (1 + np.cos(mdphi))
+            c_new[a, j] += move
+            phi, vec12, vec13, vec45, vec46, cross1, cross2 = get_pitorsion(c_new[atoms])
+            dphi = phi - phi0
+            dphi = np.pi - (dphi + np.pi) % (2 * np.pi)  # dphi between -pi to pi
+            e_plus = fconst * np.sin(dphi)**2
 
-    force = calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
+            c_new[a, j] -= 2*move
+            phi, vec12, vec13, vec45, vec46, cross1, cross2 = get_pitorsion(c_new[atoms])
+            dphi = phi - phi0
+            dphi = np.pi - (dphi + np.pi) % (2 * np.pi)  # dphi between -pi to pi
+            e_minus = fconst * np.sin(dphi)**2
+
+            force[a, j] += (e_minus-e_plus) / (2*move)
+
     return energy
 
 

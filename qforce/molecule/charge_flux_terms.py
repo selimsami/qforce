@@ -38,9 +38,11 @@ class BondChargeFluxTerm(ChargeFluxBaseTerm):
         q_flux[a2] += j_param*dr
         q_flux[a1] -= j_param*dr
 
+    def write_forcefield(self, software, writer):
+        software.write_charge_flux_bond_term(self, writer)
 
-class BondPrimeChargeFluxTerm(BondChargeFluxTerm):
-    name = 'BondPrimeChargeFluxTerm'
+    def write_ff_header(self, software, writer):
+        return software.write_charge_flux_bond_header(writer)
 
 
 class AngleChargeFluxTerm(ChargeFluxBaseTerm):
@@ -57,9 +59,11 @@ class AngleChargeFluxTerm(ChargeFluxBaseTerm):
         q_flux[a2] += j_param*dtheta
         q_flux[a1] -= j_param*dtheta
 
+    def write_forcefield(self, software, writer):
+        software.write_charge_flux_angle_term(self, writer)
 
-class AnglePrimeChargeFluxTerm(AngleChargeFluxTerm):
-    name = 'AnglePrimeChargeFluxTerm'
+    def write_ff_header(self, software, writer):
+        return software.write_charge_flux_angle_header(writer)
 
 
 class BondBondChargeFluxTerm(ChargeFluxBaseTerm):
@@ -79,6 +83,12 @@ class BondBondChargeFluxTerm(ChargeFluxBaseTerm):
         q_flux[a2] += j_param*dr1*dr2
         q_flux[a3] -= j_param*dr1*dr2
 
+    def write_forcefield(self, software, writer):
+        software.write_charge_flux_bond_bond_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_charge_flux_bond_bond_header(writer)
+
 
 class BondAngleChargeFluxTerm(ChargeFluxBaseTerm):
     name = 'BondAngleChargeFluxTerm'
@@ -97,6 +107,12 @@ class BondAngleChargeFluxTerm(ChargeFluxBaseTerm):
         q_flux[a2] += 2*j_param*dtheta*dr
         q_flux[a3] -= j_param*dtheta*dr
         q_flux[a4] -= j_param*dtheta*dr
+
+    def write_forcefield(self, software, writer):
+        software.write_charge_flux_bond_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_charge_flux_bond_angle_header(writer)
 
 
 class AngleAngleChargeFluxTerm(ChargeFluxBaseTerm):
@@ -118,15 +134,21 @@ class AngleAngleChargeFluxTerm(ChargeFluxBaseTerm):
         q_flux[a4] -= j_param*dtheta1*dtheta2
         q_flux[a5] -= j_param*dtheta1*dtheta2
 
+    def write_forcefield(self, software, writer):
+        software.write_charge_flux_angle_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_charge_flux_angle_angle_header(writer)
+
 
 class ChargeFluxTerms(TermFactory):
     name = 'ChargeFluxTerms'
 
     _term_types = {
         'bond': BondChargeFluxTerm,
-        'bond_prime': BondPrimeChargeFluxTerm,
+        'bond_prime': BondChargeFluxTerm,
         'angle': AngleChargeFluxTerm,
-        'angle_prime': AnglePrimeChargeFluxTerm,
+        'angle_prime': AngleChargeFluxTerm,
         '_bond_bond': BondBondChargeFluxTerm,
         '_bond_angle': BondAngleChargeFluxTerm,
         '_angle_angle': AngleAngleChargeFluxTerm,

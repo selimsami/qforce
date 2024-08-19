@@ -269,7 +269,7 @@ hess_struct = :: existing_file, optional
                 qm_outs.append(software.read.scan(self.config, f'{folder}/{file}'))
             elif self.config.dihedral_scanner == 'torsiondrive':
                 qm_outs.append(software.read.scan_torsiondrive(f'{folder}/{file}'))
-        qm_out = self._get_unique_scan_points(qm_outs, n_scan_steps)
+        qm_out = self._get_unique_scan_points(qm_outs)
 
         return ScanOutput(file, n_scan_steps, *qm_out)
 
@@ -483,7 +483,7 @@ hess_struct = :: existing_file, optional
         software = self.softwares['preopt']
         return software.read.opt(self.config, **opt_files)
 
-    def _get_unique_scan_points(self, qm_outs, n_scan_steps):
+    def _get_unique_scan_points(self, qm_outs):
         all_angles, all_energies, all_coords, all_dipoles, chosen_point_charges, final_e = [], [], [], [], {}, 0
         all_angles_rounded = []
 
@@ -505,13 +505,7 @@ hess_struct = :: existing_file, optional
                         all_coords[idx] = coord
                         all_dipoles[idx] = dipole
 
-        if not chosen_point_charges:
-            chosen_point_charges = point_charges
-            final_e = energies[-1]
-        elif energies[-1] < final_e:
-            chosen_point_charges = point_charges
-
-        return n_atoms, all_coords, all_angles, all_energies, all_dipoles, chosen_point_charges
+        return n_atoms, all_coords, all_angles, all_energies, all_dipoles, point_charges
 
     def preopt(self):
         molecule, coords, atnums = self._read_coord_file(self.job.coord_file)

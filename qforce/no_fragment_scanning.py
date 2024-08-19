@@ -7,19 +7,19 @@ from .logger import LoggerExit
 from .forces import get_dihed
 from .qm.qm_base import GradientOutput
 
+
 def do_nofrag_scanning(mol, qm, job, config):
     scans = []
     unique_dihedrals = {}
 
-    if len(mol.terms['dihedral/rigid']) == 0 or not config.scan.do_scan:
+    if len(mol.terms['dihedral/periodic']) == 0 or not config.scan.do_scan:
         return scans
 
     os.makedirs(config.scan.frag_lib, exist_ok=True)
     scan_dir = job.pathways.getdir('fragments', create=True)
 
-    for term in mol.terms['dihedral/rigid']:
-        name = term.typename.partition('_')[0]
-
+    for term in mol.terms['dihedral/periodic']:
+        name = term.type.split('_')[1]
         if name not in unique_dihedrals:
             unique_dihedrals[name] = term.atomids
 
@@ -77,7 +77,6 @@ class Scan():
 
         self.check_for_qm_data(job, config, mol, qm)
 
-
     def make_hash(self):
         atomids = '_'.join((self.scanned_atomids+1).astype(dtype=str)) + '_'
         hash = self.software.hash(self.charge, self.multiplicity)
@@ -109,7 +108,7 @@ class Scan():
             self.dipoles = qm_out.dipoles
 
             if qm_out.mismatch:
-                if config.avail_only:
+                if config.scan.avail_only:
                     job.logger.info('"\navail_only" requested, attempting to continue with '
                                     'the missing points...\n\n')
                 else:

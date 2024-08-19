@@ -115,7 +115,7 @@ class ReadQChem(ReadABC):
                     while line.strip():
                         dip_ders.append([float(val) for val in line.split()])
                         line = file.readline()
-                elif 'Total energy =  ' in line:
+                elif 'Total energy =' in line:
                     energy = float(line.split()[3])
         energy *= Hartree * mol / kJ
 
@@ -146,7 +146,7 @@ class ReadQChem(ReadABC):
                     energy = float(line.split()[3])
 
                 elif 'Dipole Moment (Debye)' in line:
-                    next(line)
+                    line = next(file)
                     dipole = [float(val) for val in line.split()[1::2]]
 
                 elif "PES scan, value:" in line:
@@ -162,7 +162,7 @@ class ReadQChem(ReadABC):
                     point_charges['resp'] = self._read_resp_charges(file)
 
         energies = np.array(energies) * Hartree * mol / kJ
-        return n_atoms, coords, angles, energies, np.array(dipole)*Debye, point_charges
+        return n_atoms, coords, angles, energies, np.array(dipoles)*Debye, point_charges
 
     def charges(self, config, out_file):
         """read charge from file"""
@@ -202,7 +202,7 @@ class ReadQChem(ReadABC):
     def sp(self, config, out_file):
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
-                if 'Total energy' in line:
+                if 'Total energy =' in line:
                     return float(line.split()[-1]) * Hartree * mol / kJ
         raise ValueError("Could not find energy in file!")
 
@@ -223,7 +223,7 @@ class ReadQChem(ReadABC):
                         atomids.append(ids)
                         coords.append([float(x), float(y), float(z)])
                         line = next(file)
-                if 'Total energy' in line:
+                if 'Total energy =' in line:
                     energy = float(line.split()[-1])
                 if 'Dipole Moment (Debye)' in line:
                     line = next(file)
@@ -252,7 +252,7 @@ class ReadQChem(ReadABC):
                         atomids.append(ids)
                         coords.append([float(x), float(y), float(z)])
                         line = next(file)
-                if 'Total energy' in line:
+                if 'Total energy =' in line:
                     energy = float(line.split()[-1])
                 if 'Dipole Moment (Debye)' in line:
                     line = next(file)

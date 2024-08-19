@@ -209,7 +209,9 @@ class WritexTB(WriteABC):
         cmd = f'xtb {job_name}_input.xyz --grad --chrg {settings.charge} ' \
               f'--uhf {settings.multiplicity - 1} ' \
               f'--namespace {job_name} --parallel {settings.n_proc} ' \
-              f'{self.config.xtb_command}'
+              f'{self.config.xtb_command} ' \
+              f'> {job_name}.out'
+
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
@@ -240,7 +242,9 @@ class WritexTB(WriteABC):
         cmd = f'xtb {job_name}_input.xyz --opt --chrg {settings.charge} ' \
               f'--uhf {settings.multiplicity - 1} ' \
               f'--namespace {job_name} --parallel {settings.n_proc} ' \
-              f'{self.config.xtb_command}'
+              f'{self.config.xtb_command} ' \
+              f'> {job_name}.out'
+
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
@@ -271,7 +275,8 @@ class WritexTB(WriteABC):
         cmd = f'xtb {job_name}_input.xyz --ohess --chrg {settings.charge} ' \
               f'--uhf {settings.multiplicity - 1} ' \
               f'--namespace {job_name} --parallel {settings.n_proc} ' \
-              f'{self.config.xtb_command}'
+              f'{self.config.xtb_command} ' \
+              f'> {job_name}.out'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
@@ -287,7 +292,8 @@ class WritexTB(WriteABC):
         cmd = f'xtb {job_name}_input.xyz --chrg {settings.charge} ' \
               f'--uhf {settings.multiplicity - 1} ' \
               f'--namespace {job_name} --parallel {settings.n_proc} ' \
-              f'{self.config.xtb_command} > {job_name}.sp.inp.out'
+              f'{self.config.xtb_command} ' \
+              f'> {job_name}.sp.inp.out'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
@@ -303,7 +309,8 @@ class WritexTB(WriteABC):
         cmd = f'xtb {job_name}_input.xyz --chrg {settings.charge} ' \
               f'--uhf {settings.multiplicity - 1} ' \
               f'--namespace {job_name} --parallel {settings.n_proc} ' \
-              f'{self.config.xtb_command} > {job_name}_sp.out'
+              f'{self.config.xtb_command} ' \
+              f'> {job_name}_sp.out'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
@@ -344,7 +351,8 @@ class WritexTB(WriteABC):
         cmd = f'xtb {job_name}_input.xyz --opt --chrg {settings.charge} ' \
               f'--uhf {settings.multiplicity - 1} ' \
               f'--namespace {job_name} --parallel {settings.n_proc} ' \
-              f'--input {job_name}.dat {self.config.xtb_command}'
+              f'--input {job_name}.dat {self.config.xtb_command} ' \
+              f'> {job_name}.out'
 
         # Create the scan input file
         a1, a2, a3, a4 = np.array(scanned_atoms)
@@ -492,6 +500,8 @@ class ReadxTB(ReadABC):
         hessian = self._read_xtb_hess(hess_file, n_atoms)
         # not defined
         dip_ders = None
+        energy = energy * Hartree * mol / kJ
+
         return (n_atoms, charge, multiplicity, elements, coords, energy, hessian,
                 b_orders, point_charges, dip_ders)
 
@@ -578,6 +588,7 @@ class ReadxTB(ReadABC):
         point_charges["xtb"] = charges
         elements, energies, coords = self._read_xtb_scan_log(
             '{}.xtbscan.log'.format(os.path.join(base, name)))
+
         angles = self._read_xtb_input_angle(
             '{}.dat'.format(os.path.join(base, name)))
 

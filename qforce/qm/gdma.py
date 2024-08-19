@@ -5,14 +5,16 @@ from ase.units import Bohr
 import numpy as np
 
 
-def compute_gdma(job, fchk_file):
+def compute_gdma(job, gdma_exec, fchk_file):
+    job.logger.info('Running GDMA...')
     curr_dir = os.getcwd()
     parts = fchk_file.parts
     os.chdir(job.dir)
     write_gdma(job.name, Path(*parts[len(parts)-3:]))
-    run_gdma(job)
+    run_gdma(gdma_exec)
     charges, dipoles, quadrupoles = read_gdma()
     os.chdir(curr_dir)
+    job.logger.info('GDMA done!\n')
     return charges, dipoles, quadrupoles
 
 
@@ -37,12 +39,10 @@ Finish'''
         file.write(input_file)
 
 
-def run_gdma(job):
-
+def run_gdma(gdma_exec):
     with open(f'gdma_input', 'r') as inp:
         with open('gdma_result', 'w') as out:
-            pop = subprocess.Popen(['/Users/ssami/gdma/bin/gdma'],
-                                   stdin=inp, stderr=out, stdout=out)
+            pop = subprocess.Popen([gdma_exec], stdin=inp, stderr=out, stdout=out)
     pop.wait()
 
 

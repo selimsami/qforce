@@ -413,7 +413,7 @@ class ScanOutput:
             coords = coords[order]
             dipoles = dipoles[order]
             energies = energies[order]
-            energies -= energies.min()
+            # energies -= energies.min()
         return angles, energies, coords, dipoles
 
 

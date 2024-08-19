@@ -45,10 +45,6 @@ def runjob(config, job, ext_q=None, ext_lj=None):
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
-    if 'charge_flux' in mol.terms:
-        if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
-            fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
-
     ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, main_hessian.coords)
 
@@ -67,10 +63,11 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     main_hessian = qm_hessian_out[0]
     e_lowest = min([out.energy for out in qm_hessian_out])
 
-    # check molecule
     ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
     if ffcls is None:
         raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
+
+    # check molecule
     mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj, fit_flexible=True)
 
     # if len(mol.terms['dihedral/flexible']) > 0:
@@ -85,9 +82,8 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
-    if 'charge_flux' in mol.terms:
-        if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
-            fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
+    if main_hessian.dipole_deriv is not None and 'charge_flux' in mol.terms and len(mol.terms['charge_flux']) > 0:
+        fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
 
     ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, main_hessian.coords)

@@ -12,28 +12,31 @@ class MChem(ForcefieldSettings):
     always_on_terms = ['bond', 'angle']
 
     _optional_terms = {
-            'urey': True,
             'cross_bond_bond': False,
             'cross_bond_angle': False,
             'cross_angle_angle': False,
+            #
             'dihedral/rigid': True,
             'dihedral/improper': True,
             'dihedral/flexible': True,
             'dihedral/inversion': True,
-            'non_bonded': True,
+            #
             'charge_flux/bond': True,
             'charge_flux/bond_prime': True,
             'charge_flux/angle': True,
-            'charge_flux/angle_prime': False,
+            'charge_flux/angle_prime': True,
             'charge_flux/_bond_bond': False,
             'charge_flux/_bond_angle': False,
             'charge_flux/_angle_angle': False,
+            #
             'local_frame': True,
     }
 
     _term_types = {
             'bond': ('morse', ['morse', 'harmonic']),
             'angle': ('cosine', ['cosine', 'harmonic']),
+            'cross_bond_angle': ('false', ['bond_angle', 'bond_cos_angle', 'false']),
+            'cross_angle_angle':  ('false', ['harmonic', 'cosine', 'false'])
     }
 
     def __init__(self, ff):
@@ -79,232 +82,241 @@ class MChem(ForcefieldSettings):
             ET.SubElement(residue, 'Bond', {'from': str(bond.atomids[0]+1), 'to': str(bond.atomids[1]+1)})
 
     def write_forces(self, forces):
-        self.write_bonds(forces)
-        self.write_angles(forces)
-
+        writer_dict = {}
         for term in self.ff.terms:
-            print(term.name, term.atomids+1, term.equ, term.fconst)
+            # print(term.name, term.atomids+1, term.equ, term.fconst)
 
-        if 'dihedral/improper' in self.ff.terms and len(self.ff.terms['dihedral/improper']) > 0:
-            self.write_improper_dihedral(forces)
-        if 'dihedral/rigid' in self.ff.terms and len(self.ff.terms['dihedral/rigid']) > 0:
-            self.write_rigid_dihedral(forces)
-        if 'dihedral/pitorsion' in self.ff.terms and len(self.ff.terms['dihedral/pitorsion']) > 0:
-            self.write_pitorsion_dihedral(forces)
-        if 'dihedral/inversion' in self.ff.terms and len(self.ff.terms['dihedral/inversion']) > 0:
-            self.write_inversion_dihedral(forces)
-        if 'cross_bond_bond' in self.ff.terms and len(self.ff.terms['cross_bond_bond']) > 0:
-            self.write_cross_bond_bond(forces)
-        if 'cross_bond_angle' in self.ff.terms and len(self.ff.terms['cross_bond_angle']) > 0:
-            self.write_cross_bond_angle(forces)
-            print('cross-bond-angle terms: ', len(self.ff.terms['cross_bond_angle']))
-        if 'cross_angle_angle' in self.ff.terms and len(self.ff.terms['cross_angle_angle']) > 0:
-            self.write_cross_angle_angle(forces)
-            print('cross-angle-angle terms: ', len(self.ff.terms['cross_angle_angle']))
-        if '_cross_dihed_angle' in self.ff.terms and len(self.ff.terms['_cross_dihed_angle']) > 0:
-            self.write_cross_dihedral_angle(forces)
+            if term.name not in writer_dict:
+                writer = term.write_ff_header(self, forces)
+                writer_dict[term.name] = writer
 
-        if 'charge_flux' in self.ff.terms and len(self.ff.terms['charge_flux']) > 0:
-            self.write_charge_flux(forces)
-        # Non-bonded
-        if 'local_frame' in self.ff.terms and len(self.ff.terms['local_frame']) > 0:
-            self.write_multipoles(forces)
+            term.write_forcefield(self, writer_dict[term.name])
 
-    def write_charge_flux(self, forces):
-        # Charge flux between atom1 and atom2 for the bond distortion between atoms2 atom3
+    def write_charge_flux_bond_header(self, forces):
         force = ET.SubElement(forces, 'ChargeFluxBondForce')
-        terms = [self.ff.terms[t] for t in ['charge_flux/bond', 'charge_flux/bond_prime'] if t in self.ff.terms]
-        terms = [t for term in terms for t in term]
-        for term in terms:
-            ids = [str(i+1) for i in term.atomids]
-            equ = str(round(term.equ, 9))
-            k = str(round(term.fconst, 5))
-            ET.SubElement(force, 'Flux', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'length': equ, 'j': k})
+        return force
 
-        # Charge flux between atom1 and atom3 for the angle distortion atoms2-atom3-atom4
+    def write_charge_flux_bond_term(self, term, writer):
+        # Charge flux between atom1 and atom2 for the bond distortion between atoms2 atom3
+        ids = [str(i+1) for i in term.atomids]
+        equ = str(round(term.equ, 9))
+        k = str(round(term.fconst, 5))
+        ET.SubElement(writer, 'Flux', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'length': equ, 'j': k})
+
+    def write_charge_flux_angle_header(self, forces):
         force = ET.SubElement(forces, 'ChargeFluxAngleForce')
-        terms = [self.ff.terms[t] for t in ['charge_flux/angle', 'charge_flux/angle_prime'] if t in self.ff.terms]
-        terms = [t for term in terms for t in term]
-        for term in terms:
-            ids = [str(i+1) for i in term.atomids]
-            equ = str(round(term.equ, 9))
-            k = str(round(term.fconst, 5))
-            ET.SubElement(force, 'Flux', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
-                                          'angle': equ, 'j': k})
+        return force
 
-    def write_multipoles(self, forces):
+    def write_charge_flux_angle_term(self, term, writer):
+        # Charge flux between atom1 and atom3 for the angle distortion atoms2-atom3-atom4
+        ids = [str(i+1) for i in term.atomids]
+        equ = str(round(term.equ, 9))
+        k = str(round(term.fconst, 5))
+        ET.SubElement(writer, 'Flux', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                       'angle': equ, 'j': k})
+
+    def write_multipole_header(self, forces):
         force = ET.SubElement(forces, 'MultipoleForce')
-        for i, term in enumerate(self.ff.terms['local_frame'], start=1):
-            ids = np.zeros(4, dtype=int)
-            ids[:len(term.atomids)] = term.atomids + 1
-            center = term.atomids[term.center]+1
+        return force
 
-            ET.SubElement(force, 'Multipole', {'type': str(i), 'class1': str(ids[0]), 'class2': str(ids[1]),
-                                               'class3': str(ids[2]), 'class4': str(ids[3]), 'center': str(center),
-                                               'frametype': term.frame_type, 'q00': str(term.q),
-                                               'q10': str(term.dipole_spher[0]), 'q11c': str(term.dipole_spher[1]),
-                                               'q11s': str(term.dipole_spher[2]), 'q20': str(term.quad_spher[0]),
-                                               'q21c': str(term.quad_spher[1]), 'q21s': str(term.quad_spher[2]),
-                                               'q22c': str(term.quad_spher[3]), 'q22s': str(term.quad_spher[4])
-                                               })
+    def write_multipole_term(self, term, writer):
+        ids = np.zeros(4, dtype=int)
+        ids[:len(term.atomids)] = term.atomids + 1
+        center = term.atomids[term.center]+1
 
-    def write_bonds(self, forces):
-        if not self.ff.morse:
-            force = ET.SubElement(forces, 'HarmonicBondForce')
-            for term in self.ff.terms['bond']:
-                ids = [str(i+1) for i in term.atomids]
+        ET.SubElement(writer, 'Multipole', {'class1': str(ids[0]), 'class2': str(ids[1]),
+                                            'class3': str(ids[2]), 'class4': str(ids[3]), 'center': str(center),
+                                            'frametype': term.frame_type, 'q00': str(term.q),
+                                            'q10': str(term.dipole_spher[0]), 'q11c': str(term.dipole_spher[1]),
+                                            'q11s': str(term.dipole_spher[2]), 'q20': str(term.quad_spher[0]),
+                                            'q21c': str(term.quad_spher[1]), 'q21s': str(term.quad_spher[2]),
+                                            'q22c': str(term.quad_spher[3]), 'q22s': str(term.quad_spher[4])
+                                            })
 
-                ET.SubElement(force, 'Bond', {'class1': ids[0], 'class2': ids[1], 'length': equ, 'k': k})
+    def write_harmonic_bond_header(self, forces):
+        force = ET.SubElement(forces, 'HarmonicBondForce')
+        return force
 
-        else:
-            force = ET.SubElement(forces, 'MorseBondForce')
-            for term in self.ff.terms['bond']:
-                ids = [str(i+1) for i in term.atomids]
-                equ = str(round(term.equ, 9))
-                k = str(round(term.fconst, 5))
-                e_dis = str(self.ff.bond_dissociation_energies[term.atomids[0],  term.atomids[1]])
-                ET.SubElement(force, 'Bond', {'class1': ids[0], 'class2': ids[1], 'length': equ, 'k': k,
-                                              'e_dis': e_dis})
+    def write_harmonic_bond_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ = str(round(term.equ, 9))
+        k = str(round(term.fconst, 5))
+        ET.SubElement(writer, 'Bond', {'class1': ids[0], 'class2': ids[1], 'length': equ, 'k': k})
 
-    def write_angles(self, forces):
-        if not self.ff.cos_angle:
-            force = ET.SubElement(forces, 'HarmonicAngleForce')
-            for term in self.ff.terms['angle']:
-                ids = [str(i+1) for i in term.atomids]
-                equ = str(round(term.equ, 8))
-                k = str(round(term.fconst, 6))
-                ET.SubElement(force, 'Angle', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'angle': equ,
-                                               'k': k})
-        else:
-            force = ET.SubElement(forces, 'CosineAngleForce')
-            for term in self.ff.terms['angle']:
-                ids = [str(i+1) for i in term.atomids]
-                equ = str(round(np.degrees(term.equ), 8))
-                k = str(round(term.fconst/np.sin(term.equ)**2, 6))
-                ET.SubElement(force, 'Angle', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'angle': equ,
-                                               'k': k})
+    def write_morse_bond_header(self, forces):
+        force = ET.SubElement(forces, 'MorseBondForce')
+        return force
 
-    def write_cross_bond_bond(self, forces):
+    def write_morse_bond_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ = str(round(term.equ[0], 9))
+        k = str(round(term.fconst, 5))
+        e_dis = str(self.ff.bond_dissociation_energies[term.atomids[0],  term.atomids[1]])
+        ET.SubElement(writer, 'Bond', {'class1': ids[0], 'class2': ids[1], 'length': equ, 'k': k, 'e_dis': e_dis})
+
+    def write_harmonic_angle_header(self, forces):
+        force = ET.SubElement(forces, 'HarmonicAngleForce')
+        return force
+
+    def write_harmonic_angle_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ = str(round(term.equ, 8))
+        k = str(round(term.fconst, 6))
+        ET.SubElement(writer, 'Angle', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'angle': equ, 'k': k})
+
+    def write_cosine_angle_header(self, forces):
+        force = ET.SubElement(forces, 'CosineAngleForce')
+        return force
+
+    def write_cosine_angle_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ = str(round(term.equ, 8))
+        k = str(round(term.fconst, 6))
+        ET.SubElement(writer, 'Angle', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'angle': equ, 'k': k})
+
+    def write_cross_bond_bond_header(self, forces):
         force = ET.SubElement(forces, 'StretchStretchHarmonicForce')
+        return force
 
-        for term in self.ff.terms['cross_bond_bond']:
-            ids = [str(i+1) for i in term.atomids]
-            equ1 = str(round(term.equ[0], 9))
-            equ2 = str(round(term.equ[1], 9))
-            k = - term.fconst
-            k = str(round(k, 8))
-            ET.SubElement(force, 'StretchStretch', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2],
-                                                    'class4': ids[3], 'length1': equ1, 'length2': equ2, 'k': k})
+    def write_cross_bond_bond_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ1 = str(round(term.equ[0], 9))
+        equ2 = str(round(term.equ[1], 9))
+        k = str(round(term.fconst, 8))
+        ET.SubElement(writer, 'StretchStretch', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                                 'length1': equ1, 'length2': equ2, 'k': k})
 
-    def write_cross_bond_angle(self, forces):
-        if self.ff.cos_angle:
-            force = ET.SubElement(forces, 'StretchBendCouplingCosineForce')
-        else:
-            force = ET.SubElement(forces, 'StretchBendCouplingHarmonicForce')
+    def write_cross_bond_angle_header(self, forces):
+        force = ET.SubElement(forces, 'StretchBendCouplingHarmonicForce')
+        return force
 
-        for term in self.ff.terms['cross_bond_angle']:
-            ids = [str(i+1) for i in term.atomids]
-            equ1 = str(round(term.equ[0], 8))
-            equ2 = str(round(term.equ[1], 9))
-            if self.ff.cos_angle:
-                term.fconst /= -np.sin(term.equ[0])
-            k = -term.fconst * 10
-            k = str(round(k, 7))
+    def write_cross_bond_angle_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ1 = str(round(term.equ[0], 8))
+        equ2 = str(round(term.equ[1], 9))
+        k = str(round(term.fconst, 7))
+        ET.SubElement(writer, 'StretchBend', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                              'class5': ids[4], 'length': equ1, 'angle': equ2, 'k': k})
 
-            ET.SubElement(force, 'StretchBend', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
-                                                 'class5': ids[4], 'length': equ1, 'angle': equ2, 'k': k})
+    def write_cross_bond_angle_header(self, forces):
+        force = ET.SubElement(forces, 'StretchBendCouplingCosineForce')
+        return force
 
-    def write_cross_angle_angle(self, forces):
-        if self.ff.cos_angle:
-            force = ET.SubElement(forces, 'BendBendCosineForce')
-        else:
-            force = ET.SubElement(forces, 'BendBendHarmonicForce')
+    def write_cross_bond_angle_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ1 = str(round(term.equ[0], 8))
+        equ2 = str(round(term.equ[1], 9))
+        k = str(round(term.fconst, 7))
+        ET.SubElement(writer, 'StretchBend', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                              'class5': ids[4], 'length': equ1, 'angle': equ2, 'k': k})
 
-        for term in self.ff.terms['cross_angle_angle']:
-            ids = [str(i+1) for i in term.atomids]
-            equ1 = str(round(term.equ[0], 8))
-            equ2 = str(round(term.equ[1], 8))
-            if self.ff.cos_angle:
-                term.fconst /= np.sin(term.equ[0]) * np.sin(term.equ[1])
-            k = str(round(term.fconst, 7))
+    def write_cross_bond_cos_angle_header(self, forces):
+        force = ET.SubElement(forces, 'StretchBendCouplingCosineForce')
+        return force
 
-            ET.SubElement(force, 'BendBend', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
-                                              'class5': ids[4], 'class6': ids[5], 'angle1': equ1, 'angle2': equ2,
-                                              'k': k})
+    def write_cross_bond_cos_angle_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ1 = str(round(term.equ[0], 8))
+        equ2 = str(round(term.equ[1], 9))
+        k = str(round(term.fconst, 7))
+        ET.SubElement(writer, 'StretchBend', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                              'class5': ids[4], 'length': equ1, 'angle': equ2, 'k': k})
 
-    def write_cross_dihedral_bond(self, forces):
-        force = ET.SubElement(forces, 'StretchTorsionForce')
+    def write_cross_angle_angle_header(self, forces):
+        force = ET.SubElement(forces, 'BendBendHarmonicForce')
+        return force
 
-        for term in self.ff.terms['_cross_dihed_angle']:
-            ids = [str(i+1) for i in term.atomids]
-            equ = str(round(term.equ, 8))
-            k = str(round(term.fconst, 7))
+    def write_cross_angle_angle_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ1 = str(round(term.equ[0], 8))
+        equ2 = str(round(term.equ[1], 8))
+        k = str(round(term.fconst, 7))
+        ET.SubElement(writer, 'BendBend', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                           'class5': ids[4], 'class6': ids[5], 'angle1': equ1, 'angle2': equ2, 'k': k})
 
-            ET.SubElement(force, 'StretchTorsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2],
-                                                    'class4': ids[3], 'angle1': equ, 'k': k})
+    def write_cross_cos_angle_angle_header(self, forces):
+        force = ET.SubElement(forces, 'BendBendCosineForce')
+        return force
 
-    def write_cross_dihedral_angle(self, forces):
-        force = ET.SubElement(forces, 'BendTorsionForce')
+    def write_cross_cos_angle_angle_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ1 = str(round(term.equ[0], 8))
+        equ2 = str(round(term.equ[1], 8))
+        k = str(round(term.fconst, 7))
+        ET.SubElement(writer, 'BendBend', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                           'class5': ids[4], 'class6': ids[5], 'angle1': equ1, 'angle2': equ2, 'k': k})
 
-        for term in self.ff.terms['_cross_dihed_angle']:
-            ids = [str(i+1) for i in term.atomids]
-            equ = str(round(term.equ, 8))
-            # if self.ff.cos_angle:
-            #     term.fconst /= np.sin(term.equ[0]) * np.sin(term.equ[1])
-            k = str(round(term.fconst, 7))
-
-            ET.SubElement(force, 'BendTorsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2],
-                                                 'class4': ids[3], 'angle': equ, 'k': k})
-
-    def write_improper_dihedral(self, forces):
+    def write_harmonic_dihedral_header(self, forces):
         force = ET.SubElement(forces, 'HarmonicDihedralForce')
+        return force
 
-        for term in self.ff.terms['dihedral/improper']:
-            ids = [str(i+1) for i in term.atomids]
-            equ = str(round(term.equ, 8))
-            k = str(round(term.fconst, 7))
+    def write_harmonic_dihedral_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ = str(round(term.equ, 8))
+        k = str(round(term.fconst, 7))
 
-            ET.SubElement(force, 'Torsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
-                                             'angle': equ, 'k': k})
+        ET.SubElement(writer, 'Torsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                          'angle': equ, 'k': k})
 
-    def write_inversion_dihedral(self, forces):
+    def write_periodic_dihedral_header(self, forces):
+        force = ET.SubElement(forces, 'PeriodicDihedralForce')
+        return force
+
+    def write_periodic_dihedral_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        k = str(round(term.fconst, 7))
+        n = str(term.equ[0])
+        phi0 = str(round(term.equ[1], 8))
+
+        ET.SubElement(writer, 'Torsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                          'n': n, 'shift': phi0, 'k': k})
+
+    def write_inversion_dihedral_header(self, forces):
         force = ET.SubElement(forces, 'InversionDihedralForce')
+        return force
 
-        for term in self.ff.terms['dihedral/inversion']:
-            ids = [str(i+1) for i in term.atomids]
-            equ = str(round(term.equ, 8))
-            k = str(round(term.fconst, 7))
+    def write_inversion_dihedral_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ = str(round(term.equ, 8))
+        k = str(round(term.fconst, 7))
 
-            ET.SubElement(force, 'Torsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
-                                             'angle': equ, 'k': k})
+        ET.SubElement(writer, 'Torsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                          'angle': equ, 'k': k})
 
-    def write_rigid_dihedral(self, forces):
-        if self.ff.cosine_dihed_period == 2:
-            imp_dih_eq = '0.25*k*(1+cos(2*theta - 3.1415926535897932384626433832795))'
-        elif self.ff.cosine_dihed_period == 3:
-            imp_dih_eq = '1/9*k*(1+cos(3*theta))'
-        elif self.ff.cosine_dihed_period == 0:
-            imp_dih_eq = '0.5*k*(theta-theta0)^2'
-        else:
-            raise Exception('Dihedral periodicity not implemented')
 
-        force = ET.SubElement(forces, 'RigidDihedralForce')
-
-        for term in self.ff.terms['dihedral/rigid']:
-            ids = [str(i+1) for i in term.atomids]
-            equ = str(round(term.equ, 8))
-            k = str(round(term.fconst, 7))
-
-            ET.SubElement(force, 'Torsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
-                                             'angle': equ, 'k': k})
-
-    def write_flexible_torsion(self, forces):
+    def write_rb_dihedral_header(self, forces):
         force = ET.SubElement(forces, 'RBDihedralForce')
+        return force
 
-        for term in self.ff.terms['dihedral/flexible']:
-            ids = [str(i+1) for i in term.atomids]
-            equ = [str(round(e, 8)) for e in term.equ]
+    def write_rb_dihedral_term(self, term, writer):
+        ids = [str(i+1) for i in term.atomids]
+        equ = [str(round(e, 8)) for e in term.equ]
 
-            ET.SubElement(force, 'Torsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
-                                             'c0': equ[0], 'c1': equ[1], 'c2': equ[2], 'c3': equ[3], 'c4': equ[4],
-                                             'c5': equ[5]})
+        ET.SubElement(writer, 'Torsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2], 'class4': ids[3],
+                                          'c0': equ[0], 'c1': equ[1], 'c2': equ[2], 'c3': equ[3], 'c4': equ[4],
+                                          'c5': equ[5]})
+
+
+    # def write_cross_dihedral_bond(self, forces):
+    #     force = ET.SubElement(forces, 'StretchTorsionForce')
+    #
+    #     for term in self.ff.terms['_cross_dihed_angle']:
+    #         ids = [str(i+1) for i in term.atomids]
+    #         equ = str(round(term.equ, 8))
+    #         k = str(round(term.fconst, 7))
+    #
+    #         ET.SubElement(force, 'StretchTorsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2],
+    #                                                 'class4': ids[3], 'angle1': equ, 'k': k})
+    #
+    # def write_cross_dihedral_angle(self, forces):
+    #     force = ET.SubElement(forces, 'BendTorsionForce')
+    #
+    #     for term in self.ff.terms['_cross_dihed_angle']:
+    #         ids = [str(i+1) for i in term.atomids]
+    #         equ = str(round(term.equ, 8))
+    #         # if self.ff.cos_angle:
+    #         #     term.fconst /= np.sin(term.equ[0]) * np.sin(term.equ[1])
+    #         k = str(round(term.fconst, 7))
+    #
+    #         ET.SubElement(force, 'BendTorsion', {'class1': ids[0], 'class2': ids[1], 'class3': ids[2],
+    #                                              'class4': ids[3], 'angle': equ, 'k': k})

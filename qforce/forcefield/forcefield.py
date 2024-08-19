@@ -32,6 +32,9 @@ lennard_jones = opls_auto :: str :: [gromos_auto, gromos, opls_auto, opls, gaff,
 # Use GDMA to compute multipoles
 do_multipole = false :: bool
 
+# GDMA executable
+gdma_exec = gdma :: str
+
 # Use externally provided point charges in the file "ext_q" in the job directyory
 ext_charges = no :: bool
 
@@ -75,12 +78,6 @@ ba_couple_1_shared = no :: bool
 # TEMP: Chosen period for dihedrals
 cosine_dihed_period = 0 :: int :: [0, 2, 3]
 
-# write the force field with Morse potential
-morse = no :: bool
-
-# write the force field with cosine angle potential
-cos_angle = no :: bool
-
 # Residue name printed on the force field file (Max 5 characters)
 res_name = MOL :: str
 
@@ -95,15 +92,13 @@ res_name = MOL :: str
         self.comb_rule = mol.non_bonded.comb_rule
         self.fudge_lj = mol.non_bonded.fudge_lj
         self.fudge_q = mol.non_bonded.fudge_q
-        self.urey = config.terms.urey
         self.n_excl = config.ff.n_excl
         self.atom_names, self.symbols = self.get_atom_names()
         self.masses = [round(ATOMMASS[i], 5) for i in self.atomids]
         self.exclusions = self.make_exclusions(mol.non_bonded, neighbors, exclude_all)
         self.pairs = mol.non_bonded.pairs
-        self.morse = config.ff.morse
-        self.cos_angle = config.ff.cos_angle
         self.cosine_dihed_period = config.ff.cosine_dihed_period
+        self.do_multipole = config.ff.do_multipole
         self.terms = mol.terms
         self.topo = mol.topo
         self.non_bonded = mol.non_bonded

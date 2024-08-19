@@ -36,14 +36,16 @@ class NonBonded():
 
         exclusions = cls._set_custom_exclusions_and_pairs(job.logger, config.exclusions)
         pairs = cls._set_custom_exclusions_and_pairs(job.logger, config.pairs)
+
         if config.n_excl == 2:
-            pairs = cls._set_1_4_pairs(topo, exclusions, pairs)
+            pairs, exclusions = cls._set_1_4_pairs_and_exclusions(topo, exclusions, pairs)
 
         # CHARGES
         if config.do_multipole:
             if not qm_out.fchk_file:
                 raise KeyError('QM method does not have fchk file - This is not supported for GDMA')
-            q, dipole, quadrupole = compute_gdma(job, qm_out.fchk_file)  # dipoles and quads are averaged later
+            # dipoles and quads are averaged later
+            q, dipole, quadrupole = compute_gdma(job, config.gdma_exec, qm_out.fchk_file)
         elif ext_q:
             q = np.array(ext_q)
         elif config.ext_charges:
@@ -123,13 +125,15 @@ class NonBonded():
         return selection
 
     @staticmethod
-    def _set_1_4_pairs(topo, exclusions, pairs):
+    def _set_1_4_pairs_and_exclusions(topo, exclusions, pairs):
         for i in range(topo.n_atoms):
             for neigh in topo.neighbors[2][i]:
-                if (i < neigh and [i, neigh] not in pairs and (i, neigh) not in exclusions and
-                        not any([{i, neigh}.issubset(ring) for ring in topo.rings])):
-                    pairs.append((i, neigh))
-        return pairs
+                if i < neigh and [i, neigh] not in pairs and (i, neigh) not in exclusions:
+                    if any([{i, neigh}.issubset(ring) for ring in topo.rings]):
+                        exclusions.append((i, neigh))
+                    else:
+                        pairs.append((i, neigh))
+        return pairs, exclusions
 
 
 def get_external_lennard_jones(config, topo, q, job, ext_lj):

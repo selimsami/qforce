@@ -6,7 +6,7 @@ from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
 from .bond_and_angle_terms import HarmonicBondTerm, MorseBondTerm, HarmonicAngleTerm, CosineAngleTerm, UreyBradleyTerm
 from .coupling_terms import (CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm, CrossBondCosineAngleTerm,
-                             CrossCosineAngleAngleTerm, CrossDihedAngleTerm, CrossDihedBondTerm)
+                             CrossCosineAngleAngleTerm, CrossDihedBondTerm, CrossDihedAngleTerm)
 from .non_bonded_terms import NonBondedTerms
 from .charge_flux_terms import ChargeFluxTerms
 from .local_frame import LocalFrameTerms
@@ -116,7 +116,6 @@ class Terms(MappingIterator):
 
     @classmethod
     def add_terms(cls, terms, name, termcase, topo, non_bonded, settings=None):
-        print(name, termcase)
         factory = cls._term_factories[name].get_factory(termcase)
         _terms = factory.get_terms(topo, non_bonded, settings)
         if _terms is not None:

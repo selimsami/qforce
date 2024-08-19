@@ -7,19 +7,19 @@ from .storage import TermStorage, MultipleTermStorge
 
 class TermABC(ABC):
 
-    __slots__ = ('atomids', 'equ', 'idx', 'fconst', '_typename', '_name')
+    __slots__ = ('atomids', 'equ', 'idx', 'fconst', 'type', '_name')
 
     name = 'NOT_NAMED'
 
-    def __init__(self, atomids, equ, typename, fconst=None):
+    def __init__(self, atomids, equ, term_type, fconst=None):
         """Initialization of a term"""
         self.atomids = np.array(atomids)
         self.equ = equ
         self.idx = 0
         self.flux_idx = 0
         self.fconst = fconst
-        self.typename = typename
-        self._name = f"{self.name}({typename})"
+        self.type = term_type
+        self._name = f"{self.name}({term_type})"
 
     def __repr__(self):
         return self._name
@@ -39,7 +39,7 @@ class TermABC(ABC):
 
     def do_fitting(self, crd, energies, forces):
         """compute fitting contributions"""
-        energies[self.idx] = self._calc_forces(crd, forces[self.idx], 1.0)
+        energies[self.idx] += self._calc_forces(crd, forces[self.idx], 1.0)
 
     def set_fitparameters(self, parameters):
         """set the parameters after fitting"""

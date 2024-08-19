@@ -55,8 +55,9 @@ class Topology(object):
                     dist = np.sqrt((vec**2).sum())
                     self.node(i_idx)['neighs'].append(j_idx)
                     self.node(i_idx)['n_neighs'] += 1
-                    self.graph.add_edge(i_idx, j_idx, vector=vec, length=dist, order=b_order,
+                    self.graph.add_edge(i_idx, j_idx, vector=vec, length=dist, order=b_order, vers=None,
                                         type=f'{id1}({b_order_half_rounded}){id2}', n_rings=0)
+
             if qm_out.n_bonds[i_idx] > ELE_MAXB[i_elem]:
                 print(f'WARNING: Atom {i_idx+1} ({ATOM_SYM[i_elem]}) has too many',
                       f' ({qm_out.n_bonds[i_idx]}) bonds?')
@@ -130,6 +131,11 @@ class Topology(object):
             types[self.atomids[eq[0]]] += 1
         self.types = np.array(self.types, dtype='str')
 
+        for a1, a2, props in self.graph.edges.data():
+            b_order_half_rounded = np.round(props['order']*2)/2
+            type1, type2 = sorted([self.types[a1], self.types[a2]])
+            props['vers'] = f"{type1}({b_order_half_rounded}){type2}"
+
         for i in range(self.n_atoms):
             neigh_dict = {}
             for neigh in self.node(i)['neighs']:
@@ -144,9 +150,9 @@ class Topology(object):
                     self.node(i)['nonrepeat_neighs'].append(neighs[0])
 
             self.node(i)['neighs'] = sorted(self.node(i)['neighs'],  reverse=True,
-                                                      key=lambda e: (self.node(e)['elem'], self.node(e)['n_neighs'], self.node(e)['idx']))
+                                                      key=lambda e: (self.node(e)['n_neighs'], self.node(e)['elem'], self.node(e)['idx']))
             self.node(i)['nonrepeat_neighs'] = sorted(self.node(i)['nonrepeat_neighs'],  reverse=True,
-                                                      key=lambda e: (self.node(e)['elem'], self.node(e)['n_neighs'], self.node(e)['idx']))
+                                                      key=lambda e: (self.node(e)['n_neighs'], self.node(e)['elem'], self.node(e)['idx']))
 
             self.node(i)['unique_neighs'] = list(neigh_dict.values())
             self.node(i)['n_unique_neighs'] = len(neigh_dict)

@@ -22,7 +22,7 @@ def fragment(mol, qm, job, config):
     reset_data_files(frag_dir)
 
     for term in mol.terms['dihedral/flexible']:
-        name = term.typename.partition('_')[0]
+        name = term.type.partition('_')[0]
 
         if name not in unique_dihedrals:
             unique_dihedrals[name] = term.atomids
