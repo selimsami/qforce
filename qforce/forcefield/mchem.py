@@ -9,18 +9,23 @@ from .forcefield_base import ForcefieldSettings
 
 class MChem(ForcefieldSettings):
 
-    always_on_terms = ['bond', 'angle']
+    _always_on_terms = {
+            'bond': ('morse', 'harmonic'),
+            'angle': ('cosine', 'harmonic'),
+    }
 
     _optional_terms = {
-            'cross_bond_bond': False,
-            'cross_bond_angle': False,
-            'cross_angle_angle': False,
-            #
+            'cross_bond_bond': True,
+            'cross_bond_angle': ('bond_cos_angle', 'bond_angle', False),
+            'cross_angle_angle':  ('cosine', 'harmonic', False),
+            # '_cross_dihed_angle': False,
+            # '_cross_dihed_bond': False,
             'dihedral/rigid': True,
             'dihedral/improper': True,
-            'dihedral/flexible': True,
+            # 'dihedral/flexible': True,
             'dihedral/inversion': True,
-            #
+            # 'dihedral/pitorsion': False,
+
             'charge_flux/bond': True,
             'charge_flux/bond_prime': True,
             'charge_flux/angle': True,
@@ -28,15 +33,8 @@ class MChem(ForcefieldSettings):
             'charge_flux/_bond_bond': False,
             'charge_flux/_bond_angle': False,
             'charge_flux/_angle_angle': False,
-            #
-            'local_frame': True,
-    }
 
-    _term_types = {
-            'bond': ('morse', ['morse', 'harmonic']),
-            'angle': ('cosine', ['cosine', 'harmonic']),
-            'cross_bond_angle': ('false', ['bond_angle', 'bond_cos_angle', 'false']),
-            'cross_angle_angle':  ('false', ['harmonic', 'cosine', 'false'])
+            'local_frame': True,
     }
 
     def __init__(self, ff):

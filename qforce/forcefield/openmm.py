@@ -13,8 +13,8 @@ class OpenMM(ForcefieldSettings):
 
     _optional_terms = {
             'cross_bond_bond': True,
-            'cross_bond_angle': (True, 'bond_angle', 'bond_cos_angle'),
-            'cross_angle_angle':  (True, 'harmonic', 'cosine'),
+            'cross_bond_angle': ('bond_cos_angle', 'bond_angle', False),
+            'cross_angle_angle':  ('cosine', 'harmonic', False),
             '_cross_dihed_angle': False,
             '_cross_dihed_bond': False,
             'dihedral/rigid': True,
