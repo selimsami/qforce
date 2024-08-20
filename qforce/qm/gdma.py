@@ -11,7 +11,7 @@ def compute_gdma(job, gdma_exec, fchk_file):
     parts = fchk_file.parts
     os.chdir(job.dir)
     write_gdma(job.name, Path(*parts[len(parts)-3:]))
-    # run_gdma(gdma_exec)
+    run_gdma(gdma_exec)
     charges, dipoles, quadrupoles = read_gdma()
     os.chdir(curr_dir)
     job.logger.info('GDMA done!\n')
