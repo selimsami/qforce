@@ -72,7 +72,6 @@ class Calculator(Colt):
             raise CalculationFailed(f"Do not know software '{calculation.software}', "
                                     f"can only run '{self.name}' jobs")
         with calculation.within():
-            name = calculation.filename
             base = calculation.base
             commands = self._commands(calculation.filename, base, ncores)
             if isinstance(commands, str):
@@ -90,6 +89,51 @@ class Calculator(Colt):
             raise CalculationFailed("Not all necessary files could be generated for calculation"
                                     f" '{calculation.inputfile}' in '{calculation.folder}'"
                                     ) from None
+
+    def as_minimal_string(self, calculation, ncores):
+        result_string = ""
+        if self.name != calculation.software:
+            raise CalculationFailed(f"Do not know software '{calculation.software}', "
+                                    f"can only run '{self.name}' jobs")
+        with calculation.within():
+            result_string += "\n#-------------------------\n"
+            result_string += f"# Run: {calculation.filename} \n"
+            result_string += f"# Code: {calculation.software} \n"
+            result_string += f"# NCORES: {ncores} \n"
+            result_string += "#-------------------------\n"
+            base = calculation.base
+            commands = self._commands(calculation.filename, base, ncores)
+            if isinstance(commands, str):
+                commands = [commands]
+
+            commands = "\n\n".join(commands)
+            result_string += f"\n\n{commands}\n\n"
+
+        return result_string
+
+    def as_string(self, calculation, ncores):
+        result_string = ""
+        if self.name != calculation.software:
+            raise CalculationFailed(f"Do not know software '{calculation.software}', "
+                                    f"can only run '{self.name}' jobs")
+        with calculation.within():
+            path = os.getcwd()
+            result_string += "\n#-------------------------\n"
+            result_string += f"# Run: {calculation.filename} \n"
+            result_string += f"# Code: {calculation.software} \n"
+            result_string += f"# NCORES: {ncores} \n"
+            result_string += "#-------------------------\n"
+            result_string += f"\n\ncd {path}\n"
+            base = calculation.base
+            commands = self._commands(calculation.filename, base, ncores)
+            if isinstance(commands, str):
+                commands = [commands]
+
+            commands = "\n\n".join(commands)
+            result_string += f"\n\n{commands}\n\n"
+            result_string += "\n\ncd ${current}\n\n"
+
+        return result_string
 
     def _commands(self, filename, basename, ncores):
         """Returns the command(s) to run the inputfile
