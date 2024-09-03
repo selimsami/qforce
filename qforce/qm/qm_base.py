@@ -273,7 +273,7 @@ class ReadABC(ABC):
 
     @staticmethod
     def _read_fchk_file(fchk_file):
-        n_atoms, charge, multiplicity, elements, hessian = None, None, None, [], []
+        n_atoms, charge, multiplicity, atomids, hessian = None, None, None, [], []
         with open(fchk_file, "r", encoding='utf-8') as file:
             for line in file:
                 if "Charge                                     I" in line:
@@ -287,7 +287,7 @@ class ReadABC(ABC):
                     for _ in range(n_line):
                         line = file.readline()
                         ids = [int(i) for i in line.split()]
-                        elements.extend(ids)
+                        atomids.extend(ids)
                 if "Current cartesian coordinates   " in line:
                     coords = []
                     n_line = math.ceil(3*n_atoms/5)
@@ -303,10 +303,10 @@ class ReadABC(ABC):
         coords = np.asarray(coords, float)
         hessian = np.asarray(hessian, float)
         coords = np.reshape(coords, (-1, 3))
-        elements = np.array(elements)
+        atomids = np.array(atomids)
         coords = coords * Bohr
         hessian = hessian * Hartree * mol / kJ / Bohr**2
-        return n_atoms, charge, multiplicity, elements, coords, hessian
+        return n_atoms, charge, multiplicity, atomids, coords, hessian
 
     @staticmethod
     def _read_bond_order_from_nbo_analysis(file, n_atoms):
@@ -327,33 +327,34 @@ class ReadABC(ABC):
 
 class EnergyOutput:
 
-    def __init__(self, energy, dipole, elements, coords):
+    def __init__(self, energy, dipole, atomids, coords):
         self.energy = energy
-        self.elements = elements
+        self.atomids = atomids
         self.coords = coords
         self.dipole = dipole
 
 
 class GradientOutput:
 
-    def __init__(self, energy, gradient, dipole, elements, coords):
-        self.energy = energy
-        self.gradient = gradient
-        self.elements = elements
-        self.coords = coords
-        self.dipole = dipole
+    def __init__(self, energy, gradient, dipole, atomids, coords):
+        self.energy = np.array(energy, dtype=np.float64)
+        self.gradient = np.array(gradient, dtype=np.float64)
+        self.atomids = np.array(atomids)
+        self.coords = np.array(coords, dtype=np.float64)
+        self.dipole = np.array(dipole, dtype=np.float64)
 
 
 class HessianOutput:
-    def __init__(self, vib_scaling, fchk_file, n_atoms, charge, multiplicity, elements, coords, hessian,
+    def __init__(self, vib_scaling, fchk_file, n_atoms, charge, multiplicity, atomids, coords, energy, hessian,
                  b_orders, point_charges, dipole_deriv=None, lone_e=None, n_bonds=None):
 
         self.fchk_file = fchk_file
         self.n_atoms = self.check_type(n_atoms, 'n_atoms', int)
         self.charge = self.check_type(charge, 'charge', int)
         self.multiplicity = self.check_type(multiplicity, 'n_atoms', int)
-        self.elements = self.check_type_and_shape(elements, 'elements', int, (n_atoms,))
+        self.atomids = self.check_type_and_shape(atomids, 'atomids', int, (n_atoms,))
         self.coords = self.check_type_and_shape(coords, 'coords', float, (n_atoms, 3))
+        self.energy = energy
         self.hessian = self.check_type_and_shape(hessian, 'hessian', float,
                                                  (((n_atoms*3)**2+n_atoms*3)/2,)) * vib_scaling**2
         self.b_orders = self.check_type_and_shape(b_orders, 'b_orders', float, (n_atoms, n_atoms))
@@ -397,13 +398,13 @@ class HessianOutput:
 class ScanOutput:
     """Store the output of a scan calculation"""
 
-    def __init__(self, file,  n_steps, n_atoms, coords, angles, energies, charges):
+    def __init__(self, file,  n_steps, n_atoms, coords, angles, energies, dipoles, charges):
         self.n_atoms = n_atoms
         self.n_steps = n_steps
-        angles, energies, coords, self.charges, self.mismatch = self.check_shape(angles, energies,
-                                                                                 coords, charges,
-                                                                                 file)
-        self._angles, self._energies, self.coords = self._rearrange(angles, energies, coords)
+        self.forces = np.zeros((n_steps, n_atoms, 3))
+        angles, energies, coords, dipoles, self.charges, self.mismatch = self.check_shape(angles, energies, coords,
+                                                                                          dipoles, charges, file)
+        self._angles, self._energies, self.coords, self.dipoles = self._rearrange(angles, energies, coords, dipoles)
 
     @property
     def angles(self):
@@ -416,23 +417,24 @@ class ScanOutput:
     @energies.setter
     def energies(self, energies):
         energies = np.asarray(energies, dtype=self._energies.dtype)
-        energies -= energies.min()
         if energies.size != self.n_steps:
             raise ValueError("Number of energies incomplete!")
         self._energies = energies
 
-    def check_shape(self, angles, energies, coords, charges, file):
+    def check_shape(self, angles, energies, coords, dipoles, charges, file):
         mismatched = []
         if not isinstance(self.n_atoms, int):
             mismatched.append('n_atoms')
         if not isinstance(self.n_steps, int):
             mismatched.append('n_steps')
 
-        angles, coords, energies = np.asarray(angles), np.asarray(coords), np.asarray(energies)
+        angles, coords, energies, dipoles = (np.asarray(angles), np.asarray(coords), np.asarray(energies),
+                                             np.asarray(dipoles))
 
         for prop, name, shape in [(angles, 'angles', (self.n_steps,)),
                                   (energies, 'energies', (self.n_steps,)),
-                                  (coords, 'coords', (self.n_steps, self.n_atoms, 3))]:
+                                  (coords, 'coords', (self.n_steps, self.n_atoms, 3)),
+                                  (dipoles, 'dipoles', (self.n_steps, 3))]:
             if prop.shape != shape:
                 mismatched.append(name)
 
@@ -444,18 +446,19 @@ class ScanOutput:
 
         if mismatched:
             print(f'WARNING: {mismatched} properties have missing/extra data in the file:\n{file}')
-        return angles, energies, coords, charges, mismatched
+        return angles, energies, coords, dipoles, charges, mismatched
 
     @staticmethod
-    def _rearrange(angles, energies, coords):
+    def _rearrange(angles, energies, coords, dipoles):
         if energies.size != 0:
             angles = (angles % 360).round(4)
             order = np.argsort(angles)
             angles = angles[order]
             coords = coords[order]
+            dipoles = dipoles[order]
             energies = energies[order]
-            energies -= energies.min()
-        return angles, energies, coords
+            # energies -= energies.min()
+        return angles, energies, coords, dipoles
 
 
 def scriptify(writer):

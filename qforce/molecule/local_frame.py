@@ -6,9 +6,11 @@ from ..forces import get_dist
 
 
 class LocalFrameTermABC(TermABC):
+    name = 'LocalFrameTerm'
+
     def __init__(self, frame_type, atomids, q, dipole, quadrupole, coords, center, a_type):
         self.atomids = np.array(atomids)
-        self.center = atomids[center]
+        self.center = center
         self.frame_type = frame_type
         self.type = a_type
         self._name = f"{self.name}({a_type})"
@@ -50,18 +52,18 @@ class LocalFrameTermABC(TermABC):
 
     def convert_multipoles_to_local_frame(self, coords, dipole, quadrupole):
         rotation_matrix = self.compute_rotation_matrix(coords)
-        print('rot_mat\n', rotation_matrix.round(6))
+        # print('rot_mat\n', rotation_matrix.round(6))
 
         local_dipole = np.matmul(rotation_matrix, dipole)
-        print('dip glob\n', np.round(dipole, 6))
-        print('dip, local\n', local_dipole.round(6))
-        print()
+        # print('dip glob\n', np.round(dipole, 6))
+        # print('dip, local\n', local_dipole.round(6))
+        # print()
 
         matmul = np.matmul(self.make_quadrupole_matrix(quadrupole), rotation_matrix.T)
         local_quadrupole = np.matmul(rotation_matrix, matmul)
-        print('quad, glob\n', self.make_quadrupole_matrix(quadrupole).round(6))
-        print('quad, local\n', local_quadrupole.round(6))
-        print()
+        # print('quad, glob\n', self.make_quadrupole_matrix(quadrupole).round(6))
+        # print('quad, local\n', local_quadrupole.round(6))
+        # print()
 
         return local_dipole, local_quadrupole
 
@@ -91,14 +93,30 @@ class LocalFrameTermABC(TermABC):
         q_21s = 2 / 3**0.5 * self.quadrupole[1, 2]
         quadrupoles = np.array([q_20, q_21c, q_21s, q_22c, q_22s])
 
-        return np.round(dipoles, 6), np.round(quadrupoles, 6)
+        return dipoles, quadrupoles
+
+    def convert_multipoles_to_local_cartesian_frame(self):
+        dipoles = np.array([self.dipole_spher[1], self.dipole_spher[2], self.dipole_spher[0]])
+
+        q_11 = -0.5 * self.quad_spher[0] + 3**0.5 / 2 * self.quad_spher[3]
+        q_22 = -0.5 * self.quad_spher[0] - 3**0.5 / 2 * self.quad_spher[3]
+        q_33 = self.quad_spher[0]
+        q_12 = 3**0.5 / 2 * self.quad_spher[4]
+        q_13 = 3**0.5 / 2 * self.quad_spher[1]
+        q_23 = 3**0.5 / 2 * self.quad_spher[2]
+        quadrupoles = np.array([q_11, q_22, q_33, q_12, q_13, q_23])
+
+        return dipoles.round(10), quadrupoles.round(10)
+
+    def write_forcefield(self, software, writer):
+        software.write_multipole_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_multipole_header(writer)
 
 
 class BisectorTerm(LocalFrameTermABC):
-    name = 'BisectorLocalFrameTerm'
-
     def compute_rotation_matrix(self, coords):
-
         vec12, r12 = get_dist(coords[1], coords[0])
         vec13, r13 = get_dist(coords[2], coords[0])
 
@@ -110,8 +128,6 @@ class BisectorTerm(LocalFrameTermABC):
 
 
 class ZthenXTerm(LocalFrameTermABC):
-    name = 'ZthenXTermLocalFrameTerm'
-
     def compute_rotation_matrix(self, coords):
         vec12, r12 = get_dist(coords[1], coords[0])
         vec13, r13 = get_dist(coords[2], coords[0])
@@ -123,8 +139,6 @@ class ZthenXTerm(LocalFrameTermABC):
 
 
 class ZThenBisectorTerm(LocalFrameTermABC):
-    name = 'ZThenBisectorLocalFrameTerm'
-
     def compute_rotation_matrix(self, coords):
         vec12, r12 = get_dist(coords[1], coords[0])
         vec3c, r3c = get_dist(coords[2], coords[self.center])
@@ -141,8 +155,6 @@ class TrisectorTerm(LocalFrameTermABC):
     # This is for ammonia-like molecules only, and probably needs to be implemented with
     # lone pair virtual site for stability reasons
 
-    name = 'TrisectorLocalFrameTerm'
-
     def compute_rotation_matrix(self, coords):
         vec12, r12 = get_dist(coords[1], coords[0])
         vec13, r13 = get_dist(coords[2], coords[0])
@@ -156,8 +168,6 @@ class TrisectorTerm(LocalFrameTermABC):
 
 
 class ZOnlyTerm(LocalFrameTermABC):
-    name = 'ZOnlyTermLocalFrameTerm'
-
     def compute_rotation_matrix(self, coords):
         vec12, r12 = get_dist(coords[1], coords[0])
 
@@ -175,7 +185,6 @@ class ZOnlyTerm(LocalFrameTermABC):
 
 
 class LocalFrameTerms(TermFactory):
-    name = 'LocalFrameTerms'
 
     _term_types = {
         'bisector': BisectorTerm,
@@ -189,142 +198,212 @@ class LocalFrameTerms(TermFactory):
     _default_off = ['bisector', 'z_then_x', 'z_only', 'z_then_bisector', 'trisector']
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         terms = cls.get_terms_container()
 
         # helper functions to improve readability
         def add_term(name, atomids, *args):
             terms[name].append(cls._term_types[name].get_term(name, atomids, *args))
 
-        # print(topo.unique_atomids)
-        # print(topo.types)
-        # print(topo.n_types)
-        # print(topo.atoms)
-        # print(topo.list)
-
-        localframes = []
-        # print('\nNODES')
-
         if np.abs(non_bonded.quadrupole).sum() == 0 and np.abs(non_bonded.dipole).sum() == 0:
             return terms
 
         for i, node in topo.graph.nodes(data=True):
-            print('atomid:', i, ', element:', node['elem'])
-            # print(node['n_neighs'])
-            # print(node['n_unique_neighs'])
-            # print(node['unique_neighs'])
-            # print(node['n_nonrepeat_neighs'])
-            # print(node['nonrepeat_neighs'])
-            # print(node['hybrid'])
-
-            # print('NEIGH PROPS')
-            # for neigh in node['neighs']:
-            #     print(topo.node(neigh)['hybrid'])
-
             if node['n_neighs'] == 1:  # terminal atoms
                 neigh = topo.node(node['neighs'][0])
-
+                other_neighs = [neigh for neigh in topo.node(node['neighs'][0])['neighs'] if neigh != i]  # 1st neigh's
+                # Diatomic molecule
                 if topo.n_atoms == 2:
-                    print('diatomic, z-only!')
                     atomids = [i, node['neighs'][0]]
                     add_term('z_only', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
 
-                # 1st neighbor has 2-neighbor
+                # Terminal atom, 1st neighbor has 2-neighbors
                 elif neigh['n_neighs'] == 2:
+                    # 3-atom-linear edge, like O in CO2
                     if neigh['hybrid'] == 'linear':
-                        print('3-atom-linear edge, z-only!')
                         atomids = [i, node['neighs'][0]]
                         add_term('z_only', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
 
+                    # 3-atom-bent, like H in water
                     elif neigh['hybrid'] == 'bent':
-                        print('3-atom-bent, like H in water, z-then-x!')
-                        other_neigh = [neigh for neigh in topo.node(node['neighs'][0])['neighs'] if neigh != i][0]
-                        atomids = [i, node['neighs'][0], other_neigh]
+                        atomids = [i, node['neighs'][0], other_neighs[0]]
                         add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
 
-                # 1st neighbor has 3-neighbor
+                # Terminal atom, 1st neighbor has 3-neighbors
                 elif neigh['n_neighs'] == 3:
-                    other_neighs = [topo.node(neigh) for neigh in topo.node(node['neighs'][0])['neighs'] if neigh != i]
-                    if neigh['hybrid'] == 'planar' and other_neighs[0]['type'] == other_neighs[1]['type']:  # Symmetric planar, like O in COH2
-                        print('FOUND: terminal on planar 3-atom center, symmetric others - like O on COH2 or H on benzene - Z-only')
+                    # Symmetric planar, like O in COH2 or H on benzene
+                    # Selim: I feel like this deserves a novel local frame type
+                    if neigh['hybrid'] == 'planar' and other_neighs[0]['type'] == other_neighs[1]['type']:
                         atomids = [i, node['neighs'][0], other_neighs[0]['idx']]
-                        add_term('z_only', non_bonded, atomids, topo.coords[atomids], 1, node["type"])  # doesn't make sense! need diff XX and YY
-                    elif neigh['hybrid'] == 'planar' and other_neighs[0]['type'] != other_neighs[1]['type']:  # Asymmetric planar, like H in COH2
-                        print('FOUND: terminal on planar 3-atom center, asymmetric others - like H on COH2, z-then-x!')
+                        add_term('z_only', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
+
+                    # Asymmetric planar, like H in COH2
+                    elif neigh['hybrid'] == 'planar' and other_neighs[0]['type'] != other_neighs[1]['type']:
                         atomids = [i, node['neighs'][0], other_neighs[0]['idx']]
                         add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
 
+                    # Symmetric pyramidal, like H in Ammonia or H in dimethyl amine
                     elif neigh['hybrid'] == 'pyramidal' and other_neighs[0]['type'] == other_neighs[1]['type']:
-                        print('FOUND: Z-then-bisector, like H in Ammonia or H in dimethyl amine')
                         atomids = [i, node['neighs'][0], other_neighs[0]['idx'], other_neighs[1]['idx']]
                         add_term('z_then_bisector', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
 
+                    # Asymmetric pyramidal, like H in methylamine
                     elif neigh['hybrid'] == 'pyramidal' and other_neighs[0]['type'] != other_neighs[1]['type']:
-                        print('FOUND: Z-only, like H in methylamine')
                         atomids = [i, node['neighs'][0], other_neighs[0]['idx']]
                         add_term('z_only', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
 
-                # 1st neighbor has 4-neighbor
+                # Terminal atom, 1st neighbor has 4-neighbors
                 elif neigh['n_neighs'] == 4:
+                    # Tetrahedral with all same neighbors like H on methane
                     if neigh['n_unique_neighs'] == 1:
-                        print('FOUND: Terminal atom on a tetrahedral center with all same neighbors like H on methane. Z-only!')
-                        other_neigh = [neigh for neigh in topo.node(node['neighs'][0])['neighs'] if neigh != i][0]
-                        atomids = [i, node['neighs'][0], other_neigh]
+                        atomids = [i, node['neighs'][0], other_neighs[0]]
                         add_term('z_only', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
+
+                    # Tetrahedral with 3 atoms the same, like F on CFH3
+                    elif (neigh['n_unique_neighs'] == 2 and neigh['n_nonrepeat_neighs'] == 1
+                          and i in neigh['nonrepeat_neighs']):
+                        atomids = [i, node['neighs'][0], other_neighs[0]]
+                        add_term('z_only', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
+
+                    # Tetrahedral with 3 atoms the same, like H on CFH3
+                    elif neigh['n_unique_neighs'] == 2 and neigh['n_nonrepeat_neighs'] == 1:
+                        atomids = [i, node['neighs'][0], neigh['nonrepeat_neighs'][0]]
+                        add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
+
+                    # Tetrahedral with 2x2 atoms the same, like F on CF2H2
+                    elif neigh['n_unique_neighs'] == 2 and neigh['n_nonrepeat_neighs'] == 0:
+                        chosen = [group for group in neigh['unique_neighs'] if i in group]
+                        other_same_atom = [atom for atom in chosen if i != atom][0]
+                        atomids = [i, node['neighs'][0], other_same_atom]
+                        add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
+
+                    elif neigh['n_unique_neighs'] == 3 and neigh['n_nonrepeat_neighs'] == 2:
+                        group_with_two = [group for group in neigh['unique_neighs'] if len(group) == 2]
+                        # Tetrahedral with 2 atoms the same, like H on CFClH2
+                        if i in group_with_two:
+                            other_same_atom = [atom for atom in group_with_two if i != atom][0]
+                            atomids = [i, node['neighs'][0], other_same_atom]
+                            add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
+
+                        # Tetrahedral with 2 atoms the same, like F on CFClH2
+                        else:
+                            other_diff_atom = [atom for atom in other_neighs if atom not in group_with_two][0]
+                            atomids = [i, node['neighs'][0], other_diff_atom]
+                            add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
+
+                    # Tetrahedral, all 4 atoms different
                     else:
-                        ...  # add the rest
+                        atomids = [i, node['neighs'][0], other_neighs[0]]
+                        add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 1, node["type"])
 
             elif node['n_neighs'] == 2:  # 2-neighbor atoms
-                if node['hybrid'] == 'linear' and node['n_unique_neighs'] == 1:  # This one has no dipole!
-                    print('3-atom symmetric linear center, z-only!')
+                # 3-atom symmetric linear center, like C on CO2. this one has no dipole!
+                if node['hybrid'] == 'linear' and node['n_unique_neighs'] == 1:  #
                     atomids = [i, node['neighs'][0]]
                     add_term('z_only', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
-                elif node['hybrid'] == 'linear' and node['n_unique_neighs'] == 2:  # Has a dipole in local Z!
-                    print('3-atom asymmetric linear center, z-only!')
+
+                # 3-atom asymmetric linear center, like N in O=NH, has a dipole in local Z!
+                elif node['hybrid'] == 'linear' and node['n_unique_neighs'] == 2:  #
                     atomids = [i, node['neighs'][0]]
                     add_term('z_only', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
+
+                # 3-atom symmetric center, like O in water
                 elif node['hybrid'] == 'bent' and node['n_unique_neighs'] == 1:
-                    print('3-atom symmetric center, like water oxygen, bisector!')
                     atomids = [i, node['neighs'][0], node['neighs'][1]]
                     add_term('bisector', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
+
+                # 3-atom asymmetric center, like O in F-O-H
                 elif node['hybrid'] == 'bent' and node['n_unique_neighs'] == 2:
-                    print('3-atom asymmetric center, z-then-x!')
                     atomids = [i, node['neighs'][0], node['neighs'][1]]
                     add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
 
             elif node['n_neighs'] == 3:  # 3-neighbor atoms
-                # Pyramidal
+                # Pyramidal with 3 same atoms, like N in ammonia
+                # Saved as trisector, which needs to be implemented with a virtual site, otherwise change to z-then-x!
                 if node['hybrid'] == 'pyramidal' and node['n_unique_neighs'] == 1:
                     atomids = [i, node['neighs'][0], node['neighs'][1], node['neighs'][2]]
                     add_term('trisector', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
-                    print('FOUND: ammonia N-like, trisector!')
+
+                # Pyramidal with 2 unique neighbors, like N on methylamine
                 elif node['hybrid'] == 'pyramidal' and node['n_unique_neighs'] == 2:
-                    print('FOUND: pyramidal, with 2 unique neighbors, like N on methylamine, z-then-bisector!')
                     lone = [unique for unique in node['unique_neighs'] if len(unique) == 1][0]
                     equal_pair = [unique for unique in node['unique_neighs'] if len(unique) == 2][0]
                     atomids = [i, lone, equal_pair[0], equal_pair[1]]
                     add_term('z_then_bisector', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
+
+                # Pyramidal, all neighbors different, like N on NFH(CH3)
                 elif node['hybrid'] == 'pyramidal' and node['n_unique_neighs'] == 3:
-                    print('FOUND: pyramidal, all neighbors different, z-then-x??')
                     atomids = [i, node['neighs'][0], node['neighs'][1]]
                     add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
-                # Planar
+
+                # Planar 3-atom center, with all same neighbors, like ???
                 elif node['hybrid'] == 'planar' and node['n_unique_neighs'] == 1:
-                    print('FOUND: planar 3-atom center, with all same neighbors, like N on NO3 , z-only??')
+                    atomids = [i, node['neighs'][0], node['neighs'][1]]
+                    add_term('z_only', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
+
+                #  Planar 3-atom center, with 2 unique neighbors, like C on COH2 or C in benzene
                 elif node['hybrid'] == 'planar' and node['n_unique_neighs'] == 2:
-                    print('FOUND: planar 3-atom center, with 2 unique neighbors, like C on COH2 or C in benzene, bisector!')
                     equal_pair = [unique for unique in node['unique_neighs'] if len(unique) == 2][0]
                     atomids = [i, equal_pair[0], equal_pair[1]]
                     add_term('bisector', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
+
+                # Planar 3-atom center, with all different neighbors, like C on COHF
                 elif node['hybrid'] == 'planar' and node['n_unique_neighs'] == 3:
-                    print('FOUND: planar 3-atom center, with all different neighbors, like C on COHF , z-only??')
+                    atomids = [i, node['neighs'][0], node['neighs'][1]]
+                    add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
 
             elif node['n_neighs'] == 4:  # 4-neighbor atoms
-                if node['n_unique_neighs'] == 2 and node['n_nonrepeat_neighs'] == 0:
-                    print('FOUND: propane carbon alike, bisector!')
-                else:
+                # Tetrahedral center, all same neighbors, like C in CH4
+                if node['n_unique_neighs'] == 1:
                     atomids = [i, node['neighs'][0], node['neighs'][1]]
-                    print('FOUND: tetrahedral atom, like C on methane, z-only (no dip/quad)')
                     add_term('z_only', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
 
+                # Tetrahedral center, 3 same atoms, like C in CH3F or C in ethane
+                elif node['n_unique_neighs'] == 2 and node['n_nonrepeat_neighs'] == 1:
+                    unique_atom = node['nonrepeat_neighs'][0]
+                    other_atoms = [atom for atom in node['neighs'] if atom != unique_atom]
+                    atomids = [i, unique_atom, other_atoms[0]]
+                    add_term('z_only', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
+
+                # Tetrahedral center, 2x2 same atoms, like C in CH2F2 or central carbon in propane
+                elif node['n_unique_neighs'] == 2 and node['n_nonrepeat_neighs'] == 0:
+                    most_connected_neigh = node['neighs'][0]
+                    connected_pair = [group for group in node['unique_neighs'] if most_connected_neigh in group]
+                    atomids = [i, connected_pair[0], connected_pair[1]]
+                    add_term('bisector', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
+
+                # Tetrahedral center, 2 same atoms, like C in CH2FCl
+                elif node['n_unique_neighs'] == 3 and node['n_nonrepeat_neighs'] == 2:
+                    atomids = [i, node['nonrepeat_neighs'][0], node['nonrepeat_neighs'][1]]
+                    add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
+
+                # Tetrahedral center, all different atoms
+                elif node['n_unique_neighs'] == 3 and node['n_nonrepeat_neighs'] == 2:
+                    atomids = [i, node['neighs'][0], node['neighs'][1]]
+                    add_term('z_then_x', non_bonded, atomids, topo.coords[atomids], 0, node["type"])
+
+        terms = LocalFrameTerms.average_equivalent_terms(terms)
+
+        return terms
+
+    @staticmethod
+    def average_equivalent_terms(terms):
+        term_dict = {}
+        for term in terms:
+            if term.type in term_dict:
+                term_dict[term.type][0].append(term.dipole_spher)
+                term_dict[term.type][1].append(term.quad_spher)
+            else:
+                term_dict[term.type] = [[term.dipole_spher], [term.quad_spher]]
+
+        for key, val in term_dict.items():
+            term_dict[key][0] = np.mean(val[0], axis=0)
+            term_dict[key][1] = np.mean(val[1], axis=0)
+
+        for term in terms:
+            term.dipole_spher = term_dict[term.type][0].round(10)
+            term.quad_spher = term_dict[term.type][1].round(10)
+
+            term.dipole, term.quadrupole = term.convert_multipoles_to_local_cartesian_frame()
+            term.quadrupole = term.make_quadrupole_matrix(term.quadrupole)
         return terms

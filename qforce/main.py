@@ -1,12 +1,12 @@
 from calkeeper import CalculationKeeper, CalculationIncompleteError
 
-from .polarize import polarize
 from .initialize import initialize
 from .qm.qm import QM
 from .qm.qm_base import HessianOutput
 from .forcefield.forcefield import ForceField
 from .molecule import Molecule
 from .fragment import fragment
+from .no_fragment_scanning import do_nofrag_scanning
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .hessian import fit_hessian, multi_hessian_fit
@@ -16,9 +16,6 @@ from .logger import LoggerExit
 
 
 def runjob(config, job, ext_q=None, ext_lj=None):
-    if config.ff._polarize:
-        polarize(job, config.ff)
-
     # setup qm calculation
     qm = QM(job, config.qm)
     # do the preoptimization if selected
@@ -28,7 +25,10 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     main_hessian = qm_hessian_out[0]
 
     # check molecule
-    mol = Molecule(config, job, main_hessian, ext_q, ext_lj)
+    ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
+    if ffcls is None:
+        raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
+    mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj)
 
     # change the order
     fragments = None
@@ -37,7 +37,7 @@ def runjob(config, job, ext_q=None, ext_lj=None):
         fragments = fragment(mol, qm, job, config)
 
     # hessian fitting
-    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out)
+    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out, fit_flexible=False)
 
     # do the scans
     if fragments is not None:
@@ -48,8 +48,45 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, main_hessian.coords)
 
-    if main_hessian.dipole_deriv is not None and len(mol.terms['charge_flux']) > 0:
+    print_outcome(job.logger, job.dir, config.ff.output_software)
+
+    return mol
+
+
+def runjob_v2(config, job, ext_q=None, ext_lj=None):
+    # setup qm calculation
+    qm = QM(job, config.qm)
+    # do the preoptimization if selected
+    qm.preopt()
+    # get hessian output
+    qm_hessian_out, qm_energy_out, qm_gradient_out = qm.get_hessian()
+    main_hessian = qm_hessian_out[0]
+    e_lowest = min([out.energy for out in qm_hessian_out])
+
+    ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
+    if ffcls is None:
+        raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
+
+    # check molecule
+    mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj, fit_flexible=True)
+
+    # if len(mol.terms['dihedral/flexible']) > 0:
+    scans = do_nofrag_scanning(mol, qm, job, config)
+    qm_gradient_out.extend(scans)
+
+    for out in qm_hessian_out + qm_energy_out + qm_gradient_out:
+        out.energy -= e_lowest
+
+    # hessian fitting
+    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out, fit_flexible=True)
+
+    calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
+
+    if main_hessian.dipole_deriv is not None and 'charge_flux' in mol.terms and len(mol.terms['charge_flux']) > 0:
         fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
+
+    ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
+    ff.software.write(job.dir, main_hessian.coords)
 
     print_outcome(job.logger, job.dir, config.ff.output_software)
 
@@ -61,13 +98,16 @@ def save_jobs(job):
         fh.write(job.calkeeper.as_json())
 
 
-def runspjob(config, job, ext_q=None, ext_lj=None):
+def runspjob(config, job, ext_q=None, ext_lj=None, v2=False):
     """Run a single round of Q-Force"""
     # print qforce logo
     job.logger.info(LOGO)
     #
     try:
-        mol = runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        if v2:
+            mol = runjob_v2(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        else:
+            mol = runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
         save_jobs(job)
         return mol
     except CalculationIncompleteError:
@@ -80,15 +120,15 @@ def runspjob(config, job, ext_q=None, ext_lj=None):
     return None
 
 
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False):
+def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False, v2=True):
     """Execute Qforce from python directly """
     config, job = initialize(input_arg, config, presets)
     #
     if err is True:
-        return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj, v2=v2)
     else:
         try:
-            return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+            return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj, v2=v2)
         except LoggerExit as err:
             print(str(err))
 

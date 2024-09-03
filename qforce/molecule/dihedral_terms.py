@@ -3,11 +3,11 @@ import numpy as np
 #
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dihed, get_angle
-from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_oop_angle  # , calc_periodic_dihed
+from ..forces import calc_harmonic_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_periodic_dihed
+from ..forces import lsq_rb_diheds
 
 
 class DihedralBaseTerm(TermABC):
-
     @staticmethod
     def get_type(topo, a1, a2, a3, a4):
         # Use this only for rigid dihedral - to be moved
@@ -60,21 +60,39 @@ class DihedralBaseTerm(TermABC):
         return cls(atomids, phi, d_type)
 
 
-class RigidDihedralTerm(DihedralBaseTerm):
+class PeriodicDihedralTerm(DihedralBaseTerm):
+    name = 'PeriodicDihedralTerm'
 
+    @classmethod
+    def get_term(cls, topo, atomids, multiplicity, phi0, d_type):
+        return cls(atomids, [multiplicity, phi0], d_type)
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_periodic_dihed(crd, self.atomids, self.equ, fconst, force)
+
+    def write_forcefield(self, software, writer):
+        software.write_periodic_dihedral_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_periodic_dihedral_header(writer)
+
+
+class RigidDihedralTerm(DihedralBaseTerm):
     name = 'RigidDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
+        return calc_harmonic_diheds(crd, self.atomids, self.equ, fconst, force)
+        # return calc_periodic_dihed(crd, self.atomids, self.equ, fconst, force)
+
+    def write_forcefield(self, software, writer):
+        software.write_harmonic_dihedral_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_harmonic_dihedral_header(writer)
 
 
-class ImproperDihedralTerm(DihedralBaseTerm):
-
+class ImproperDihedralTerm(RigidDihedralTerm):
     name = 'ImproperDihedralTerm'
-
-    def _calc_forces(self, crd, force, fconst):
-        return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
-        # return calc_oop_angle(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
@@ -82,20 +100,36 @@ class ImproperDihedralTerm(DihedralBaseTerm):
         return cls(atomids, phi, d_type)
 
 
-class FlexibleDihedralTerm(DihedralBaseTerm):
-
-    name = 'FlexibleDihedralTerm'
+class RBDihedralTerm(DihedralBaseTerm):
+    name = 'RBDihedralTerm'
+    idx_buffer = 6
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_rb_diheds(crd, self.atomids, self.equ, fconst, force)
+        """fconst is not used for this term"""
+        return calc_rb_diheds(crd, self.atomids, self.equ, force)
+
+    def do_fitting(self, crd, energies, forces):
+        """compute fitting contributions"""
+        en = lsq_rb_diheds(crd, self.atomids, forces[self.idx:self.idx+self.idx_buffer])
+        for i, ele in enumerate(en):
+            energies[self.idx + i] = ele
+
+    def set_fitparameters(self, parameters):
+        """set the parameters after fitting"""
+        self.equ = np.array([val for val in parameters[self.idx:self.idx+self.idx_buffer]], dtype=float)
 
     @classmethod
     def get_term(cls, topo, atoms, d_type):
         return cls(atoms, np.zeros(6), d_type)
 
+    def write_forcefield(self, software, writer):
+        software.write_rb_dihed_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_rb_dihed_header(writer)
+
 
 class InversionDihedralTerm(DihedralBaseTerm):
-
     name = 'InversionDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
@@ -105,9 +139,13 @@ class InversionDihedralTerm(DihedralBaseTerm):
     def get_term(cls, topo, atomids, phi, d_type):
         return cls(atomids, phi, d_type)
 
+    def write_forcefield(self, software, writer):
+        software.write_inversion_dihed_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_inversion_dihed_header(writer)
 
 class PiTorsionDihedralTerm(DihedralBaseTerm):
-
     name = 'PiTorsionDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
@@ -118,15 +156,21 @@ class PiTorsionDihedralTerm(DihedralBaseTerm):
         phi = DihedralBaseTerm.check_angle(phi)
         return cls(atomids, phi, d_type)
 
+    def write_forcefield(self, software, writer):
+        software.write_pitorsion_dihed_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_pitorsion_dihed_header(writer)
+
 
 class DihedralTerms(TermFactory):
-
     name = 'DihedralTerms'
 
     _term_types = {
         'rigid': RigidDihedralTerm,
+        'periodic': PeriodicDihedralTerm,
         'improper': ImproperDihedralTerm,
-        'flexible': FlexibleDihedralTerm,
+        'flexible': RBDihedralTerm,
         'inversion': InversionDihedralTerm,
         'pitorsion': PiTorsionDihedralTerm,
     }
@@ -135,7 +179,7 @@ class DihedralTerms(TermFactory):
     _default_off = []
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         terms = cls.get_terms_container()
 
         # helper functions to improve readability
@@ -170,7 +214,10 @@ class DihedralTerms(TermFactory):
                 # rigid
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
-                    add_term('rigid', topo, atoms, d_type)
+                    if settings['rigid'] is not False:
+                        # add_term('rigid', topo, atoms, d_type)
+                        add_term('periodic', topo, atoms, 3, 0, d_type+'_mult3')
+                        # add_term('periodic', topo, atoms, 3, 0, d_type+'_mult1')
 
             elif central['in_ring']:
                 atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
@@ -181,9 +228,11 @@ class DihedralTerms(TermFactory):
                     d_type = get_dtype(topo, *atoms)
 
                     if abs(phi) < 0.43625:  # check planarity < 25 degrees
-                        add_term('rigid', topo, atoms, d_type)
+                        if settings['rigid'] is not False:
+                            add_term('rigid', topo, atoms, d_type)
                     else:
-                        add_term('inversion', topo, atoms, phi, d_type)
+                        if settings['inversion'] is not False:
+                            add_term('inversion', topo, atoms, phi, d_type)
 
             else:
                 atoms = find_flexible_atoms(topo, a1s, a2, a3, a4s)
@@ -192,7 +241,8 @@ class DihedralTerms(TermFactory):
                     if central['vers'].startswith(topo.types[a3]):
                         atypes = atypes[::-1]
                     d_type = f"{central['vers']}_{atypes[0]}-{atypes[1]}"
-                    add_term('flexible', topo, dih, d_type)
+                    if settings['flexible'] is not False:
+                        add_term('flexible', topo, dih, d_type)
 
         # improper dihedrals
         for i in range(topo.n_atoms):
@@ -228,35 +278,20 @@ class DihedralTerms(TermFactory):
                 imp_type = f"ki_{topo.types[i]}"
                 if abs(phi) < 0.43625:  # check planarity < 25 degrees
                     # add_term('improper', topo, atoms, phi, imp_type)
-                    add_term('improper', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
-                    add_term('improper', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
-                    # add_term('improper', topo, [0, 2, 1, 3], phi, imp_type)
-                    add_term('improper', topo, [atoms[0], atoms[2], atoms[3], atoms[1]], phi, imp_type)
-                    # add_term('improper', topo, [0, 3, 1, 2], phi, imp_type)
-                    # add_term('improper', topo, [0, 3, 2, 1], phi, imp_type)
-
-                    # add_term('improper', topo,  [atoms[1], atoms[0], atoms[2], atoms[3]], phi, f'{imp_type}-2')
-                    # add_term('improper', topo,  [atoms[1], atoms[0], atoms[3], atoms[2]], phi, f'{imp_type}-3')
-                    # add_term('improper', topo,  [atoms[2], atoms[0], atoms[1], atoms[3]], phi, f'{imp_type}-4')
-                    # add_term('improper', topo,  [atoms[2], atoms[0], atoms[3], atoms[1]], phi, f'{imp_type}-5')
-                    # add_term('improper', topo,  [atoms[3], atoms[0], atoms[1], atoms[2]], phi, f'{imp_type}-6')
-                    # add_term('improper', topo,  [atoms[3], atoms[0], atoms[2], atoms[1]], phi, f'{imp_type}-7')
+                    if settings['improper'] is not False:
+                        add_term('improper', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
+                        add_term('improper', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
+                        add_term('improper', topo, [atoms[0], atoms[2], atoms[3], atoms[1]], phi, imp_type)
                 else:
-                    add_term('inversion', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
-                    add_term('inversion', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
-                    add_term('inversion', topo, [atoms[0], atoms[2], atoms[1], atoms[3]], phi, imp_type)
-                    add_term('inversion', topo, [atoms[0], atoms[2], atoms[3], atoms[1]], phi, imp_type)
-                    add_term('inversion', topo, [atoms[0], atoms[3], atoms[1], atoms[2]], phi, imp_type)
-                    add_term('inversion', topo, [atoms[0], atoms[3], atoms[2], atoms[1]], phi, imp_type)
+                    if settings['inversion'] is not False:
+                        add_term('inversion', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
+                        add_term('inversion', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
+                        add_term('inversion', topo, [atoms[0], atoms[2], atoms[1], atoms[3]], phi, imp_type)
+                        add_term('inversion', topo, [atoms[0], atoms[2], atoms[3], atoms[1]], phi, imp_type)
+                        add_term('inversion', topo, [atoms[0], atoms[3], atoms[1], atoms[2]], phi, imp_type)
+                        add_term('inversion', topo, [atoms[0], atoms[3], atoms[2], atoms[1]], phi, imp_type)
 
-                    # add_term('inversion', topo,  [1, 0, 2, 3], phi, f'{imp_type}-2')
-                    # add_term('inversion', topo,  [1, 0, 3, 2], phi, f'{imp_type}-2')
-                    # add_term('inversion', topo,  [2, 0, 1, 3], phi, f'{imp_type}-2')
-                    # add_term('inversion', topo,  [2, 0, 3, 1], phi, f'{imp_type}-2')
-                    # add_term('inversion', topo,  [3, 0, 1, 2], phi, f'{imp_type}-2')
-                    # add_term('inversion', topo,  [3, 0, 2, 1], phi, f'{imp_type}-2')
-
-        add_term('pitorsion', topo, [1, 0, 3, 2, 4, 5], 0, 'test')
+        # add_term('pitorsion', topo, [1, 0, 3, 2, 4, 5], 0, 'test')
         # add_term('pitorsion', topo, [0, 2, 3, 1, 4, 5], 0, 'test')
         return terms
 
@@ -287,8 +322,8 @@ def find_flexible_atoms(topo, a1s, a2, a3, a4s):
         if len(choices) == 0:
             choices = atom_list
         # if len(choices) > 1:
-        #     heaviest_elem = np.amax(topo.elements[choices])
-        #     choices = choices[topo.elements[choices] == heaviest_elem]
+        #     heaviest_elem = np.amax(topo.atomids[choices])
+        #     choices = choices[topo.atomids[choices] == heaviest_elem]
         return choices
 
     a1s = pick_end_atom(a1s)

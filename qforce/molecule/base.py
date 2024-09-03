@@ -74,7 +74,7 @@ class MappingIterator(Mapping):
                 ignore_keys['__REGULAR_KEY__'].append(key)
                 continue
             if key not in dct:
-                print(f"WARNING: '{key}' not known, therefore ignored!")
+                # print(f"WARNING: '{key}' not known, therefore ignored!")
                 continue
             iterm = dct[key]
             if not isinstance(iterm, MappingIterator):

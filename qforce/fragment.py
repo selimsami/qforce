@@ -12,15 +12,6 @@ from .forces import get_dihed
 from calkeeper import CalculationIncompleteError
 from .logger import LoggerExit
 
-"""
-
-Removing non-bonded: Only hydrogens excluded for the equi - make it more general
-Problem with using capping atom info in the graph comparaison - avoid it
-
-Prompt a warning when if any point has an error larger than 2kJ/mol.
-
-"""
-
 
 def fragment(mol, qm, job, config):
     fragments = []
@@ -31,7 +22,7 @@ def fragment(mol, qm, job, config):
     reset_data_files(frag_dir)
 
     for term in mol.terms['dihedral/flexible']:
-        name = term.typename.partition('_')[0]
+        name = term.type.partition('_')[0]
 
         if name not in unique_dihedrals:
             unique_dihedrals[name] = term.atomids
@@ -166,8 +157,8 @@ class Fragment:
                 elif (config.frag_threshold < 1 or  # fragmentation turned off
                       n_neigh < config.frag_threshold  # don't break first n neighbors
                       or bond['order'] >= config.conj_bo_cutoff  # don't break bonds conjugated more than 1.4 (default)
-                      or ELE_ENEG[mol.elements[a]] > 3  # don't break if very electronegative
-                      or (config.break_co_bond and ELE_ENEG[mol.elements[n]] > 3)
+                      or ELE_ENEG[mol.atomids[a]] > 3  # don't break if very electronegative
+                      or (config.break_co_bond and ELE_ENEG[mol.atomids[n]] > 3)
                       or mol.topo.n_neighbors[n] == 1  # don't break terminal atoms
                       or bond['n_rings'] > 1  # don't break a bond that is in multiple rings
                       or (bond['n_rings'] == 1 and self.check_single_ring_rules(mol, bond, a, n))):
@@ -178,14 +169,13 @@ class Fragment:
                         possible_h_caps[a].append(n)
                 else:
                     bl = mol.topo.edge(a, n)['length']
-                    new_bl = ELE_COV[mol.topo.elements[a]] + ELE_COV[1]
+                    new_bl = ELE_COV[mol.topo.atomids[a]] + ELE_COV[1]
                     vec = mol.topo.node(a)['coords'] - mol.topo.node(n)['coords']
                     coord = mol.topo.coords[a] - vec/bl*new_bl
                     self.caps.append({'connected': a, 'idx': n, 'n_cap': n_cap, 'coord': coord,
                                       'b_length': bl})
                     n_cap += 1
-            next_neigh = [[a, n] for a in new for n in mol.topo.neighbors[0][a] if n not in
-                          self.atomids]
+            next_neigh = [[a, n] for a in new for n in mol.topo.neighbors[0][a] if n not in self.atomids]
             n_neigh += 1
 
         self.n_atoms_without_cap = len(self.atomids)
@@ -201,7 +191,7 @@ class Fragment:
     def make_fragment_graph(self, mol):
         self.map_mol_to_frag = {self.atomids[i]: i for i in range(self.n_atoms_without_cap)}
         self.scanned_atomids = [self.map_mol_to_frag[a] for a in self.scanned_atomids]
-        self.elements = [mol.elements[idx] for idx in self.atomids+[cap['idx'] for cap in
+        self.elements = [mol.atomids[idx] for idx in self.atomids+[cap['idx'] for cap in
                                                                     self.caps]]
         self.graph = mol.topo.graph.subgraph(self.atomids)
         self.graph = nx.relabel_nodes(self.graph, self.map_mol_to_frag)
@@ -221,7 +211,7 @@ class Fragment:
         for cap in self.caps:
             self.atomids.append(cap['idx'])
             self.map_mol_to_frag[cap['idx']] = self.n_atoms_without_cap + cap['n_cap']
-            h_type = f'1(1.0){mol.topo.elements[cap["connected"]]}'
+            h_type = f'1(1.0){mol.topo.atomids[cap["connected"]]}'
             self.graph.add_node(self.n_atoms_without_cap + cap['n_cap'], elem=1, n_bonds=1,
                                 coords=cap['coord'], capping=True)
             self.graph.add_edge(self.n_atoms_without_cap + cap['n_cap'],
@@ -315,7 +305,7 @@ class Fragment:
         if files:
             self.has_data = True
             qm_out = qm.read_scan(self.folder, files)
-            qm_out = qm.do_scan_sp_calculations(self.folder, self.id, qm_out, mol.elements)
+            qm_out = qm.do_scan_sp_calculations(self.folder, self.id, qm_out, mol.atomids)
             # get qm out energies
             self.qm_energies = qm_out.energies
             self.qm_coords = qm_out.coords

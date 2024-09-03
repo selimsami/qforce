@@ -115,14 +115,17 @@ class ReadQChem(ReadABC):
                     while line.strip():
                         dip_ders.append([float(val) for val in line.split()])
                         line = file.readline()
+                elif 'Total energy =' in line:
+                    energy = float(line.split()[3])
+        energy *= Hartree * mol / kJ
 
-        return (n_atoms, charge, multiplicity, elements, coords,
+        return (n_atoms, charge, multiplicity, elements, coords, energy,
                 hessian, b_orders, point_charges, dip_ders)
 
     def scan(self, config, file_name):
         n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
         with open(file_name, "r", encoding='utf-8') as file:
-            angles, energies, coords = [], [], []
+            angles, energies, coords, dipoles = [], [], [], []
             found_n_atoms = False
 
             for line in file:
@@ -142,10 +145,15 @@ class ReadQChem(ReadABC):
                 elif "Final energy is" in line:
                     energy = float(line.split()[3])
 
+                elif 'Dipole Moment (Debye)' in line:
+                    line = next(file)
+                    dipole = [float(val) for val in line.split()[1::2]]
+
                 elif "PES scan, value:" in line:
                     angles.append(float(line.split()[3]))
                     energies.append(energy)
                     coords.append(coord)
+                    dipoles.append(dipole)
 
                 elif "Charge Model 5" in line:
                     point_charges['cm5'] = self._read_cm5_charges(file)
@@ -154,7 +162,7 @@ class ReadQChem(ReadABC):
                     point_charges['resp'] = self._read_resp_charges(file)
 
         energies = np.array(energies) * Hartree * mol / kJ
-        return n_atoms, coords, angles, energies, point_charges
+        return n_atoms, coords, angles, energies, np.array(dipoles)*Debye, point_charges
 
     def charges(self, config, out_file):
         """read charge from file"""
@@ -194,7 +202,7 @@ class ReadQChem(ReadABC):
     def sp(self, config, out_file):
         with open(out_file, "r", encoding='utf-8') as file:
             for line in file:
-                if 'Total energy' in line:
+                if 'Total energy =' in line:
                     return float(line.split()[-1]) * Hartree * mol / kJ
         raise ValueError("Could not find energy in file!")
 
@@ -215,8 +223,8 @@ class ReadQChem(ReadABC):
                         atomids.append(ids)
                         coords.append([float(x), float(y), float(z)])
                         line = next(file)
-                if 'Total energy' in line:
-                    energy = float(line.split()[-1]) * Hartree * mol / kJ
+                if 'Total energy =' in line:
+                    energy = float(line.split()[-1])
                 if 'Dipole Moment (Debye)' in line:
                     line = next(file)
                     dipole = [float(val) for val in line.split()[1::2]]
@@ -244,8 +252,8 @@ class ReadQChem(ReadABC):
                         atomids.append(ids)
                         coords.append([float(x), float(y), float(z)])
                         line = next(file)
-                if 'Total energy' in line:
-                    energy = float(line.split()[-1]) * Hartree * mol / kJ
+                if 'Total energy =' in line:
+                    energy = float(line.split()[-1])
                 if 'Dipole Moment (Debye)' in line:
                     line = next(file)
                     dipole = [float(val) for val in line.split()[1::2]]
@@ -263,6 +271,7 @@ class ReadQChem(ReadABC):
             raise ValueError("Could not find energy in file!")
         energy = energy * Hartree * mol / kJ
         gradient = np.array(gradient) * Hartree * mol / kJ / Bohr
+
         return energy, gradient, np.array(dipole)*Debye, atomids, np.array(coords)
 
     @staticmethod

@@ -240,7 +240,7 @@ hess_struct = :: existing_file, optional
         if not calculation.input_exists():
             with open(calculation.inputfile, 'w') as file:
                 self.write_charge(file, calculation.base, output.coords,
-                                  output.elements, charge_software)
+                                  output.atomids, charge_software)
         # if files exist
         try:
             charge_files = calculation.check()
@@ -269,7 +269,7 @@ hess_struct = :: existing_file, optional
                 qm_outs.append(software.read.scan(self.config, f'{folder}/{file}'))
             elif self.config.dihedral_scanner == 'torsiondrive':
                 qm_outs.append(software.read.scan_torsiondrive(f'{folder}/{file}'))
-        qm_out = self._get_unique_scan_points(qm_outs, n_scan_steps)
+        qm_out = self._get_unique_scan_points(qm_outs)
 
         return ScanOutput(file, n_scan_steps, *qm_out)
 
@@ -333,7 +333,8 @@ hess_struct = :: existing_file, optional
             # do not do che charge
             for files in out_files:
                 energies.append(charge_software.read.sp(self.config, **files))
-            scan_out.energies = np.array(energies, dtype=np.float64)
+            energies = np.array(energies, dtype=np.float64)
+            scan_out.energies = energies - energies.min()
 
         # check and read charge software
         if charge_software is not None:
@@ -341,6 +342,54 @@ hess_struct = :: existing_file, optional
             scan_out.point_charges = charge_software.read.charges(self.config, **charge_files)
 
         return scan_out
+
+    def do_scan_sp_calculations_v2(self, parent, scan_id, scan_out, atnums):
+        """do scan sp calculations if necessary and update the scan out"""
+        software = self.softwares['software']
+        scan_software = self.softwares['scan_software']
+        # check if sp should be computed
+        do_sp = not (scan_software is software)
+
+        # setup sp calculations
+        if do_sp is True:
+            software = self.softwares['software']
+            folder = parent
+            os.makedirs(folder, exist_ok=True)
+            calculations = [self.Calculation(self.scan_sp_name(software, i),
+                                             software.read.gradient_files,
+                                             folder=f'{folder}/step_{i}',
+                                             software=software.name)
+                            for i in range(scan_out.n_steps)]
+
+            # setup files
+            for i, calc in enumerate(calculations):
+                if not calc.input_exists():
+                    os.makedirs(calc.folder, exist_ok=True)
+                    with open(calc.inputfile, 'w') as file:
+                        self.write_gradient(file, calc.base, scan_out.coords[i], atnums)
+
+            try:
+                out_files = check(calculations)
+            except CalculationIncompleteError:
+                self.logger.exit(f"Required output file(s) not found in '{parent}/step_XX'.\n"
+                                 'Creating the necessary input file and exiting...\n'
+                                 'Please run the calculation and put the output files in the '
+                                 'same directory.\nNecessary output files and the '
+                                 'corresponding extensions are:\n'
+                                 f"{calculations[0].missing_as_string()}")
+
+            energies, forces, dipoles = [], [], []
+            for files in out_files:
+                energy, force, dipole, atomids, coords = software.read.gradient(self.config, **files)
+                energies.append(energy)
+                forces.append(force)
+                dipoles.append(dipole)
+
+            scan_out.energies = np.array(energies, dtype=np.float64)
+            scan_out.forces = np.array(forces, dtype=np.float64)
+            scan_out.dipoles = np.array(dipoles, dtype=np.float64)
+        return scan_out
+
 
     @scriptify
     def write_preopt(self, file, job_name, coords, atnums):
@@ -374,9 +423,9 @@ hess_struct = :: existing_file, optional
         software.write.gradient(file, job_name, self.config, coords, atnums)
 
     @scriptify
-    def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge,
-                   multiplicity):
-        '''Generate the input file for the dihedral scan.
+    def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge, multiplicity):
+        """
+        Generate the input file for the dihedral scan.
         Parameters
         ----------
         file : file
@@ -398,8 +447,10 @@ hess_struct = :: existing_file, optional
             The total charge of the fragment.
         multiplicity : int
             The multiplicity of the molecule.
-        '''
+        """
+
         software = self.softwares['scan_software']
+
         if self.config.dihedral_scanner == 'relaxed_scan':
             software.write.scan(file, scan_id, self.config, coords,
                                 atnums, scanned_atoms, start_angle,
@@ -432,33 +483,29 @@ hess_struct = :: existing_file, optional
         software = self.softwares['preopt']
         return software.read.opt(self.config, **opt_files)
 
-    def _get_unique_scan_points(self, qm_outs, n_scan_steps):
-        all_angles, all_energies, all_coords, chosen_point_charges, final_e = [], [], [], {}, 0
+    def _get_unique_scan_points(self, qm_outs):
+        all_angles, all_energies, all_coords, all_dipoles, chosen_point_charges, final_e = [], [], [], [], {}, 0
         all_angles_rounded = []
 
-        for n_atoms, coords, angles, energies, point_charges in qm_outs:
+        for n_atoms, coords, angles, energies, dipoles, point_charges in qm_outs:
             angles = [round(a % 360, 3) for a in angles]
 
-            for angle, coord, energy in zip(angles, coords, energies):
+            for angle, coord, energy, dipole in zip(angles, coords, energies, dipoles):
                 angle_rounded = round(angle)
                 if angle_rounded not in all_angles_rounded:
                     all_angles.append(angle)
                     all_energies.append(energy)
                     all_coords.append(coord)
+                    all_dipoles.append(dipole)
                     all_angles_rounded.append(angle_rounded)
                 else:
                     idx = all_angles_rounded.index(angle_rounded)
                     if energy < all_energies[idx]:
                         all_energies[idx] = energy
                         all_coords[idx] = coord
+                        all_dipoles[idx] = dipole
 
-        if not chosen_point_charges:
-            chosen_point_charges = point_charges
-            final_e = energies[-1]
-        elif energies[-1] < final_e:
-            chosen_point_charges = point_charges
-
-        return n_atoms, all_coords, all_angles, all_energies, chosen_point_charges
+        return n_atoms, all_coords, all_angles, all_energies, all_dipoles, point_charges
 
     def preopt(self):
         molecule, coords, atnums = self._read_coord_file(self.job.coord_file)

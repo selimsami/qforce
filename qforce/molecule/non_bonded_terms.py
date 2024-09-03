@@ -14,7 +14,7 @@ class NonBondedTerms(TermBase):
         return calc_pairs(crd, self.atomids, self.equ, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         """get terms"""
 
         non_bonded_terms = cls.get_terms_container()
@@ -42,3 +42,9 @@ class NonBondedTerms(TermBase):
 
                     non_bonded_terms.append(cls([i, j], np.array(param), term_type))
         return non_bonded_terms
+
+    def write_forcefield(self, software, writer):
+        software.write_nonbonded_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_nonbonded_header(writer)

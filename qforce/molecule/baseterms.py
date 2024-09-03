@@ -7,19 +7,19 @@ from .storage import TermStorage, MultipleTermStorge
 
 class TermABC(ABC):
 
-    __slots__ = ('atomids', 'equ', 'idx', 'fconst', '_typename', '_name')
+    __slots__ = ('atomids', 'equ', 'idx', 'fconst', 'type', '_name')
 
     name = 'NOT_NAMED'
 
-    def __init__(self, atomids, equ, typename, fconst=None):
+    def __init__(self, atomids, equ, term_type, fconst=None):
         """Initialization of a term"""
         self.atomids = np.array(atomids)
         self.equ = equ
         self.idx = 0
         self.flux_idx = 0
         self.fconst = fconst
-        self.typename = typename
-        self._name = f"{self.name}({typename})"
+        self.type = term_type
+        self._name = f"{self.name}({term_type})"
 
     def __repr__(self):
         return self._name
@@ -37,9 +37,13 @@ class TermABC(ABC):
         """force calculation with given geometry"""
         return self._calc_forces(crd, force, self.fconst)
 
-    def do_fitting(self, crd, forces):
+    def do_fitting(self, crd, energies, forces):
         """compute fitting contributions"""
-        return self._calc_forces(crd, forces[self.idx], 1.0)
+        energies[self.idx] += self._calc_forces(crd, forces[self.idx], 1.0)
+
+    def set_fitparameters(self, parameters):
+        """set the parameters after fitting"""
+        self.fconst = parameters[self.idx]
 
     @abstractmethod
     def _calc_forces(self, crd, force, fconst):
@@ -82,7 +86,7 @@ class TermFactory(ABC):
 
     @classmethod
     @abstractmethod
-    def get_terms(cls, topo, non_bonded):
+    def get_terms(cls, topo, non_bonded, settings):
         """
             Args:
                 topo: Topology object, const
@@ -99,3 +103,14 @@ class TermFactory(ABC):
 class TermBase(TermFactory, TermABC):
     """Base class for terms that are TermFactories for themselves as well"""
     _multiple_terms = False
+
+
+class EmptyTerm(TermBase):
+    """Return an empty term container"""
+
+    def _calc_forces(self, crd, force, fconst):
+        raise NotImplementedError("should never be created")
+
+    @classmethod
+    def get_terms(cls, topo, non_bonded, settings):
+        return None
