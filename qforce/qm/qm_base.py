@@ -117,13 +117,13 @@ class Calculator(Colt):
             raise CalculationFailed(f"Do not know software '{calculation.software}', "
                                     f"can only run '{self.name}' jobs")
         with calculation.within():
-            path = os.getcwd()
+            # path = os.getcwd()
             result_string += "\n#-------------------------\n"
             result_string += f"# Run: {calculation.filename} \n"
             result_string += f"# Code: {calculation.software} \n"
             result_string += f"# NCORES: {ncores} \n"
             result_string += "#-------------------------\n"
-            result_string += f"\n\ncd {path}\n"
+            result_string += f"\n\ncd {calculation.folder}\n"
             base = calculation.base
             commands = self._commands(calculation.filename, base, ncores)
             if isinstance(commands, str):
