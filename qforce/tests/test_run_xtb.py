@@ -2,7 +2,6 @@ import os
 
 import numpy as np
 import pytest
-import parmed as pmd
 from subprocess import call
 from qforce.main import run_qforce
 from qforce_examples import xTB_default
@@ -55,23 +54,20 @@ frag_lib = {}/qforce_fragments
 
         # Generate the topology
         try:
-            run_qforce(input_arg=str(xyz),
+            mol = run_qforce(input_arg=str(xyz),
                        config=str(setting))
         except SystemExit:
             pass
 
-        top = pmd.load_file(str(outdir / 'propane_qforce' / 'gas.top'),
-                            xyz = str(outdir / 'propane_qforce' / 'gas.gro'))
         os.chdir(cwd)
-        return top
+        return mol
 
-    def test_top(self, propane):
-        '''Test if the whole process runs.'''
-        assert isinstance(propane, pmd.gromacs.GromacsTopologyFile)
+    # def test_top(self, propane):
+    #     '''Test if the whole process runs.'''
+    #     assert isinstance(propane, pmd.gromacs.GromacsTopologyFile)
 
     def test_charge(self, propane):
         '''Test if the charges are generated in the same fashion.'''
-        charges = [atom.charge for atom in propane.atoms]
         ref_charge = [-0.10206769,
    -0.04738168,
     0.03075230,
@@ -84,40 +80,33 @@ frag_lib = {}/qforce_fragments
     0.03359926,
     0.03359765,
 ]
-        assert np.allclose(ref_charge, charges, atol=0.01)
+        assert np.allclose(ref_charge, propane.non_bonded.q, atol=0.01)
 
     def test_elements(self, propane):
-        atom_ids = [atom.atomic_number for atom in propane.atoms]
-        assert [6, 6, 1, 1, 1, 6, 1, 1, 1, 1, 1] == atom_ids
+        assert [6, 6, 1, 1, 1, 6, 1, 1, 1, 1, 1] == list(propane.elements)
 
     def test_angles(self, propane):
-        assert len(propane.angles) == 18
-        assert propane.angles[0].funct == 5
-        assert propane.angles[0].atom1.idx == 0
-        assert propane.angles[0].atom2.idx == 1
-        assert propane.angles[0].atom3.idx == 5
-        assert np.isclose(propane.angles[0].type.k, 54.72, atol=0.01)
-        assert np.isclose(propane.angles[0].type.theteq, 111.62, atol=0.01)
+        angles = list(propane.terms['angle'])
+        assert len(angles) == 18
+        assert list(angles[0].atomids) == [0, 1, 5]
+        assert np.isclose(angles[0].fconst, 457.945, atol=0.01)
+        assert np.isclose(np.degrees(angles[0].equ), 111.62, atol=0.01)
 
     def test_bonds(self, propane):
-        assert len(propane.bonds) == 10
-        assert propane.bonds[0].funct == 1
-        assert propane.bonds[0].atom1.idx == 0
-        assert propane.bonds[0].atom2.idx == 1
-        assert np.isclose(propane.bonds[0].type.k, 211.478, atol=0.01)
-        assert np.isclose(propane.bonds[0].type.req, 1.5242, atol=0.01)
+        bonds = list(propane.terms['bond'])
+        assert len(bonds) == 10
+        assert list(bonds[0].atomids) == [0, 1]
+        assert np.isclose(bonds[0].fconst, 1769.660, atol=0.01)
+        assert np.isclose(bonds[0].equ, 1.5242, atol=0.01)
 
     def test_dihedrals(self, propane):
-        assert len(propane.rb_torsions) == 2
-        assert propane.rb_torsions[0].atom1.idx == 2
-        assert propane.rb_torsions[0].atom2.idx == 0
-        assert propane.rb_torsions[0].atom3.idx == 1
-        assert propane.rb_torsions[0].atom4.idx == 5
-        assert propane.rb_torsions[0].funct == 3
-        assert np.isclose(propane.rb_torsions[0].type.c0, 0.9964, atol=0.01)
+        diheds = list(propane.terms['dihedral/flexible'])
+        assert len(diheds) == 2
+        assert list(diheds[0].atomids) == [2, 0, 1, 5]
+        assert np.isclose(diheds[0].equ[0], 4.169, atol=0.01)
 
     def test_defaults(self, propane):
-        assert propane.defaults.comb_rule == 3
-        assert propane.defaults.fudgeLJ == 0.5
-        assert propane.defaults.fudgeQQ == 0.5
-        assert propane.defaults.nbfunc == 1
+        assert propane.non_bonded.comb_rule == 3
+        assert propane.non_bonded.fudge_lj == 0.5
+        assert propane.non_bonded.fudge_q == 0.5
+
