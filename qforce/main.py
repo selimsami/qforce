@@ -60,6 +60,8 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None):
 
     print_outcome(job.dir)
 
+    return mol
+
 
 def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
                                      config=None, presets=None):
