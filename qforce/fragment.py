@@ -229,7 +229,6 @@ class Fragment():
             atom_ids[a] = "_".join(sorted(atom_ids[a]))
         frag_hash = "=".join(sorted(atom_ids))
         frag_hash = hashlib.md5(frag_hash.encode()).hexdigest()
-        print(frag_hash)
 
         multiplicity = 1
         charge = int(round(sum(nx.get_node_attributes(self.graph, 'q').values())))

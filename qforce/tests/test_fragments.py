@@ -27,7 +27,7 @@ frag_lib = {}/qforce_fragments
         pass
     # Fragment file generated
     assert tmpdir.join('propane_qforce').join('fragments').join(
-        'CC_H8C3_cfefcea578edce1c74c86030d95308c7~1.inp').isfile()
+        'CC_H8C3_d91b46644317dee9c2b868166c66a18c~1.inp').isfile()
     tmpdir.join('propane_qforce').join('fragments').remove()
 
     # Second run
@@ -39,4 +39,4 @@ frag_lib = {}/qforce_fragments
     # Fragment file generated again if batch_run is False
     # Fragment file not generated again if batch_run is True
     assert tmpdir.join('propane_qforce').join('fragments').join(
-        'CC_H8C3_cfefcea578edce1c74c86030d95308c7~1.inp').isfile() is exist
+        'CC_H8C3_d91b46644317dee9c2b868166c66a18c~1.inp').isfile() is exist
