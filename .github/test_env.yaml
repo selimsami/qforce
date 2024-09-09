@@ -8,7 +8,6 @@ dependencies:
 
   - setuptools
   - xtb
-  - parmed
   - scipy
   - numpy
   - ase
