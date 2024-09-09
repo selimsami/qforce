@@ -47,7 +47,7 @@ frag_lib = {}/qforce_fragments
             pass
 
         os.chdir('fragments')
-        run_fragment = outdir / 'propane_qforce' / 'fragments' / 'CC_H8C3_d91b46644317dee9c2b868166c66a18c~1.inp'
+        run_fragment = outdir / 'propane_qforce' / 'fragments' / 'CC_H8C3_cfefcea578edce1c74c86030d95308c7~1.inp'
         call(run_fragment.read_text(), shell=True)
 
         # Generate the topology
