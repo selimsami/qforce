@@ -345,5 +345,5 @@ class AdditionalStructures(Colt):
     def hessitr(self):
         for creator in self.creators.values():
             weight = creator.weight * self.hessian_weight
-            for out in creator.gradouts():
+            for out in creator.hessouts():
                 yield weight, out
