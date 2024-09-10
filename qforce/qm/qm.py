@@ -151,7 +151,6 @@ hess_struct = :: existing_file, optional
     def do_grad_calculations(self, parent, iterator):
         software = self.softwares['software']
         grad_calcs = []
-        print(software.read.gradient_files)
         for i, (coords, atnums) in iterator:
             folder = parent / f'{i}_conformer'
             os.makedirs(folder, exist_ok=True)
