@@ -9,7 +9,7 @@ from .fragment import fragment
 from .no_fragment_scanning import do_nofrag_scanning
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
-from .hessian import fit_hessian, multi_hessian_fit
+from .hessian import fit_hessian, multi_hessian_fit, multi_hessian_newfit
 from .charge_flux import fit_charge_flux
 from .misc import LOGO
 from .logger import LoggerExit
@@ -63,12 +63,13 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     # do the preoptimization if selected
     qm.preopt()
     # get hessian output
-    qm_hessian_out, qm_energy_out, qm_gradient_out = qm.get_hessian()
+    qm_hessian_out, _, _ = qm.get_hessian()
     main_hessian = qm_hessian_out[0]
-    e_lowest = min([out.energy for out in qm_hessian_out])
 
     structs = AdditionalStructures.from_config(config.addstructs)
     structs.create(qm)
+    # add hessian
+    structs.add_hessian(1000, main_hessian)
 
     ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
     if ffcls is None:
@@ -79,13 +80,12 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
 
     # if len(mol.terms['dihedral/flexible']) > 0:
     scans = do_nofrag_scanning(mol, qm, job, config)
-    qm_gradient_out.extend(scans)
-
-    for out in qm_hessian_out + qm_energy_out + qm_gradient_out:
-        out.energy -= e_lowest
-
+    # add forces
+    structs.add_dihedrals(100, scans)
+    # normalize!
+    structs.normalize()
     # hessian fitting
-    md_hessian = multi_hessian_fit(job.logger, config.terms, mol, qm_hessian_out, qm_energy_out, qm_gradient_out, fit_flexible=True)
+    md_hessian = multi_hessian_newfit(job.logger, config.terms, mol, structs, fit_flexible=True)
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
