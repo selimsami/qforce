@@ -3,7 +3,8 @@ import numpy as np
 #
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dihed, get_angle
-from ..forces import calc_harmonic_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_periodic_dihed
+from ..forces import (calc_harmonic_diheds, calc_rb_diheds, calc_inversion, calc_cos_cube_diheds, calc_pitorsion_diheds,
+                      calc_periodic_dihed)
 from ..forces import lsq_rb_diheds
 
 
@@ -36,7 +37,7 @@ class DihedralBaseTerm(TermABC):
         elif 150 <= phi:
             ang = 180
 
-        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"  # -{ang}
+        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"  #-{ang}
 
     @staticmethod
     def remove_linear_angles(coords, a1s, a2, a3, a4s):
@@ -145,6 +146,24 @@ class InversionDihedralTerm(DihedralBaseTerm):
     def write_ff_header(self, software, writer):
         return software.write_inversion_dihed_header(writer)
 
+
+class CosCubeDihedralTerm(DihedralBaseTerm):
+    name = 'CosCubeDihedralTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cos_cube_diheds(crd, self.atomids, fconst, force)
+
+    @classmethod
+    def get_term(cls, topo, atomids, d_type):
+        return cls(atomids, None, d_type)
+
+    def write_forcefield(self, software, writer):
+        software.write_cos_cube_dihedral_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cos_cube_dihedral_header(writer)
+
+
 class PiTorsionDihedralTerm(DihedralBaseTerm):
     name = 'PiTorsionDihedralTerm'
 
@@ -168,9 +187,13 @@ class DihedralTerms(TermFactory):
 
     _term_types = {
         'rigid': RigidDihedralTerm,
-        'periodic': PeriodicDihedralTerm,
         'improper': ImproperDihedralTerm,
         'flexible': RBDihedralTerm,
+        # {
+        'chosen': PeriodicDihedralTerm, # CosCubeDihedralTerm,# ,
+        # 'periodic': PeriodicDihedralTerm,
+        # 'cos_cube': CosCubeDihedralTerm,
+        # },
         'inversion': InversionDihedralTerm,
         'pitorsion': PiTorsionDihedralTerm,
     }
@@ -216,8 +239,11 @@ class DihedralTerms(TermFactory):
                     d_type = get_dtype(topo, *atoms)
                     if settings['rigid'] is not False:
                         # add_term('rigid', topo, atoms, d_type)
-                        add_term('periodic', topo, atoms, 3, 0, d_type+'_mult3')
-                        # add_term('periodic', topo, atoms, 3, 0, d_type+'_mult1')
+                        # add_term('periodic', topo, atoms, 3., 0, d_type+'_mult3')
+                        # add_term('periodic', topo, atoms, 3., np.pi, d_type+'_mult2')
+                        # add_term('periodic', topo, atoms, 1, 0, d_type+'_mult1')
+                        # add_term('chosen', topo, atoms, d_type)
+                        add_term('chosen', topo, atoms, 3., np.pi, d_type+'_mult2')
 
             elif central['in_ring']:
                 atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))

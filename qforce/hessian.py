@@ -140,8 +140,19 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads, fit_flexible=Fal
     else:
         ignore_terms = ['dihedral/flexible', 'charge_flux']
 
-    weight_e = 0.1
-    weight_f = 0.001
+    energy_min, force_min = calc_forces(qm.coords, mol)
+
+    w = 100
+
+    force_min *= -1  # convert from force to gradient
+    force_min = force_min.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
+    full_hessian += list(w*force_min[:-1].T)
+    full_differences += list(w*(np.zeros(qm.coords.size) - force_min[-1]))
+    #
+
+    weight_e = 100
+    weight_f = 10
+
 
     with mol.terms.add_ignore(ignore_terms):
         for qmen in qmens:
@@ -157,6 +168,7 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads, fit_flexible=Fal
 
         for qmgrad in qmgrads:
             mm_energy, mm_force = calc_forces(qmgrad.coords, mol)
+            mm_energy -= energy_min
             mm_force *= -1  # convert from force to gradient
             mm_force = mm_force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
 
@@ -167,9 +179,13 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads, fit_flexible=Fal
 
             full_hessian += list(weight_f*mm_force[:-1].T)
             full_differences += list(weight_f*(np.array(qmgrad.gradient).flatten() - mm_force[-1]))
-
+            # full_hessian += list(qmgrad.weight*weight_f*mm_force[:-1].T)
+            # full_differences += list(qmgrad.weight*weight_f*(np.array(qmgrad.gradient).flatten() - mm_force[-1]))
+            #
             full_differences.append(weight_e*(qmgrad.energy - mm_energy[-1]))
             full_hessian.append(weight_e*mm_energy[:-1])
+            # full_differences.append(qmgrad.weight*weight_e*(qmgrad.energy - mm_energy[-1]))
+            # full_hessian.append(qmgrad.weight*weight_e*mm_energy[:-1])
 
     logger.info("Fitting the MD hessian parameters to QM hessian values")
     fit = optimize.lsq_linear(full_hessian, full_differences, bounds=(min_arr, max_arr)).x
@@ -200,6 +216,12 @@ def multi_hessian_fit(logger, config, mol, qms, qmens, qmgrads, fit_flexible=Fal
             print('QM:\n', full_qm_energies[struct], '\n', full_qm_forces[struct])
             print('MM:\n', full_mm_energies[struct], '\n', full_mm_forces[struct].reshape((mol.n_atoms, 3)))
             print('\n')
+
+    emin = np.sum(energy_min[:-1] * fit)
+
+    print('EMIN', emin)
+
+
 
     err = full_md_hessian_1d-qm.hessian
     mae = np.abs(err).mean()

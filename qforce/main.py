@@ -59,6 +59,7 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     # do the preoptimization if selected
     qm.preopt()
     # get hessian output
+
     qm_hessian_out, qm_energy_out, qm_gradient_out = qm.get_hessian()
     main_hessian = qm_hessian_out[0]
     e_lowest = min([out.energy for out in qm_hessian_out])

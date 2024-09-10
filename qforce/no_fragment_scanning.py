@@ -12,13 +12,13 @@ def do_nofrag_scanning(mol, qm, job, config):
     scans = []
     unique_dihedrals = {}
 
-    if len(mol.terms['dihedral/periodic']) == 0 or not config.scan.do_scan:
+    if len(mol.terms['dihedral/chosen']) == 0 or not config.scan.do_scan:
         return scans
 
     os.makedirs(config.scan.frag_lib, exist_ok=True)
     scan_dir = job.pathways.getdir('fragments', create=True)
 
-    for term in mol.terms['dihedral/periodic']:
+    for term in mol.terms['dihedral/chosen']:
         name = term.type.split('_')[1]
         if name not in unique_dihedrals:
             unique_dihedrals[name] = term.atomids

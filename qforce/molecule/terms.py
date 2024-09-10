@@ -6,7 +6,9 @@ from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
 from .bond_and_angle_terms import HarmonicBondTerm, MorseBondTerm, HarmonicAngleTerm, CosineAngleTerm, UreyBradleyTerm
 from .coupling_terms import (CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm, CrossBondCosineAngleTerm,
-                             CrossCosineAngleAngleTerm, CrossDihedBondTerm, CrossDihedAngleTerm)
+                             CrossCosineAngleAngleTerm, CrossDihedBondTerm, CrossDihedAngleTerm,
+                             CrossCosCubeDihedAngleTerm, CrossCosCubeDihedBondTerm,
+                             CrossCosCubeDihedAngleAngleTerm, CrossDihedAngleAngleTerm)
 from .non_bonded_terms import NonBondedTerms
 from .charge_flux_terms import ChargeFluxTerms
 from .local_frame import LocalFrameTerms
@@ -96,8 +98,19 @@ class Terms(MappingIterator):
             'cosine': CrossCosineAngleAngleTerm,
         },
         #
-        '_cross_dihed_angle': CrossDihedAngleTerm,
-        '_cross_dihed_bond': CrossDihedBondTerm,
+        'cross_dihed_angle': {
+            'cos_cube': CrossCosCubeDihedAngleTerm,
+            'periodic': CrossDihedAngleTerm
+        },
+        #
+        'cross_dihed_bond': {
+            'cos_cube': CrossCosCubeDihedBondTerm,
+            'periodic': CrossDihedBondTerm
+        },
+        'cross_dihed_angle_angle': {
+            'cos_cube': CrossCosCubeDihedAngleAngleTerm,
+            'periodic': CrossDihedAngleAngleTerm
+        },
         #
         'dihedral': DihedralTerms,
         #
