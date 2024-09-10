@@ -109,6 +109,7 @@ class Pathways:
         # folders
         'preopt': '0_preopt',
         'hessian': '1_hessian',
+        'addstruct': '5_additional',
         'hessian_charge': ['hessian', 'charge'],
         'hessian_energy': ['hessian', '${idx}_en_conformer'],
         'hessian_gradient': ['hessian', '${idx}_grad_conformer'],
