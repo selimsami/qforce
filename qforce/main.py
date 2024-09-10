@@ -13,6 +13,7 @@ from .hessian import fit_hessian, multi_hessian_fit
 from .charge_flux import fit_charge_flux
 from .misc import LOGO
 from .logger import LoggerExit
+from .additionalstructures import AdditionalStructures
 
 
 def runjob(config, job, ext_q=None, ext_lj=None):
@@ -23,6 +24,9 @@ def runjob(config, job, ext_q=None, ext_lj=None):
     # get hessian output
     qm_hessian_out, qm_energy_out, qm_gradient_out = qm.get_hessian()
     main_hessian = qm_hessian_out[0]
+        
+    structs = AdditionalStructures.from_config(config.addstructs)
+    structs.create(qm)
 
     # check molecule
     ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
@@ -62,6 +66,9 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     qm_hessian_out, qm_energy_out, qm_gradient_out = qm.get_hessian()
     main_hessian = qm_hessian_out[0]
     e_lowest = min([out.energy for out in qm_hessian_out])
+
+    structs = AdditionalStructures.from_config(config.addstructs)
+    structs.create(qm)
 
     ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
     if ffcls is None:
