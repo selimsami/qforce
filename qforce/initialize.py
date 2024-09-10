@@ -6,6 +6,7 @@ import pkg_resources
 from colt import Colt
 from calkeeper import CalculationKeeper
 #
+from .additionalstructures import AdditionalStructures
 from .qm.qm import QM, implemented_qm_software, calculators
 from .forcefield.forcefield import ForceField
 from .dihedral_scan import DihedralScan
@@ -46,6 +47,7 @@ filename = :: str, optional
                                                      for key, software
                                                      in implemented_qm_software.items()},
                                  block='qm')
+        questions.generate_block("addstructs", AdditionalStructures.colt_user_input)
         # ff terms
         for name, ffcls in ForceField.implemented_md_software.items():
             questions.generate_block(name, ffcls.get_questions(), block='ff')
