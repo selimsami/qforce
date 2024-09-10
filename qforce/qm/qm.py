@@ -131,6 +131,59 @@ hess_struct = :: existing_file, optional
     def Calculation(self, filename, required_files, *, folder=None, software=None):
         return self.job.Calculation(filename, required_files, folder=folder, software=software)
 
+    def do_hessian_calculations(self, parent, iterator):
+        software = self.softwares['software']
+        hess_calcs = []
+        for i, (coords, atnums) in iterator:
+            folder = parent / f'{i}_conformer'
+            os.makedirs(folder, exist_ok=True)
+            calculation = self.Calculation(self.hessian_name(software),
+                                           software.read.hessian_files,
+                                           folder=folder,
+                                           software=software.name)
+            if not calculation.input_exists():
+                with open(calculation.inputfile, 'w') as file:
+                    self.write_hessian(file, calculation.base, coords, atnums)
+
+            hess_calcs.append(calculation)
+        return hess_calcs
+
+    def do_grad_calculations(self, parent, iterator):
+        software = self.softwares['software']
+        grad_calcs = []
+        print(software.read.gradient_files)
+        for i, (coords, atnums) in iterator:
+            folder = parent / f'{i}_conformer'
+            os.makedirs(folder, exist_ok=True)
+            calculation = self.Calculation(self.hessian_name(software),
+                                           software.read.gradient_files,
+                                           folder=folder,
+                                           software=software.name)
+            if not calculation.input_exists():
+                with open(calculation.inputfile, 'w') as file:
+                    self.write_gradient(file, calculation.base, coords, atnums)
+
+            grad_calcs.append(calculation)
+        return grad_calcs
+
+    def do_sp_calculations(self, parent, iterator):
+        software = self.softwares['software']
+        en_calcs = []
+        for i, (coords, atnums) in iterator:
+            folder = parent / f'{i}_conformer'
+            os.makedirs(folder, exist_ok=True)
+            calculation = self.Calculation(self.hessian_name(software),
+                                           software.read.sp_ec_files,
+                                           folder=folder,
+                                           software=software.name)
+            if not calculation.input_exists():
+                with open(calculation.inputfile, 'w') as file:
+                    self.write_sp(file, calculation.base, coords, atnums)
+
+            en_calcs.append(calculation)
+        return en_calcs
+
+
     def _do_additional_calculations(self, nstart, software):
         files = self.config.addstructures
         en_struct = files['en_struct']
@@ -199,6 +252,7 @@ hess_struct = :: existing_file, optional
 
         ens, grads, hess = self._do_additional_calculations(len(hessians), software)
         hessians += hess
+        folder = self.pathways.getdir("hessian")
         #
         for calculation in (ens + grads + hessians):
             try:
