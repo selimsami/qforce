@@ -69,7 +69,7 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     structs = AdditionalStructures.from_config(config.addstructs)
     structs.create(qm)
     # add hessian
-    structs.add_hessian(1000, main_hessian)
+    structs.add_hessian(main_hessian)
 
     ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
     if ffcls is None:
@@ -81,7 +81,7 @@ def runjob_v2(config, job, ext_q=None, ext_lj=None):
     # if len(mol.terms['dihedral/flexible']) > 0:
     scans = do_nofrag_scanning(mol, qm, job, config)
     # add forces
-    structs.add_dihedrals(100, scans)
+    structs.add_dihedrals(scans)
     # normalize!
     structs.normalize()
     # hessian fitting
