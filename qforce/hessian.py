@@ -131,31 +131,33 @@ def multi_hessian_newfit(logger, config, mol, structs, fit_flexible=False):
                     full_md_hessian_1d.append(hes[:-1])
                     non_fit.append(hes[-1])
         #
-        difference = qm_hessian - np.array(non_fit)
+        difference = weight * (qm_hessian - np.array(non_fit))
         full_differences += list(difference)
-        full_hessian += hessian
+        full_hessian += weight * hessian
 
     if fit_flexible is True:
         ignore_terms = ['charge_flux']
     else:
         ignore_terms = ['dihedral/flexible', 'charge_flux']
 
-    weight_e = 0.1
-    weight_f = 0.001
 
     with mol.terms.add_ignore(ignore_terms):
         for weight, qmen in structs.enitr():
             # Ax=B
             energy, _ = calc_forces(qmen.coords, mol)
-            full_differences.append(qmen.energy - energy[-1])
-            full_hessian.append(energy[:-1])
+            full_differences.append(weight*(qmen.energy - energy[-1]))
+            full_hessian.append(weight*energy[:-1])
 
         full_qm_forces = []
         full_mm_forces = []
         full_qm_energies = []
         full_mm_energies = []
 
-        for weight, qmgrad in structs.graditr():
+        # scale for energy structs
+        factor_e = structs.energy_weight / structs.gradient_weight
+
+        for weight_f, qmgrad in structs.graditr():
+            weight_e = factor_e * weight_f
             mm_energy, mm_force = calc_forces(qmgrad.coords, mol)
             mm_force *= -1  # convert from force to gradient
             mm_force = mm_force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
