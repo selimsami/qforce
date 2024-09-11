@@ -136,30 +136,38 @@ class StructuresFromFile(AdditionalStructureCreator):
         return self._data['hess']['results']
 
 
-class MetaDynamics:
+class MetaDynamics(AdditionalStructureCreator):
 
     name = 'metadynamics'
 
     _user_input = """
+    compute = none :: str :: [none, en, grad]
+
     # temperature in Kelvin
     temp = 1000 :: float :: >0
     # total simulation time in ps
     time = 5.0 :: float :: >0
-    # interval for trajectory printout in ps
+    # interval for trajectory printout in fs
     dump = 5.0 :: float :: >0
     # time step for propagation in fs
     step = 2.0 :: float :: >0
     """
 
-    def __init__(self, weight, config):
+    def __init__(self, weight, compute, config):
+        self.compute = compute
         self.weight = weight
-        self.xtbinput = {key: value for key, value in config.items() if key != 'weight'}
+        self.xtbinput = {key: value for key, value in config.items() if key not in ('weight', 'compute')}
+        self._data = {
+                'en':  { 'calculations': [], 'results': [], },
+                'grad':  {'calculations': [], 'results': [], },
+                'hess':  { 'calculations': [], 'results': [], },
+        }
 
     @classmethod
     def from_config(cls, config):
-        if config['en_struct'] is None and config['grad_struct'] is None and config['hess_struct'] is None:
+        if config['compute'] == 'none':
             return None
-        return cls(config['weight'], config['en_struct'], config['grad_struct'], config['hess_struct'])
+        return cls(config['weight'], config['compute'], config)
 
     @staticmethod
     def _fileiter(filename):
@@ -168,23 +176,71 @@ class MetaDynamics:
             yield i, (molecule.get_positions(), molecule.get_atomic_numbers())
 
     def create(self, parent, qm):
-        folder = parent / '0_metadynamics'
+        folder = parent / '0_md'
         os.makedirs(folder, exist_ok=True)
 
-        initfile = qm.pathways.getfile('init.xyz')
-        copy(initfile, folder / 'xtb.xyz')
+        calc = qm.xtb_md(folder, self.xtbinput)
 
-        with open(folder / 'md.inp', 'w') as fh:
-            fh.write("$md\n")
-            for key, value in self.xtbinput.items():
-                fh.write(f"{key} = {value}\n")
-            fh.write("$end\n")
+
+        try:
+            files = calc.check()
+        except CalculationIncompleteError:
+            qm.logger.exit(f"Required xtb trajectory file not found in '{folder}'.\n"
+                             'Creating the necessary input file and exiting...\n'
+                             )
+
+        traj = files['traj']
+        filename = parent / 'xtbmd.xyz'
+        copy(traj, filename)
+
+        traj = self._fileiter(filename)
+
+        if self.compute == 'en':
+            folder = parent / '1_en_structs'
+            os.makedirs(folder, exist_ok=True)
+            self._data['en']['calculations'] = qm.do_sp_calculations(folder, traj)
+        elif self.compute == 'grad':
+            folder = parent / '1_grad_structs'
+            os.makedirs(folder, exist_ok=True)
+            self._data['grad']['calculations'] = qm.do_grad_calculations(folder, traj)
+        else:
+            raise ValueError("do not know compute method!")
 
     def check(self):
+        en = self._data['en']
+        grad = self._data['grad']
+        for calculation in (en['calculations'] + grad['calculations']):
+            try:
+                hessian_files = calculation.check()
+            except CalculationIncompleteError:
+                return calculation
         return None
 
     def parse(self, qm):
-        pass
+        en = self._data['en']
+        grad = self._data['grad']
+
+        en_results = []
+        for calculation in en['calculations']:
+            files = calculation.check()
+            en_results.append(qm._read_energy(files))
+
+        grad_results = []
+        for calculation in grad['calculations']:
+            files = calculation.check()
+            grad_results.append(qm._read_gradient(files))
+
+        en['results'] = en_results
+        grad['results'] = grad_results
+
+    def enouts(self):
+        return self._data['en']['results']
+
+    def gradouts(self):
+        return self._data['grad']['results']
+
+    def hessouts(self):
+        return self._data['hess']['results']
 
 
 class HessianOutput:
@@ -247,22 +303,30 @@ def minval(itr, value=None):
 class AdditionalStructures(Colt):
 
     _user_input = """
-    energy_weight = 1 :: int :: >1
-    gradient_weight = 1 :: int :: >1
+    energy_element_weights = 1 :: int :: >1
+    gradient_element_weights = 1 :: int :: >1
+    hessian_element_weights = 1 :: int :: >1
+
     hessian_weight = 1 :: int :: >1
+    dihedral_weight = 1 :: int :: >1
+
     """
 
-    def __init__(self, creators, energy_weight, gradient_weight, hessian_weight):
+    def __init__(self, creators, energy_ele_weight, gradient_ele_weight, hessian_ele_weight, 
+                 hessian_weight, dihedral_weight):
         self.creators = creators
-        self.energy_weight = energy_weight
-        self.gradient_weight = gradient_weight
-        self.hessian_weight = hessian_weight
+        self.energy_weight = energy_ele_weight
+        self.gradient_weight = gradient_ele_weight
+        self.hessian_weight = hessian_ele_weight
+        #
+        self._hessian_weight = hessian_weight
+        self._dihedral_weight = dihedral_weight
 
-    def add_hessian(self, weight, hessout):
-        self.creators['hessian'] = HessianOutput(weight, hessout)
+    def add_hessian(self, hessout):
+        self.creators['hessian'] = HessianOutput(self._hessian_weight, hessout)
 
-    def add_dihedrals(self, weight, scans):
-        self.creators['dihedrals'] = DihedralOutput(weight, scans)
+    def add_dihedrals(self, scans):
+        self.creators['dihedrals'] = DihedralOutput(self._dihedral_weight, scans)
 
     @classmethod
     def from_config(cls, config):
@@ -271,7 +335,8 @@ class AdditionalStructures(Colt):
             _cls = clss.from_config(getattr(config,name))
             if _cls is not None:
                 creators[name] = _cls
-        return cls(creators, config.energy_weight, config.gradient_weight, config.hessian_weight)
+        return cls(creators, config.energy_element_weights, config.gradient_element_weights, config.hessian_element_weights,
+                   config.hessian_weight, config.dihedral_weight)
 
     @classmethod
     def _extend_user_input(cls, questions):
@@ -281,8 +346,10 @@ class AdditionalStructures(Colt):
     def create(self, qm):
         parent = qm.pathways.getdir("addstruct", create=True)
 
-        for name, creator in self.creators.items():
-            creator.create(parent, qm)
+        for i, (name, creator) in enumerate(self.creators.items()):
+            folder = parent / f'{i}_{creator.name}'
+            os.makedirs(folder, exist_ok=True)
+            creator.create(folder, qm)
 
         for name, creator in self.creators.items():
             cal = creator.check()
