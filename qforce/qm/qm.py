@@ -1,6 +1,7 @@
 import os
 from types import SimpleNamespace
 from copy import deepcopy
+from shutil import copy2 as copy
 
 from ase.io import read, write
 import numpy as np
@@ -331,7 +332,8 @@ hess_struct = :: existing_file, optional
         software = self.softwares['software']
         scan_software = self.softwares['scan_software']
         # check if sp should be computed
-        do_sp = not (scan_software is software)
+        # do_sp = not (scan_software is software)
+        do_sp = True
         charge_software = self.softwares['charge_software']
         charge_calc = None
         #
@@ -401,7 +403,8 @@ hess_struct = :: existing_file, optional
         software = self.softwares['software']
         scan_software = self.softwares['scan_software']
         # check if sp should be computed
-        do_sp = not (scan_software is software)
+        # do_sp = not (scan_software is software)
+        do_sp = True
 
         # setup sp calculations
         if do_sp is True:
@@ -443,6 +446,22 @@ hess_struct = :: existing_file, optional
             scan_out.dipoles = np.array(dipoles, dtype=np.float64)
         return scan_out
 
+    def xtb_md(self, folder, xtbinput):
+        initfile = self.pathways.getfile('init.xyz')
+        copy(initfile, folder / 'xtb.xyz')
+        with open(folder / 'md.inp', 'w') as fh:
+            fh.write("$md\n")
+            for key, value in xtbinput.items():
+                fh.write(f"{key} = {value}\n")
+            fh.write("$end\n")
+
+        with open(folder / 'xtb.inp', 'w') as fh:
+            fh.write("xtb xtb.xyz --input md.inp --md")
+        calc = self.Calculation('xtb.inp',
+                                {'traj': ['xtb.trj']},
+                                folder=folder,
+                                software='xtb')
+        return calc
 
     @scriptify
     def write_preopt(self, file, job_name, coords, atnums):
