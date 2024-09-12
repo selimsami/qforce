@@ -12,7 +12,7 @@ class HarmonicBondTerm(TermBase):
         return calc_bonds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded, settings):
+    def _get_terms(cls, topo, non_bonded):
         bond_terms = cls.get_terms_container()
 
         for a1, a2 in topo.bonds:
@@ -35,7 +35,7 @@ class MorseBondTerm(TermBase):
         return calc_morse_bonds(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded, settings):
+    def _get_terms(cls, topo, non_bonded):
         bond_terms = cls.get_terms_container()
 
         for a1, a2 in topo.bonds:
@@ -59,7 +59,7 @@ class HarmonicAngleTerm(TermBase):
         return calc_angles(crd, self.atomids, self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded, settings):
+    def _get_terms(cls, topo, non_bonded):
         angle_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
@@ -105,7 +105,7 @@ class UreyBradleyTerm(TermBase):
         return calc_bonds(crd, self.atomids[::2], self.equ, fconst, force)
 
     @classmethod
-    def get_terms(cls, topo, non_bonded, settings):
+    def _get_terms(cls, topo, non_bonded):
         urey_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
