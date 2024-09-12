@@ -152,14 +152,16 @@ class MetaDynamics(AdditionalStructureCreator):
     _user_input = """
     compute = none :: str :: [none, en, grad]
 
-    # temperature in Kelvin
-    temp = 1000 :: float :: >0
-    # total simulation time in ps
-    time = 5.0 :: float :: >0
-    # interval for trajectory printout in fs
-    dump = 5.0 :: float :: >0
-    # time step for propagation in fs
+    # temperature (K)
+    temp = 800 :: float :: >0
+    # total simulation time (ps)
+    time = 50.0 :: float :: >0
+    # interval for trajectory printout (fs)
+    dump = 500.0 :: float :: >0
+    # time step for propagation (fs)
     step = 2.0 :: float :: >0
+    # Bond constraints (0: none, 1: H-only, 2: all)
+    shake = 0
     """
 
     def __init__(self, weight, compute, config):
