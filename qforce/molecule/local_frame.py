@@ -198,12 +198,14 @@ class LocalFrameTerms(TermFactory):
     _default_off = ['bisector', 'z_then_x', 'z_only', 'z_then_bisector', 'trisector']
 
     @classmethod
-    def get_terms(cls, topo, non_bonded, settings):
-        terms = cls.get_terms_container()
+    def _get_terms(cls, topo, non_bonded, termtypes):
+        terms = cls.get_terms_container(termtypes)
 
         # helper functions to improve readability
         def add_term(name, atomids, *args):
-            terms[name].append(cls._term_types[name].get_term(name, atomids, *args))
+            term = termtypes[name].get_term(name, atomids, *args)
+            if term is not None:
+                terms[name].append(term)
 
         if np.abs(non_bonded.quadrupole).sum() == 0 and np.abs(non_bonded.dipole).sum() == 0:
             return terms
