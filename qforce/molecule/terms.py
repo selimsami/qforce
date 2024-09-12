@@ -157,14 +157,14 @@ class Terms(MappingIterator):
         n_fitted_terms = len(names)
 
         if 'charge_flux' not in self:
-            names = []
+            n_fitted_flux_terms = 0
         else:
             names = list(set(str(term) for term in self['charge_flux']))
             for term in self['charge_flux']:
                 term.set_flux_idx(names.index(str(term)))
-        n_fitted_flux_terms = len(names)
+            n_fitted_flux_terms = len(names)
 
-        if fit_flexible is True:
+        if fit_flexible is True and 'dihedral/flexible' in self:
             names = list(set(str(term) for term in self['dihedral/flexible']))
             if len(names) != 0:
                 for term in self['dihedral/flexible']:
