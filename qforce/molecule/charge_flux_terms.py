@@ -3,7 +3,6 @@ from abc import abstractmethod
 #
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dist, get_angle
-from .selectors import to_selector
 
 
 class ChargeFluxBaseTerm(TermABC):
@@ -145,7 +144,7 @@ class AngleAngleChargeFluxTerm(ChargeFluxBaseTerm):
 class ChargeFluxTerms(TermFactory):
     name = 'ChargeFluxTerms'
 
-    _term_types = to_selector({
+    _term_types = {
         'bond': BondChargeFluxTerm,
         'bond_prime': BondChargeFluxTerm,
         'angle': AngleChargeFluxTerm,
@@ -153,7 +152,7 @@ class ChargeFluxTerms(TermFactory):
         '_bond_bond': BondBondChargeFluxTerm,
         '_bond_angle': BondAngleChargeFluxTerm,
         '_angle_angle': AngleAngleChargeFluxTerm,
-    })
+    }
 
     _always_on = []
     _default_off = ['bond', 'angle', 'bond_prime', 'angle_prime', '_bond_bond', '_bond_angle', '_angle_angle']
