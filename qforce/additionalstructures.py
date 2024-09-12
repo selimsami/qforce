@@ -1,13 +1,15 @@
 import os
 from shutil import copy2 as copy
+from itertools import chain
 #
 from colt import Colt
 from ase.io import read
-from calkeeper import check, CalculationIncompleteError
+from calkeeper import CalculationIncompleteError
 
 
 class AdditionalStructureCreator(Colt):
 
+    name = None
     __classes = {}
 
     def __init__(self, weight):
@@ -16,7 +18,8 @@ class AdditionalStructureCreator(Colt):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.__classes[cls.name] = cls
-        cls._user_input += "\n# Weight of the structures in the forcefield fit\n weight = 1 :: int :: >1 \n"
+        cls._user_input += ("\n# Weight of the structures in the forcefield fit"
+                            "\n weight = 1 :: int :: >1 \n")
 
     @classmethod
     def classes(cls):
@@ -26,7 +29,13 @@ class AdditionalStructureCreator(Colt):
     def get(cls, name):
         return cls.__classes.get(name)
 
-    def run(self, qm):
+    def create(self, qm):
+        raise NotImplementedError
+
+    def check(self):
+        raise NotImplementedError
+
+    def parse(self, qm):
         raise NotImplementedError
 
 
@@ -43,29 +52,29 @@ class StructuresFromFile(AdditionalStructureCreator):
     def __init__(self, weight, en_struct, grad_struct, hess_struct):
         self.weight = weight
         self._data = {
-                'en':  {'file': en_struct,
-                        'calculations': [],
-                        'results': [],
-                        'weight': 1,
+                'en': {
+                       'file': en_struct,
+                       'calculations': [],
+                       'results': [],
+                      },
+                'grad': {
+                         'file': grad_struct,
+                         'calculations': [],
+                         'results': [],
                         },
-                'grad':  {'file': grad_struct,
-                        'calculations': [],
-                        'results': [],
-                        'weight': 1,
-                        },
-                'hess':  {'file': hess_struct,
-                        'calculations': [],
-                        'results': [],
-                        'weight': 1,
+                'hess': {
+                         'file': hess_struct,
+                         'calculations': [],
+                         'results': [],
                         },
         }
 
-
     @classmethod
     def from_config(cls, config):
-        if config['en_struct'] is None and config['grad_struct'] is None and config['hess_struct'] is None:
+        if not config['en_struct'] and not config['grad_struct'] and not config['hess_struct']:
             return None
-        return cls(config['weight'], config['en_struct'], config['grad_struct'], config['hess_struct'])
+        return cls(config['weight'], config['en_struct'], config['grad_struct'],
+                   config['hess_struct'])
 
     @staticmethod
     def _fileiter(filename):
@@ -95,9 +104,9 @@ class StructuresFromFile(AdditionalStructureCreator):
         en = self._data['en']
         grad = self._data['grad']
         hess = self._data['hess']
-        for calculation in (en['calculations'] + grad['calculations'] + hess['calculations']):
+        for calculation in chain(en['calculations'], grad['calculations'], hess['calculations']):
             try:
-                hessian_files = calculation.check()
+                _ = calculation.check()
             except CalculationIncompleteError:
                 return calculation
         return None
@@ -156,11 +165,12 @@ class MetaDynamics(AdditionalStructureCreator):
     def __init__(self, weight, compute, config):
         self.compute = compute
         self.weight = weight
-        self.xtbinput = {key: value for key, value in config.items() if key not in ('weight', 'compute')}
+        self.xtbinput = {key: value for key, value in config.items()
+                         if key not in ('weight', 'compute')}
         self._data = {
-                'en':  { 'calculations': [], 'results': [], },
-                'grad':  {'calculations': [], 'results': [], },
-                'hess':  { 'calculations': [], 'results': [], },
+                'en':  {'calculations': [], 'results': []},
+                'grad':  {'calculations': [], 'results': []},
+                'hess':  {'calculations': [], 'results': []},
         }
 
     @classmethod
@@ -181,13 +191,12 @@ class MetaDynamics(AdditionalStructureCreator):
 
         calc = qm.xtb_md(folder, self.xtbinput)
 
-
         try:
             files = calc.check()
         except CalculationIncompleteError:
             qm.logger.exit(f"Required xtb trajectory file not found in '{folder}'.\n"
-                             'Creating the necessary input file and exiting...\n'
-                             )
+                           'Creating the necessary input file and exiting...\n'
+                           )
 
         traj = files['traj']
         filename = parent / 'xtbmd.xyz'
@@ -209,9 +218,9 @@ class MetaDynamics(AdditionalStructureCreator):
     def check(self):
         en = self._data['en']
         grad = self._data['grad']
-        for calculation in (en['calculations'] + grad['calculations']):
+        for calculation in chain(en['calculations'], grad['calculations']):
             try:
-                hessian_files = calculation.check()
+                _ = calculation.check()
             except CalculationIncompleteError:
                 return calculation
         return None
@@ -247,6 +256,8 @@ class HessianOutput:
 
     def __init__(self, weight, hessout):
         self.weight = weight
+        if not isinstance(hessout, (tuple, list)):
+            hessout = [hessout]
         self.hessout = hessout
 
     def enouts(self):
@@ -256,16 +267,16 @@ class HessianOutput:
         return []
 
     def hessouts(self):
-        return [self.hessout]
+        return self.hessout
 
     def create(self, parent, qm):
-        ...
+        pass
 
     def parse(self, qm):
-        ...
+        pass
 
     def check(self):
-        ...
+        pass
 
 
 class DihedralOutput:
@@ -281,13 +292,13 @@ class DihedralOutput:
         return self._gradouts
 
     def create(self, parent, qm):
-        ...
+        pass
 
     def parse(self, qm):
-        ...
+        pass
 
     def check(self):
-        ...
+        pass
 
     def hessouts(self):
         return []
@@ -312,7 +323,7 @@ class AdditionalStructures(Colt):
 
     """
 
-    def __init__(self, creators, energy_ele_weight, gradient_ele_weight, hessian_ele_weight, 
+    def __init__(self, creators, energy_ele_weight, gradient_ele_weight, hessian_ele_weight,
                  hessian_weight, dihedral_weight):
         self.creators = creators
         self.energy_weight = energy_ele_weight
@@ -322,7 +333,7 @@ class AdditionalStructures(Colt):
         self._hessian_weight = hessian_weight
         self._dihedral_weight = dihedral_weight
 
-    def add_hessian(self, hessout):
+    def add_hessians(self, hessout):
         self.creators['hessian'] = HessianOutput(self._hessian_weight, hessout)
 
     def add_dihedrals(self, scans):
@@ -332,10 +343,11 @@ class AdditionalStructures(Colt):
     def from_config(cls, config):
         creators = {}
         for name, clss in AdditionalStructureCreator.classes().items():
-            _cls = clss.from_config(getattr(config,name))
+            _cls = clss.from_config(getattr(config, name))
             if _cls is not None:
                 creators[name] = _cls
-        return cls(creators, config.energy_element_weights, config.gradient_element_weights, config.hessian_element_weights,
+        return cls(creators, config.energy_element_weights,
+                   config.gradient_element_weights, config.hessian_element_weights,
                    config.hessian_weight, config.dihedral_weight)
 
     @classmethod
@@ -355,10 +367,10 @@ class AdditionalStructures(Colt):
             cal = creator.check()
             if cal is not None:
                 qm.logger.exit(f"Required output file(s) not found in '{cal.folder}' .\n"
-                                'Creating the necessary input file and exiting...\nPlease run the '
-                                'calculation and put the output files in the same directory.\n'
-                                'Necessary output files and the corresponding extensions '
-                                f"are:\n{cal.missing_as_string()}\n\n\n")
+                               'Creating the necessary input file and exiting...\nPlease run the '
+                               'calculation and put the output files in the same directory.\n'
+                               'Necessary output files and the corresponding extensions '
+                               f"are:\n{cal.missing_as_string()}\n\n\n")
 
         for name, creator in self.creators.items():
             creator.parse(qm)
