@@ -36,7 +36,7 @@ def runjob(config, job, ext_q=None, ext_lj=None):
 
     # change the order
     fragments = None
-    if len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
+    if 'dihedral/flexible' in mol.terms and len(mol.terms['dihedral/flexible']) > 0 and config.scan.do_scan:
         # get fragments with qm
         fragments = fragment(mol, qm, job, config)
 
