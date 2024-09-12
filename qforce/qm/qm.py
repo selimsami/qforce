@@ -183,55 +183,6 @@ hess_struct = :: existing_file, optional
             en_calcs.append(calculation)
         return en_calcs
 
-
-    def _do_additional_calculations(self, nstart, software):
-        files = self.config.addstructures
-        en_struct = files['en_struct']
-        grad_struct = files['grad_struct']
-        hess_struct = files['hess_struct']
-        en_calcs = []
-        grad_calcs = []
-        hess_calcs = []
-        if en_struct is not None:
-            for i, (coords, atnums) in enumerate(self._read_init_file(en_struct)):
-                folder = self.pathways.getdir("hessian_energy", i, create=True)
-                calculation = self.Calculation(self.hessian_name(software),
-                                               software.read.sp_ec_files,
-                                               folder=folder,
-                                               software=software.name)
-                if not calculation.input_exists():
-                    with open(calculation.inputfile, 'w') as file:
-                        self.write_sp(file, calculation.base, coords, atnums)
-
-                en_calcs.append(calculation)
-
-        if grad_struct is not None:
-            for i, (coords, atnums) in enumerate(self._read_init_file(grad_struct)):
-                folder = self.pathways.getdir("hessian_gradient", i, create=True)
-                calculation = self.Calculation(self.hessian_name(software),
-                                               software.read.gradient_files,
-                                               folder=folder,
-                                               software=software.name)
-                if not calculation.input_exists():
-                    with open(calculation.inputfile, 'w') as file:
-                        self.write_gradient(file, calculation.base, coords, atnums)
-
-                grad_calcs.append(calculation)
-
-        if hess_struct is not None:
-            for i, (coords, atnums) in enumerate(self._read_init_file(hess_struct), start=nstart):
-                folder = self.pathways.getdir("hessian_step", i, create=True)
-                calculation = self.Calculation(self.hessian_name(software),
-                                               software.read.hessian_files,
-                                               folder=folder,
-                                               software=software.name)
-                if not calculation.input_exists():
-                    with open(calculation.inputfile, 'w') as file:
-                        self.write_hessian(file, calculation.base, coords, atnums)
-
-                hess_calcs.append(calculation)
-        return en_calcs, grad_calcs, hess_calcs
-
     def get_hessian(self):
         """Setup hessian files, and if present read the hessian information"""
 
@@ -250,11 +201,9 @@ hess_struct = :: existing_file, optional
                     self.write_hessian(file, calculation.base, coords, atnums)
             hessians.append(calculation)
 
-        ens, grads, hess = self._do_additional_calculations(len(hessians), software)
-        hessians += hess
         folder = self.pathways.getdir("hessian")
         #
-        for calculation in (ens + grads + hessians):
+        for calculation in hessians:
             try:
                 hessian_files = calculation.check()
             except CalculationIncompleteError:
@@ -269,18 +218,10 @@ hess_struct = :: existing_file, optional
             hessian_files = calculation.check()
             results.append(self._read_hessian(hessian_files))
 
-        en_results = []
-        for calculation in ens:
-            files = calculation.check()
-            en_results.append(self._read_energy(files))
-        grad_results = []
-        for calculation in grads:
-            files = calculation.check()
-            grad_results.append(self._read_gradient(files))
         # update output with charge calculation if necessary
         charge_software = self.softwares['charge_software']
         if charge_software is None:
-            return results, en_results, grad_results
+            return results
         #
         output = results[0]
 
@@ -311,7 +252,7 @@ hess_struct = :: existing_file, optional
                     point_charges[charge_software.config.charge_method], 'point_charges', float,
                     (output.n_atoms,))
         #
-        return results, en_results, grad_results
+        return results
 
     def read_scan(self, folder, files):
         software = self.softwares['scan_software']
