@@ -1,16 +1,12 @@
 """Public commandline interface for QForce"""
-import os
-from pathlib import Path
-from hashlib import md5
-from shutil import copy2 as copy
-
 from colt import Plugin
 from colt.validator import Validator
 #
-from calkeeper import CalculationKeeper, CalculationIncompleteError
+from calkeeper import CalculationIncompleteError
 #
 from .initialize import initialize as _initialize
 from .main import runjob, save_jobs, runspjob, runjob_v2
+from .main import load_keeper, write_bashscript
 from .misc import check_if_file_exists, LOGO
 from .logger import LoggerExit
 
@@ -84,15 +80,6 @@ class RunQforce(Option):
             runspjob(self.config, self.job, v2=True)
 
 
-def load_keeper(job):
-    file = job.pathways['calculations.json']
-    if file.exists():
-        with open(file, 'r') as fh:
-            keeper = CalculationKeeper.from_json(fh.read())
-        return keeper
-    raise SystemExit(f"No calculation for '{job.dir}'")
-
-
 class Check(Option):
 
     name = 'check'
@@ -150,7 +137,7 @@ class RunQforceComplete(Option):
                 self.job.calkeeper.do_calculations(methods, ncores)
             except LoggerExit:
                 self.job.calkeeper.do_calculations(methods, ncores)
-        save_jobs(self.job)
+        save_jobs(self.config, self.job)
 
 
 class Literature(Option):
@@ -206,39 +193,10 @@ class Bash(Option):
     """
     __slots__ = ['filename', 'keeper']
 
-    def __init__(self, keeper, filename):
-        self.filename = filename
-        self.keeper = keeper
-
-    @classmethod
-    def from_config(cls, config):
-        _, job = initialize(config)
-        return cls(load_keeper(job), config['filename'])
-
-    def run(self):
-        print(LOGO)
-        print(f"Creating {self.filename}...")
-        with open(self.filename, 'w') as fh:
-            fh.write("current=$PWD\nfor folder in ")
-            fh.write("  ".join(str(calc.folder) for calc in self.keeper.get_incomplete()))
-            fh.write(";\ndo\n    cd ${folder}\n\n\n    cd ${current}\ndone\n")
-
-
-class Bash2(Option):
-
-    name = 'bash2'
-    _colt_description = 'Generate a bash'
-    _user_input = STANDARD_USER_INPUT + """
-    # basic bash file that will be written
-    filename = :: str
-    """
-    __slots__ = ['filename', 'keeper']
-
     def __init__(self, config, job, filename):
         self.config = config
         self.job = job
         self.filename = filename
-        self.keeper = load_keeper(job)
 
     @classmethod
     def from_config(cls, _config):
@@ -248,98 +206,7 @@ class Bash2(Option):
     def run(self):
         print(LOGO)
         print(f"Creating {self.filename}...")
-        methods = {name: calculator.as_string for name, calculator in self.job.calculators.items()}
-        ncores = self.config.qm.n_proc
-        with open(self.filename, 'w') as fh:
-            fh.write("current=$PWD\n")
-            for calc in self.keeper.get_incomplete():
-                call = methods.get(calc.software, None)
-                if call is None:
-                    raise ValueError("Call unknown!")
-                fh.write(call(calc, ncores))
-
-
-class Bash3In(Option):
-
-    name = 'bash3in'
-    _colt_description = 'Generate a bash'
-    _user_input = STANDARD_USER_INPUT + """
-    # basic bash file that will be written
-    folder = :: str
-    """
-    __slots__ = ['filename', 'keeper']
-
-    def __init__(self, config, job, folder):
-        self.config = config
-        self.job = job
-        self.folder = folder
-        self.keeper = load_keeper(job)
-
-    @classmethod
-    def from_config(cls, _config):
-        config, job = initialize(_config)
-        return cls(config, job, _config['folder'])
-
-    def run(self):
-        print(LOGO)
-        print(f"Creating  {self.folder}")
-        methods = {name: calculator.as_minimal_string for name, calculator in self.job.calculators.items()}
-        ncores = self.config.qm.n_proc
-        main = Path(self.folder)
-        with open(main / 'run.sh', 'w') as fh:
-            fh.write("current=$PWD\nfor folder in ")
-            for calc in self.keeper.get_incomplete():
-                call = methods.get(calc.software, None)
-                if call is None:
-                    raise ValueError("Call unknown!")
-                folder = os.path.abspath(calc.folder)
-                nfolder = str(md5(folder.encode()).hexdigest())
-                fh.write(f" {nfolder} ")
-                newfolder = main / nfolder
-                os.makedirs(newfolder, exist_ok=True)
-                for file in Path(folder).iterdir():
-                    if file.is_file():
-                        copy(file, newfolder)
-                with open(newfolder / 'run.sh', 'w') as nfh:
-                    nfh.write(call(calc, ncores))
-            fh.write(";\ndo\n    cd ${folder}\n\n    bash run.sh\n\n    cd ${current}\ndone\n")
-
-
-class Bash3Out(Option):
-
-    name = 'bash3out'
-    _colt_description = 'Copy output files back, from a folder'
-    _user_input = STANDARD_USER_INPUT + """
-    # basic bash file that will be written
-    folder = :: str
-    """
-    __slots__ = ['filename', 'keeper']
-
-    def __init__(self, config, job, folder):
-        self.config = config
-        self.job = job
-        self.folder = folder
-        self.keeper = load_keeper(job)
-
-    @classmethod
-    def from_config(cls, _config):
-        config, job = initialize(_config)
-        return cls(config, job, _config['folder'])
-
-    def run(self):
-        print(LOGO)
-        print(f"Copy from {self.folder}")
-        main = Path(self.folder)
-        for calc in self.keeper.get_incomplete():
-            folder = os.path.abspath(calc.folder)
-            nfolder = str(md5(folder.encode()).hexdigest())
-            newfolder = main / nfolder
-            if newfolder.exists():
-                for file in newfolder.iterdir():
-                    if file.is_file():
-                        copy(file, folder)
-            else:
-                print(f"Could not find folder for {calc.folder}")
+        write_bashscript(self.filename, self.config, self.job)
 
 
 def run():
