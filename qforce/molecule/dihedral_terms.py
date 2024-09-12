@@ -3,7 +3,8 @@ import numpy as np
 #
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dihed, get_angle
-from ..forces import calc_harmonic_diheds, calc_rb_diheds, calc_inversion, calc_pitorsion_diheds, calc_periodic_dihed
+from ..forces import (calc_harmonic_diheds, calc_rb_diheds, calc_inversion, calc_cos_cube_diheds, calc_pitorsion_diheds,
+                      calc_periodic_dihed)
 from ..forces import lsq_rb_diheds
 
 
@@ -36,7 +37,7 @@ class DihedralBaseTerm(TermABC):
         elif 150 <= phi:
             ang = 180
 
-        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"  # -{ang}
+        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"  #-{ang}
 
     @staticmethod
     def remove_linear_angles(coords, a1s, a2, a3, a4s):
@@ -145,6 +146,24 @@ class InversionDihedralTerm(DihedralBaseTerm):
     def write_ff_header(self, software, writer):
         return software.write_inversion_dihed_header(writer)
 
+
+class CosCubeDihedralTerm(DihedralBaseTerm):
+    name = 'CosCubeDihedralTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cos_cube_diheds(crd, self.atomids, fconst, force)
+
+    @classmethod
+    def get_term(cls, topo, atomids, d_type):
+        return cls(atomids, None, d_type)
+
+    def write_forcefield(self, software, writer):
+        software.write_cos_cube_dihedral_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cos_cube_dihedral_header(writer)
+
+
 class PiTorsionDihedralTerm(DihedralBaseTerm):
     name = 'PiTorsionDihedralTerm'
 
@@ -168,9 +187,11 @@ class DihedralTerms(TermFactory):
 
     _term_types = {
         'rigid': RigidDihedralTerm,
-        'periodic': PeriodicDihedralTerm,
         'improper': ImproperDihedralTerm,
-        'flexible': RBDihedralTerm,
+        'flexible': PeriodicDihedralTerm, # CosCubeDihedralTerm,# ,RBDihedralTerm
+        # 'periodic': PeriodicDihedralTerm,
+        # 'cos_cube': CosCubeDihedralTerm,
+        # },
         'inversion': InversionDihedralTerm,
         'pitorsion': PiTorsionDihedralTerm,
     }
@@ -184,8 +205,6 @@ class DihedralTerms(TermFactory):
 
         # helper functions to improve readability
         def add_term(name, topo, atoms, *args):
-            print(termtypes)
-            print(termtypes[name])
             term = termtypes[name].get_term(topo, atoms, *args)
             if term is not None:
                 terms[name].append(term)
@@ -215,10 +234,11 @@ class DihedralTerms(TermFactory):
                         any([topo.node(a)['n_ring'] > 1 for a in a4s]))
                     or (central['in_ring'] and check_if_in_a_fully_planar_ring(topo, a2, a3))
                     or topo.all_rigid):
-                # rigid
+
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
-                    add_term('rigid', topo, atoms, 3, 0, d_type+'_mult3')
+                    # add_term('rigid', topo, atoms, d_type)
+                    add_term('rigid', topo, atoms, 2., np.pi, d_type+'_mult2')
 
             elif central['in_ring']:
                 atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
@@ -234,13 +254,11 @@ class DihedralTerms(TermFactory):
                         add_term('inversion', topo, atoms, phi, d_type)
 
             else:
-                atoms = find_flexible_atoms(topo, a1s, a2, a3, a4s)
-                for dih in atoms:
-                    atypes = [topo.types[dih[0]], topo.types[dih[3]]]
-                    if central['vers'].startswith(topo.types[a3]):
-                        atypes = atypes[::-1]
-                    d_type = f"{central['vers']}_{atypes[0]}-{atypes[1]}"
-                    add_term('flexible', topo, dih, d_type)
+                for atoms in atoms_comb:
+                    d_type = get_dtype(topo, *atoms)
+                    # add_term('flexible', topo, atoms, d_type)
+                    add_term('flexible', topo, atoms, 3, 0, d_type+'_mult3')
+                    # add_term('flexible', topo, atoms, 1, 0, d_type+'_mult1')
 
         # improper dihedrals
         for i in range(topo.n_atoms):
@@ -309,54 +327,3 @@ def check_if_in_a_fully_planar_ring(topo, a2, a3):
     else:
         all_planar = False
     return all_planar
-
-
-def find_flexible_atoms(topo, a1s, a2, a3, a4s):
-    def pick_end_atom(atom_list):
-        n_neighbors = topo.n_neighbors[atom_list]
-        choices = atom_list[n_neighbors > 1]
-        if len(choices) == 0:
-            choices = atom_list
-        # if len(choices) > 1:
-        #     heaviest_elem = np.amax(topo.atomids[choices])
-        #     choices = choices[topo.atomids[choices] == heaviest_elem]
-        return choices
-
-    a1s = pick_end_atom(a1s)
-    a4s = pick_end_atom(a4s)
-
-    priority = [[] for _ in range(6)]
-
-    for a1, a4 in product(a1s, a4s):
-        phi = np.degrees(abs(get_dihed(topo.coords[[a1, a2, a3, a4]])[0]))
-        if phi > 155:
-            priority[0].append([a1, a4])
-        elif phi < 25:
-            priority[1].append([a1, a4])
-        elif topo.edge(a1, a2)['in_ring'] and topo.edge(a3, a4)['in_ring']:
-            priority[5].append([a1, a4])
-        elif topo.edge(a1, a2)['in_ring'] or topo.edge(a3, a4)['in_ring']:
-            priority[4].append([a1, a4])
-        elif 55 < phi < 65 or 85 < phi < 95:
-            priority[2].append([a1, a4])
-        else:
-            priority[3].append([a1, a4])
-
-    ordered = [p for prio in priority for p in prio]
-    a1_select, a4_select = ordered[0]
-    atoms = [[a1_select, a2, a3, a4_select]]
-
-    for a1, a4 in ordered[1:]:
-        if ((len(topo.neighbors[0][a1]) > 1 or len(topo.neighbors[0][a2]) == 2) and
-                (len(topo.neighbors[0][a4]) > 1 or len(topo.neighbors[0][a3]) == 2)):
-            atoms.append([a1, a2, a3, a4])
-
-    # add a second dihedral term if minimum is non-planar
-    # if priority[0] == [] and priority[1] == []:
-    #     phi0 = np.degrees(get_dihed(topo.coords[[a1_select, a2, a3, a4_select]])[0])
-    #     for a1, a4 in product(a1s, a4s):
-    #         phi = np.degrees(get_dihed(topo.coords[[a1, a2, a3, a4]])[0])
-    #         if 100 < (phi0-phi) % 360 < 140 or 220 < (phi0-phi) % 360 < 260:
-    #             atoms.append([a1, a2, a3, a4])
-    #             break
-    return atoms

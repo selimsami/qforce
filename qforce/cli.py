@@ -56,28 +56,22 @@ def initialize(config):
 class RunQforce(Option):
 
     name = 'run'
-    _user_input = STANDARD_USER_INPUT + """
-    version = 1 :: int, alias=v :: [1, 2]
-    """
+    _user_input = STANDARD_USER_INPUT
 
     _colt_description = 'run qforce manually'
     __slots__ = ['config', 'job']
 
-    def __init__(self, config, job, version):
+    def __init__(self, config, job):
         self.config = config
         self.job = job
-        self.version = version
 
     @classmethod
     def from_config(cls, _config):
         config, job = initialize(_config)
-        return cls(config, job, _config['version'])
+        return cls(config, job)
 
     def run(self):
-        if self.version == 1:
-            runspjob(self.config, self.job)
-        else:
-            runspjob(self.config, self.job, v2=True)
+        runspjob(self.config, self.job)
 
 
 class Check(Option):
@@ -105,20 +99,18 @@ class RunQforceComplete(Option):
 
     name = 'run_complete'
     _colt_description = 'Run qforce automatically till completion'
-    _user_input = STANDARD_USER_INPUT + """
-    version = 1 :: int, alias=v :: [1, 2]
-    """
+    _user_input = STANDARD_USER_INPUT
+
     __slots__ = ['config', 'job']
 
-    def __init__(self, config, job, version):
+    def __init__(self, config, job):
         self.config = config
         self.job = job
-        self.version = version
 
     @classmethod
     def from_config(cls, _config):
         config, job = initialize(_config)
-        return cls(config, job, _config['version'])
+        return cls(config, job)
 
     def run(self):
         self.job.logger.info(LOGO)
@@ -128,10 +120,7 @@ class RunQforceComplete(Option):
         running = True
         while running:
             try:
-                if self.version == 1:
-                    runjob(self.config, self.job)
-                else:
-                    runjob_v2(self.config, self.job)
+                runjob(self.config, self.job)
                 running = False
             except CalculationIncompleteError:
                 self.job.calkeeper.do_calculations(methods, ncores)

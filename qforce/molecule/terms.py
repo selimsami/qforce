@@ -5,7 +5,9 @@ from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
 from .bond_and_angle_terms import HarmonicBondTerm, MorseBondTerm, HarmonicAngleTerm, CosineAngleTerm, UreyBradleyTerm
 from .coupling_terms import (CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm, CrossBondCosineAngleTerm,
-                             CrossCosineAngleAngleTerm, CrossDihedBondTerm, CrossDihedAngleTerm)
+                             CrossCosineAngleAngleTerm, CrossDihedBondTerm, CrossDihedAngleTerm,
+                             CrossCosCubeDihedAngleTerm, CrossCosCubeDihedBondTerm,
+                             CrossCosCubeDihedAngleAngleTerm, CrossDihedAngleAngleTerm)
 from .non_bonded_terms import NonBondedTerms
 from .charge_flux_terms import ChargeFluxTerms
 from .local_frame import LocalFrameTerms
@@ -49,8 +51,19 @@ class Terms(MappingIterator):
             'cosine': CrossCosineAngleAngleTerm,
         },
         #
-        '_cross_dihed_angle': CrossDihedAngleTerm,
-        '_cross_dihed_bond': CrossDihedBondTerm,
+        'cross_dihed_angle': {
+            'cos_cube': CrossCosCubeDihedAngleTerm,
+            'periodic': CrossDihedAngleTerm
+        },
+        #
+        'cross_dihed_bond': {
+            'cos_cube': CrossCosCubeDihedBondTerm,
+            'periodic': CrossDihedBondTerm
+        },
+        'cross_dihed_angle_angle': {
+            'cos_cube': CrossCosCubeDihedAngleAngleTerm,
+            'periodic': CrossDihedAngleAngleTerm
+        },
         #
         'dihedral': DihedralTerms,
         #
@@ -61,9 +74,9 @@ class Terms(MappingIterator):
         'local_frame': LocalFrameTerms,
     }, EmptyTerm)
 
-    def __init__(self, terms, ignore, not_fit_terms, fit_flexible=False):
+    def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
-        self.n_fitted_terms, self.n_fitted_flux_terms = self._set_fit_term_idx(not_fit_terms, fit_flexible=fit_flexible)
+        self.n_fitted_terms, self.n_fitted_flux_terms = self._set_fit_term_idx(not_fit_terms)
         self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
         self._term_paths = self._get_term_paths(terms)
 
@@ -75,9 +88,7 @@ class Terms(MappingIterator):
             terms[name] = _terms
 
     @classmethod
-    def from_topology(cls, config, topo, non_bonded, ff, *,
-                      not_fit=['dihedral/flexible', 'non_bonded', 'charge_flux', 'local_frame'],
-                      fit_flexible=False):
+    def from_topology(cls, config, topo, non_bonded, ff, *, not_fit=['non_bonded', 'charge_flux', 'local_frame']):
         config = config.__dict__
         terms = {}
         factories = {}
@@ -104,7 +115,7 @@ class Terms(MappingIterator):
             cls.add_terms(terms, term, 'on', topo, non_bonded, settings)
 
         not_fit_terms = [term for term in not_fit if term not in ignore and term in config.keys()]
-        return cls(terms, ignore, not_fit_terms, fit_flexible=fit_flexible)
+        return cls(terms, ignore, not_fit_terms)
 
     @classmethod
     def from_terms(cls, terms, ignore, not_fit_terms):
@@ -148,7 +159,7 @@ class Terms(MappingIterator):
         terms = self._get_terms(termtyp)
         terms.remove_term(name, atomids)
 
-    def _set_fit_term_idx(self, not_fit_terms, fit_flexible=False):
+    def _set_fit_term_idx(self, not_fit_terms):
 
         with self.add_ignore(not_fit_terms):
             names = list(set(str(term) for term in self))
@@ -164,14 +175,14 @@ class Terms(MappingIterator):
                 term.set_flux_idx(names.index(str(term)))
             n_fitted_flux_terms = len(names)
 
-        if fit_flexible is True and 'dihedral/flexible' in self:
-            names = list(set(str(term) for term in self['dihedral/flexible']))
-            if len(names) != 0:
-                for term in self['dihedral/flexible']:
-                    term.set_idx(n_fitted_terms + term.idx_buffer*names.index(str(term)))
-                n_fitted_terms += len(names)*term.idx_buffer
-                if 'dihedral/flexible' in not_fit_terms:
-                    not_fit_terms.remove('dihedral/flexible')
+        # if fit_flexible is True and 'dihedral/flexible' in self:
+        #     names = list(set(str(term) for term in self['dihedral/flexible']))
+        #     if len(names) != 0:
+        #         for term in self['dihedral/flexible']:
+        #             term.set_idx(n_fitted_terms + term.idx_buffer*names.index(str(term)))
+        #         n_fitted_terms += len(names)*term.idx_buffer
+        #         if 'dihedral/flexible' in not_fit_terms:
+        #             not_fit_terms.remove('dihedral/flexible')
 
         for key in not_fit_terms:
             for term in self[key]:

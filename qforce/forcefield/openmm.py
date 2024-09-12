@@ -15,11 +15,12 @@ class OpenMM(ForcefieldSettings):
             'cross_bond_bond': True,
             'cross_bond_angle': ('bond_cos_angle', 'bond_angle', False),
             'cross_angle_angle':  ('cosine', 'harmonic', False),
-            '_cross_dihed_angle': False,
-            '_cross_dihed_bond': False,
+            'cross_dihed_angle': ('periodic', 'cos_cube', False),
+            'cross_dihed_bond': ('periodic', 'cos_cube', False),
+            'cross_dihed_angle_angle': ('periodic', 'cos_cube', False),
+            'dihedral/flexible': True,
             'dihedral/rigid': True,
             'dihedral/improper': True,
-            # 'dihedral/flexible': True,
             'dihedral/inversion': True,
             # 'dihedral/pitorsion': False,
             'non_bonded': False,
@@ -30,7 +31,6 @@ class OpenMM(ForcefieldSettings):
         self.ff = ff
 
     def write(self, directory, coords, box=[20., 20., 20.]):
-
         self.write_xml(directory, box)
         self.write_pdb(directory, coords, box)
 
@@ -71,7 +71,7 @@ class OpenMM(ForcefieldSettings):
 
         writer_dict = {}
         for term in self.ff.terms:
-            # print(term.name, term.atomids+1, term.equ, term.fconst)
+            print(term.name, term.atomids+1, term.equ, term.fconst)
 
             if term.name not in writer_dict:
                 writer = term.write_ff_header(self, forces)
@@ -312,6 +312,32 @@ class OpenMM(ForcefieldSettings):
                                        'p5': str(ids[4]), 'p6': str(ids[5]),
                                        'param1': k, 'param2': equ, 'param3': n, 'param4': phi0})
 
+    def write_cross_cos_cube_dihed_bond_header(self, forces):
+        db_cross_eq = 'k * (cos(dihedral(p1,p2,p3,p4))+1)^3 * (distance(p6,p5)-r0)'
+        db_force = ET.SubElement(forces, 'Force', {'energy': db_cross_eq, 'name': 'DihedralBond', 'usesPeriodic': '0',
+                                                   'type': 'CustomCompoundBondForce', 'forceGroup': '0',
+                                                   'particles': '6', 'version': '3'})
+
+        per_bond_params = ET.SubElement(db_force, 'PerBondParameters')
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'r0'})
+
+        ET.SubElement(db_force, 'GlobalParameters')
+        ET.SubElement(db_force, 'EnergyParameterDerivatives')
+        ET.SubElement(db_force, 'Functions')
+
+        db = ET.SubElement(db_force, 'Bonds')
+        return db
+
+    def write_cross_cos_cube_dihed_bond_term(self, term, writer):
+        ids = term.atomids
+        k = str(round(term.fconst, 7) * 10)
+        equ = str(round(term.equ[0], 8) * 0.1)
+
+        ET.SubElement(writer, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
+                                       'p5': str(ids[4]), 'p6': str(ids[5]),
+                                       'param1': k, 'param2': equ})
+
     def write_cross_dihed_angle_header(self, forces):
         da_cross_eq = 'k * (1+cos(n*dihedral(p1,p2,p3,p4)-phi0)) * (angle(p5,p6,p7)-theta0)'
         da_force = ET.SubElement(forces, 'Force', {'energy': da_cross_eq, 'name': 'DihedralAngle', 'usesPeriodic': '0',
@@ -341,6 +367,90 @@ class OpenMM(ForcefieldSettings):
         ET.SubElement(writer, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
                                        'p5': str(ids[4]), 'p6': str(ids[5]), 'p7': str(ids[6]),
                                        'param1': k, 'param2': equ, 'param3': n, 'param4': phi0})
+
+    def write_cross_cos_cube_dihed_angle_header(self, forces):
+        da_cross_eq = 'k * (cos(dihedral(p1,p2,p3,p4))+1)^3 * (angle(p5,p6,p7)-theta0)'
+        da_force = ET.SubElement(forces, 'Force', {'energy': da_cross_eq, 'name': 'DihedralAngle', 'usesPeriodic': '0',
+                                                   'type': 'CustomCompoundBondForce', 'forceGroup': '0',
+                                                   'particles': '7', 'version': '3'})
+
+        per_bond_params = ET.SubElement(da_force, 'PerBondParameters')
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta0'})
+
+        ET.SubElement(da_force, 'GlobalParameters')
+        ET.SubElement(da_force, 'EnergyParameterDerivatives')
+        ET.SubElement(da_force, 'Functions')
+
+        da = ET.SubElement(da_force, 'Bonds')
+        return da
+
+    def write_cross_cos_cube_dihed_angle_term(self, term, writer):
+        ids = term.atomids
+        k = str(round(term.fconst, 7))
+        equ = str(round(term.equ[0], 8))
+
+        ET.SubElement(writer, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
+                                       'p5': str(ids[4]), 'p6': str(ids[5]), 'p7': str(ids[6]),
+                                       'param1': k, 'param2': equ})
+
+    def write_cross_dihed_angle_angle_header(self, forces):
+        da_cross_eq = 'k * (1+cos(n*dihedral(p1,p2,p3,p4)-phi0)) * (angle(p1,p2,p3)-theta0_1) * (angle(p2,p3,p4)-theta0_2)'
+        da_force = ET.SubElement(forces, 'Force', {'energy': da_cross_eq, 'name': 'DihedralAngle', 'usesPeriodic': '0',
+                                                   'type': 'CustomCompoundBondForce', 'forceGroup': '0',
+                                                   'particles': '4', 'version': '3'})
+
+        per_bond_params = ET.SubElement(da_force, 'PerBondParameters')
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta0_1'})
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta0_2'})
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'n'})
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'phi0'})
+
+        ET.SubElement(da_force, 'GlobalParameters')
+        ET.SubElement(da_force, 'EnergyParameterDerivatives')
+        ET.SubElement(da_force, 'Functions')
+
+        da = ET.SubElement(da_force, 'Bonds')
+        return da
+
+    def write_cross_dihed_angle_angle_term(self, term, writer):
+        ids = term.atomids
+        k = str(round(term.fconst, 7))
+        equ1 = str(round(term.equ[0], 8))
+        equ2 = str(round(term.equ[1], 8))
+        n = str(term.equ[2])
+        phi0 = str(round(term.equ[3], 8))
+
+        ET.SubElement(writer, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
+                                       'param1': k, 'param2': equ1, 'param3': equ2, 'param4': n, 'param5': phi0})
+
+    def write_cross_cos_cube_dihed_angle_angle_header(self, forces):
+        da_cross_eq = 'k * (cos(dihedral(p1,p2,p3,p4))+1)^3 * (angle(p1,p2,p3)-theta0_1) * (angle(p2,p3,p4)-theta0_2)'
+        da_force = ET.SubElement(forces, 'Force', {'energy': da_cross_eq, 'name': 'DihedralAngle', 'usesPeriodic': '0',
+                                                   'type': 'CustomCompoundBondForce', 'forceGroup': '0',
+                                                   'particles': '4', 'version': '3'})
+
+        per_bond_params = ET.SubElement(da_force, 'PerBondParameters')
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'k'})
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta0_1'})
+        ET.SubElement(per_bond_params, 'Parameter', {'name': 'theta0_2'})
+
+        ET.SubElement(da_force, 'GlobalParameters')
+        ET.SubElement(da_force, 'EnergyParameterDerivatives')
+        ET.SubElement(da_force, 'Functions')
+
+        da = ET.SubElement(da_force, 'Bonds')
+        return da
+
+    def write_cross_cos_cube_dihed_angle_angle_term(self, term, writer):
+        ids = term.atomids
+        k = str(round(term.fconst, 7))
+        equ1 = str(round(term.equ[0], 8))
+        equ2 = str(round(term.equ[1], 8))
+
+        ET.SubElement(writer, 'Bond', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
+                                       'param1': k, 'param2': equ1, 'param3': equ2})
 
     def write_harmonic_dihedral_header(self, forces):
         harm_dih_eq = '0.5*k*(theta-theta0)^2'
@@ -414,6 +524,29 @@ class OpenMM(ForcefieldSettings):
 
         ET.SubElement(writer, 'Torsion', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
                                           'param1': equ, 'param2': k})
+
+    def write_cos_cube_dihedral_header(self, forces):
+        inv_dih_eq = 'k*(cos(theta)+1)^3'
+        inv_dih_force = ET.SubElement(forces, 'Force', {'energy': inv_dih_eq, 'name': 'CosCubeDihedral', 'usesPeriodic': '0',
+                                                        'type': 'CustomTorsionForce', 'forceGroup': '0', 'version': '3',
+                                                        })
+
+        per_torsion_params = ET.SubElement(inv_dih_force, 'PerTorsionParameters')
+        ET.SubElement(per_torsion_params, 'Parameter', {'name': 'k'})
+
+        ET.SubElement(inv_dih_force, 'GlobalParameters')
+        ET.SubElement(inv_dih_force, 'EnergyParameterDerivatives')
+
+        inv = ET.SubElement(inv_dih_force, 'Torsions')
+        return inv
+
+    def write_cos_cube_dihedral_term(self, term, writer):
+        ids = term.atomids
+        k = str(round(term.fconst, 7))
+
+        ET.SubElement(writer, 'Torsion', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
+                                          'param1': k})
+
 
     def write_pitorsion_dihedral_header(self, forces):
         # eq = """k*sin(phi-phi0)^2;

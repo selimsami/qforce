@@ -9,7 +9,7 @@ from .fragment import fragment
 from .no_fragment_scanning import do_nofrag_scanning
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
-from .hessian import fit_hessian, multi_hessian_newfit
+from .hessian import multi_fit
 from .charge_flux import fit_charge_flux
 from .misc import LOGO
 from .logger import LoggerExit
@@ -17,78 +17,26 @@ from .additionalstructures import AdditionalStructures
 
 
 def runjob(config, job, ext_q=None, ext_lj=None):
-    # setup qm calculation
     qm = QM(job, config.qm)
-    # do the preoptimization if selected
     qm.preopt()
-    # get hessian output
     qm_hessian_out = qm.get_hessian()
     main_hessian = qm_hessian_out[0]
-    #
+
     structs = AdditionalStructures.from_config(config.addstructs)
     structs.create(qm)
-    # add hessian
     structs.add_hessians(qm_hessian_out)
 
-    # check molecule
     ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
     if ffcls is None:
         raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
+
     mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj)
 
-    # change the order
-    fragments = None
-    if ('dihedral/flexible' in mol.terms and len(mol.terms['dihedral/flexible']) > 0
-       and config.scan.do_scan):
-        # get fragments with qm
-        fragments = fragment(mol, qm, job, config)
-
-    # hessian fitting
-    md_hessian = multi_hessian_newfit(job.logger, config.terms, mol, structs, fit_flexible=False)
-
-    # do the scans
-    if fragments is not None:
-        DihedralScan(fragments, mol, job, config)
-
-    calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
-
-    ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
-    ff.software.write(job.dir, main_hessian.coords)
-
-    print_outcome(job.logger, job.dir, config.ff.output_software)
-
-    return mol
-
-
-def runjob_v2(config, job, ext_q=None, ext_lj=None):
-    # setup qm calculation
-    qm = QM(job, config.qm)
-    # do the preoptimization if selected
-    qm.preopt()
-    # get hessian output
-    qm_hessian_out = qm.get_hessian()
-    main_hessian = qm_hessian_out[0]
-
-    structs = AdditionalStructures.from_config(config.addstructs)
-    structs.create(qm)
-    # add hessian
-    structs.add_hessians(qm_hessian_out)
-
-    ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
-    if ffcls is None:
-        raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
-
-    # check molecule
-    mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj, fit_flexible=True)
-
-    # if len(mol.terms['dihedral/flexible']) > 0:
     scans = do_nofrag_scanning(mol, qm, job, config)
-    # add forces
     structs.add_dihedrals(scans)
-    # normalize!
     structs.normalize()
-    # hessian fitting
-    md_hessian = multi_hessian_newfit(job.logger, config.terms, mol, structs, fit_flexible=True)
+
+    md_hessian = multi_fit(job.logger, config.terms, mol, structs)
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
@@ -135,16 +83,13 @@ def save_jobs(config, job):
         write_bashscript('run_qforce_jobs.sh', config, job)
 
 
-def runspjob(config, job, ext_q=None, ext_lj=None, v2=False):
+def runspjob(config, job, ext_q=None, ext_lj=None):
     """Run a single round of Q-Force"""
     # print qforce logo
     job.logger.info(LOGO)
     #
     try:
-        if v2:
-            mol = runjob_v2(config, job, ext_q=ext_q, ext_lj=ext_lj)
-        else:
-            mol = runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        mol = runjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
         save_jobs(config, job)
         return mol
     except CalculationIncompleteError:
@@ -157,15 +102,15 @@ def runspjob(config, job, ext_q=None, ext_lj=None, v2=False):
     return None
 
 
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False, v2=True):
+def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False):
     """Execute Qforce from python directly """
     config, job = initialize(input_arg, config, presets)
     #
     if err is True:
-        return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj, v2=v2)
+        return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
     else:
         try:
-            return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj, v2=v2)
+            return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
         except LoggerExit as err:
             print(str(err))
 

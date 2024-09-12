@@ -4,7 +4,9 @@ from itertools import product
 from .baseterms import TermBase
 from ..forces import get_dist, get_angle
 from ..forces import (calc_cross_bond_bond, calc_cross_bond_angle, calc_cross_bond_cos_angle, calc_cross_angle_angle,
-                      calc_cross_cos_angle_angle, calc_cross_dihed_angle, calc_cross_dihed_bond)
+                      calc_cross_cos_angle_angle, calc_cross_dihed_angle, calc_cross_dihed_bond,
+                      calc_cross_cos_cube_dihed_angle, calc_cross_cos_cube_dihed_bond,
+                      calc_cross_dihed_angle_angle, calc_cross_cos_cube_dihed_angle_angle)
 
 
 class CrossBondBondTerm(TermBase):
@@ -292,6 +294,19 @@ class CrossDihedBondTerm(TermBase):
         return software.write_cross_dihed_bond_header(writer)
 
 
+class CrossCosCubeDihedBondTerm(CrossDihedBondTerm):
+    name = 'CrossCosCubeDihedBondTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cross_cos_cube_dihed_bond(crd, self.atomids, self.equ, fconst, force)
+
+    def write_forcefield(self, software, writer):
+        software.write_cross_cos_cube_dihed_bond_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_cos_cube_dihed_bond_header(writer)
+
+
 class CrossDihedAngleTerm(TermBase):
     name = 'CrossDihedAngleTerm'
 
@@ -302,8 +317,6 @@ class CrossDihedAngleTerm(TermBase):
     def _get_terms(cls, topo, non_bonded):
 
         cross_dihed_angle_terms = cls.get_terms_container()
-
-        z = 0
 
         for a2, a3 in topo.bonds:
             central = topo.edge(a2, a3)
@@ -358,3 +371,145 @@ class CrossDihedAngleTerm(TermBase):
 
     def write_ff_header(self, software, writer):
         return software.write_cross_dihed_angle_header(writer)
+
+
+class CrossCosCubeDihedAngleTerm(CrossDihedAngleTerm):
+    name = 'CrossCosCubeDihedAngleTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cross_cos_cube_dihed_angle(crd, self.atomids, self.equ, fconst, force)
+
+    def write_forcefield(self, software, writer):
+        software.write_cross_cos_cube_dihed_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_cos_cube_dihed_angle_header(writer)
+
+
+class CrossDihedAngleAngleTerm(TermBase):
+    name = 'CrossDihedAngleAngleTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cross_dihed_angle_angle(crd, self.atomids, self.equ, fconst, force)
+
+    @classmethod
+    def _get_terms(cls, topo, non_bonded):
+
+        cross_dihed_angle_angle_terms = cls.get_terms_container()
+
+        for a2, a3 in topo.bonds:
+            central = topo.edge(a2, a3)
+            a1s = [a1 for a1 in topo.neighbors[0][a2] if a1 != a3]
+            a4s = [a4 for a4 in topo.neighbors[0][a3] if a4 != a2]
+
+            if a1s == [] or a4s == []:
+                continue
+
+            a1s, a4s = np.array(a1s), np.array(a4s)
+            atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
+                          a4s) if d[0] != d[-1]]
+
+            for atoms in atoms_comb:
+                a1, a2, a3, a4 = atoms
+                b12 = topo.edge(a1, a2)["vers"]
+                b23 = topo.edge(a2, a3)["vers"]
+                b43 = topo.edge(a4, a3)["vers"]
+                t23 = [topo.types[a2], topo.types[a3]]
+                t12 = f"{topo.types[a1]}({b12}){topo.types[a2]}"
+                t43 = f"{topo.types[a4]}({b43}){topo.types[a3]}"
+                d_type = [t12, t43]
+
+                d_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
+                theta1 = get_angle(topo.coords[[a1, a2, a3]])[0]
+                theta2 = get_angle(topo.coords[[a2, a3, a4]])[0]
+
+                cross_dihed_angle_angle_terms.append(cls([a1, a2, a3, a4], [theta1, theta2, 3, 0], d_type))
+
+        return cross_dihed_angle_angle_terms
+
+    def write_forcefield(self, software, writer):
+        software.write_cross_dihed_angle_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_dihed_angle_angle_header(writer)
+
+
+class CrossCosCubeDihedAngleAngleTerm(CrossDihedAngleAngleTerm):
+    name = 'CrossCosCubeDihedAngleAngleTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cross_cos_cube_dihed_angle_angle(crd, self.atomids, self.equ, fconst, force)
+
+    def write_forcefield(self, software, writer):
+        software.write_cross_cos_cube_dihed_angle_angle_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cross_cos_cube_dihed_angle_angle_header(writer)
+
+
+# class CrossDihedDihedTerm(TermBase):
+#     name = 'CrossDihedDihedTerm'
+#
+#     def _calc_forces(self, crd, force, fconst):
+#         return calc_cross_dihed_dihed(crd, self.atomids, self.equ, fconst, force)
+#
+#     @classmethod
+#     def _get_terms(cls, topo, non_bonded):
+#
+#         cross_dihed_dihed_terms = cls.get_terms_container()
+#
+#         z = 0
+#
+#         for a2, a3 in topo.bonds:
+#             central = topo.edge(a2, a3)
+#             a1s = [a1 for a1 in topo.neighbors[0][a2] if a1 != a3]
+#             a4s = [a4 for a4 in topo.neighbors[0][a3] if a4 != a2]
+#
+#             if a1s == [] or a4s == []:
+#                 continue
+#
+#             a1s, a4s = np.array(a1s), np.array(a4s)
+#             atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
+#                           a4s) if d[0] != d[-1]]
+#
+#             for atoms in atoms_comb:
+#                 a1, a2, a3, a4 = atoms
+#                 b12 = topo.edge(a1, a2)["vers"]
+#                 b23 = topo.edge(a2, a3)["vers"]
+#                 b43 = topo.edge(a4, a3)["vers"]
+#                 t23 = [topo.types[a2], topo.types[a3]]
+#                 t12 = f"{topo.types[a1]}({b12}){topo.types[a2]}"
+#                 t43 = f"{topo.types[a4]}({b43}){topo.types[a3]}"
+#                 d_type = [t12, t43]
+#
+#                 d_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
+#
+#                 for a5, a6, a7 in topo.angles:
+#                     b21 = topo.edge(a6, a5)['vers']
+#                     b23 = topo.edge(a6, a7)['vers']
+#                     a_type = sorted([f"{topo.types[a6]}({b21}){topo.types[a5]}",
+#                                      f"{topo.types[a6]}({b23}){topo.types[a7]}"])
+#                     a_type = f"{a_type[0]}_{a_type[1]}"
+#
+#                     theta = get_angle(topo.coords[[a5, a6, a7]])[0]
+#                     n_shared = sum([a5 in atoms, a6 in atoms, a7 in atoms])
+#
+#                     connect = ''
+#                     if n_shared < 3:
+#                         continue
+#                     # elif n_shared == 2 and topo.types[a1] != topo.types[a4]:
+#                     #     if a6 in atoms:
+#                     #         connect += f'-center:{atoms.index(a6)}'
+#
+#                     da_type = f'{d_type}-{a_type}-{n_shared}-{connect}'
+#
+#                     cross_dihed_dihed_terms.append(cls([a1, a2, a3, a4, a5, a6, a7, a8], [3, 0, 3, 0], da_type))
+#                     # cross_dihed_dihed_terms.append(cls([a1, a2, a3, a4, a5, a6, a7, a8], [1, 0, 1, 0], da_type))
+#
+#         return cross_dihed_dihed_terms
+#
+#     def write_forcefield(self, software, writer):
+#         software.write_cross_dihed_dihed_term(self, writer)
+#
+#     def write_ff_header(self, software, writer):
+#         return software.write_cross_dihed_dihed_header(writer)
