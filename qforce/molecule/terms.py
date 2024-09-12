@@ -1,4 +1,3 @@
-from collections import UserDict
 from contextlib import contextmanager
 from copy import deepcopy
 #
@@ -13,41 +12,8 @@ from .local_frame import LocalFrameTerms
 #
 from .base import MappingIterator
 from .baseterms import TermFactory, EmptyTerm
-
-
-class DefaultFalseDict(UserDict):
-    """Dictory that return False in case a key is not defined"""
-
-    def get(self, key, default=False):
-        return self.data.get(key, default)
-
-    def __getitem__(self, key):
-        return self.data.get(key, False)
-
-
-class TermSelector:
-
-    def __init__(self, options):
-        if 'off' not in options:
-            options['off'] = EmptyTerm
-        self._options = options
-
-    def get_factory(self, value):
-        factory = self._options.get(value, None)
-        if factory is not None:
-            return factory
-        raise ValueError(f"Do not know term factory '{value}'")
-
-
-class SingleTermSelector:
-
-    def __init__(self, term):
-        self._term = term
-
-    def get_factory(self, value):
-        if value == 'on':
-            return self._term
-        raise ValueError(f"Do not know term factory '{value}'")
+from .selectors import to_selector
+from .helper import DefaultFalseDict
 
 
 def split_name(name):
@@ -56,19 +22,6 @@ def split_name(name):
     maintype = maintype.strip()
     subtype = subtype.strip()
     return maintype, subtype
-
-
-def to_selector(dct):
-    """Convert the dictory to a dict of term selectors"""
-    out = {}
-
-    for name, options in dct.items():
-        # probably should be mapping
-        if isinstance(options, dict):
-            out[name] = TermSelector(options)
-        else:
-            out[name] = SingleTermSelector(options)
-    return out
 
 
 class Terms(MappingIterator):
@@ -106,7 +59,7 @@ class Terms(MappingIterator):
         'charge_flux': ChargeFluxTerms,
         #
         'local_frame': LocalFrameTerms,
-    })
+    }, EmptyTerm)
 
     def __init__(self, terms, ignore, not_fit_terms, fit_flexible=False):
         MappingIterator.__init__(self, terms, ignore)
@@ -137,7 +90,7 @@ class Terms(MappingIterator):
                 # ignore terms that are turned off
                 ignore.append(term)
                 continue
-            # 
+            #
             if '/' not in term:
                 cls.add_terms(terms, term, setting, topo, non_bonded)
             else:
@@ -145,10 +98,7 @@ class Terms(MappingIterator):
                 if maintype not in factories:
                     factories[maintype] = DefaultFalseDict()
                 # Handle the on case in a better way!
-                if setting == 'on':
-                    factories[maintype][subtype] = True
-                else:
-                    factories[maintype][subtype] = setting
+                factories[maintype][subtype] = setting
         # get factory terms, currently no selector for termfactories
         for term, settings in factories.items():
             cls.add_terms(terms, term, 'on', topo, non_bonded, settings)
