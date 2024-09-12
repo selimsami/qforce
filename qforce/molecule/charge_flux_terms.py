@@ -3,6 +3,7 @@ from abc import abstractmethod
 #
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dist, get_angle
+from .selectors import to_selector
 
 
 class ChargeFluxBaseTerm(TermABC):
@@ -144,7 +145,7 @@ class AngleAngleChargeFluxTerm(ChargeFluxBaseTerm):
 class ChargeFluxTerms(TermFactory):
     name = 'ChargeFluxTerms'
 
-    _term_types = {
+    _term_types = to_selector({
         'bond': BondChargeFluxTerm,
         'bond_prime': BondChargeFluxTerm,
         'angle': AngleChargeFluxTerm,
@@ -152,26 +153,36 @@ class ChargeFluxTerms(TermFactory):
         '_bond_bond': BondBondChargeFluxTerm,
         '_bond_angle': BondAngleChargeFluxTerm,
         '_angle_angle': AngleAngleChargeFluxTerm,
-    }
+    })
 
     _always_on = []
     _default_off = ['bond', 'angle', 'bond_prime', 'angle_prime', '_bond_bond', '_bond_angle', '_angle_angle']
 
     @classmethod
-    def get_terms(cls, topo, non_bonded, settings):
-        if not any(val for val in settings.values()):
+    def _get_terms(cls, topo, non_bonded, termtypes):
+        if termtypes.is_empty():
             return cls.get_terms_container()
 
         terms = cls.get_terms_container()
 
         # helper functions to improve readability
         def add_term(name, atomids, *args):
-            terms[name].append(cls._term_types[name].get_term(atomids, *args))
+            term = termtypes[name].get_term(atomids, *args)
+            if term is not None:
+                terms[name].append(term)
 
         if topo.n_atoms == 2:
             central_atoms = [0]
         else:
             central_atoms = np.where(topo.n_neighbors > 1)[0]
+
+        bonds_on = termtypes.is_on('bond')
+        bond_bond_on = termtypes.is_on('_bond_bond')
+        bond_prime_on = termtypes.is_on('bond_prime')
+        angle_on = termtypes.is_on('angle')
+        angle_prime_on = termtypes.is_on('angle_prime')
+        bond_angle_on = termtypes.is_on('_bond_angle')
+        angle_angle_on = termtypes.is_on('_angle_angle')
 
         for a1 in central_atoms:
             neighs = topo.neighbors[0][a1]
@@ -180,19 +191,19 @@ class ChargeFluxTerms(TermFactory):
 
             for a2 in topo.neighbors[0][a1]:
                 dist = get_dist(topo.coords[a1], topo.coords[a2])[1]
-                if settings.get('bond'):
+                if bonds_on:
                     add_term('bond', [a2, a1, a2], dist, 'bond')
 
                 for a3 in topo.neighbors[0][a1]:
                     if a2 <= a3:
                         continue
 
-                    if settings.get('_bond_bond'):
+                    if bond_bond_on:
                         dist2 = get_dist(topo.coords[a1], topo.coords[a3])[1]
                         add_term('_bond_bond', [a2, a1, a3], [dist, dist2], 'bond_bond')
 
             for a2, _, a3 in angles:
-                if settings.get('bond_prime'):
+                if bond_prime_on:
                     dist = get_dist(topo.coords[a1], topo.coords[a3])[1]
                     add_term('bond_prime', [a2, a1, a3], dist, 'bond_prime')
                     dist = get_dist(topo.coords[a1], topo.coords[a2])[1]
@@ -200,17 +211,17 @@ class ChargeFluxTerms(TermFactory):
 
                 theta = get_angle(topo.coords[[a2, a1, a3]])[0]
 
-                if settings.get('angle'):
+                if angle_on:
                     add_term('angle', [a2, a2, a1, a3], theta, 'angle')
                     add_term('angle', [a3, a3, a1, a2], theta, 'angle')
 
-                if settings.get('angle_prime'):
+                if angle_prime_on:
                     options = [option for option in neighs if option != a2 and option != a3]
                     if options:
                         for a4 in options:
                             add_term('angle_prime', [a4, a3, a1, a2], theta, 'angle_prime')
 
-                if settings.get('_bond_angle'):
+                if bond_angle_on:
                     for a4 in neighs:
                         dist = get_dist(topo.coords[a1], topo.coords[a4])[1]
                         if a4 in [a2, a3]:
@@ -218,7 +229,7 @@ class ChargeFluxTerms(TermFactory):
                         else:
                             add_term('_bond_angle', [a4, a2, a1, a3], [theta, dist], 'bond_angle_prime')
 
-                if settings.get('_angle_angle'):
+                if angle_angle_on:
                     for a4, _, a5 in angles:
                         if a2 == a4 and a3 == a5:
                             continue
