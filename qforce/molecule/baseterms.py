@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 #
 from .storage import TermStorage, MultipleTermStorge
+from .selectors import to_selector
 
 
 class TermABC(ABC):
@@ -92,7 +93,6 @@ class TermBase(TermABC):
         Return:
             list of term objects
         """
-        print("settings = ", settings)
         return cls._get_terms(topo, non_bonded)
 
     @classmethod
@@ -147,6 +147,13 @@ class DefaultEmptyDict(UserDict):
 class TermFactory:
     """Base class for terms that are TermFactories for themselves as well"""
     _multiple_terms = True
+    _term_types = None
+
+    @classmethod
+    def factories(cls):
+        if cls._term_types is None:
+            return {}
+        return to_selector(cls._term_types, EmptyTerm)
 
     @classmethod
     def get_terms_container(cls, termtypes=None):
@@ -171,9 +178,10 @@ class TermFactory:
         Return:
             list of term objects
         """
+        factories = cls.factories()
         termtypes = DefaultEmptyDict()
         for name, prop in settings.items():
-            termtypes[name] = cls._term_types[name].get_factory(prop)
+            termtypes[name] = factories[name].get_factory(prop)
 
         return cls._get_terms(topo, non_bonded, termtypes)
 
