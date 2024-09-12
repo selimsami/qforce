@@ -1,3 +1,4 @@
+from collections import UserDict
 from abc import ABC, abstractmethod
 #
 import numpy as np
@@ -70,39 +71,46 @@ class TermABC(ABC):
             raise Exception("Cannot compare Term with")
 
 
-class TermFactory(ABC):
-    """Factory class to create ForceField Terms of one ore multiple TermABC classes"""
-
-    _term_types = None
-    _multiple_terms = True
-    name = "NAME_NOT_DEFINED"
+class TermBase(TermABC):
+    """Base class for terms that are TermFactories for themselves as well"""
+    _multiple_terms = False
 
     @classmethod
     def get_terms_container(cls):
-        if cls._multiple_terms is False:
-            return TermStorage(cls.name)
-        return MultipleTermStorge(cls.name, {key: value.get_terms_container()
-                                             for key, value in cls._term_types.items()})
+        return TermStorage(cls.name)
+
+    @classmethod
+    def get_terms(cls, topo, non_bonded, settings):
+        """
+        Parameters
+        ----------
+        topo: Topology object, const
+            Stores all topology information
+        non_bonded: NonBonded object, const
+            Stores all non bonded interaction information
+
+        Return:
+            list of term objects
+        """
+        print("settings = ", settings)
+        return cls._get_terms(topo, non_bonded)
 
     @classmethod
     @abstractmethod
-    def get_terms(cls, topo, non_bonded, settings):
+    def _get_terms(cls, topo, non_bonded):
         """
-            Args:
-                topo: Topology object, const
-                    Stores all topology information
-                non_bonded: NonBonded object, const
-                    Stores all non bonded interaction information
+        Parameters
+        ----------
+        topo: Topology object, const
+            Stores all topology information
+        non_bonded: NonBonded object, const
+            Stores all non bonded interaction information
+        settings : dict
+            should be off
 
-            Return:
-                list of cls objects
+        Return:
+            list of term objects
         """
-        ...
-
-
-class TermBase(TermFactory, TermABC):
-    """Base class for terms that are TermFactories for themselves as well"""
-    _multiple_terms = False
 
 
 class EmptyTerm(TermBase):
@@ -114,3 +122,74 @@ class EmptyTerm(TermBase):
     @classmethod
     def get_terms(cls, topo, non_bonded, settings):
         return None
+
+    @classmethod
+    def get_term(cls, *args, **kwargs):
+        return None
+
+
+class DefaultEmptyDict(UserDict):
+    """Dictory that return False in case a key is not defined"""
+
+    def is_empty(self):
+        return all(val is EmptyTerm for val in self.data.values())
+
+    def is_on(self, key):
+        return not (self[key] is EmptyTerm)
+
+    def get(self, key, default=EmptyTerm):
+        return self.data.get(key, default)
+
+    def __getitem__(self, key):
+        return self.data.get(key, EmptyTerm)
+
+
+class TermFactory:
+    """Base class for terms that are TermFactories for themselves as well"""
+    _multiple_terms = True
+
+    @classmethod
+    def get_terms_container(cls, termtypes=None):
+        if termtypes is None:
+            return MultipleTermStorge(cls.name, {key: value.get_terms_container()
+                                                 for key, value in cls._term_types.items()})
+        return MultipleTermStorge(cls.name, {key: value.get_terms_container()
+                                             for key, value in termtypes.items()})
+
+    @classmethod
+    def get_terms(cls, topo, non_bonded, settings):
+        """
+        Parameters
+        ----------
+        topo: Topology object, const
+            Stores all topology information
+        non_bonded: NonBonded object, const
+            Stores all non bonded interaction information
+        settings : dict
+            selections for termtypes
+
+        Return:
+            list of term objects
+        """
+        termtypes = DefaultEmptyDict()
+        for name, prop in settings.items():
+            termtypes[name] = cls._term_types[name].get_factory(prop)
+
+        return cls._get_terms(topo, non_bonded, termtypes)
+
+    @classmethod
+    @abstractmethod
+    def _get_terms(cls, topo, non_bonded, termtypes):
+        """
+        Parameters
+        ----------
+        topo: Topology object, const
+            Stores all topology information
+        non_bonded: NonBonded object, const
+            Stores all non bonded interaction information
+        termtypes : SimpleNamespace
+            selections for termtypes
+
+        Return:
+            list of term objects
+        """
