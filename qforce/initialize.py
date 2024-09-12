@@ -19,7 +19,8 @@ class Initialize(Colt):
 [logging]
 # if given log qforce to filename
 filename = :: str, optional
-
+# write a bash script each step
+write_bash = False :: bool
 """
 
     @classmethod
