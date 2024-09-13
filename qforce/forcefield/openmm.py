@@ -18,7 +18,7 @@ class OpenMM(ForcefieldSettings):
             'cross_dihed_angle': ('periodic', 'cos_cube', False),
             'cross_dihed_bond': ('periodic', 'cos_cube', False),
             'cross_dihed_angle_angle': ('periodic', 'cos_cube', False),
-            'dihedral/flexible': True,
+            'dihedral/flexible': ('periodic', 'cos_cube', False),
             'dihedral/rigid': True,
             'dihedral/improper': True,
             'dihedral/inversion': True,

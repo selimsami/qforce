@@ -188,10 +188,10 @@ class DihedralTerms(TermFactory):
     _term_types = {
         'rigid': RigidDihedralTerm,
         'improper': ImproperDihedralTerm,
-        'flexible': PeriodicDihedralTerm, # CosCubeDihedralTerm,# ,RBDihedralTerm
-        # 'periodic': PeriodicDihedralTerm,
-        # 'cos_cube': CosCubeDihedralTerm,
-        # },
+        'flexible': { # PeriodicDihedralTerm, # CosCubeDihedralTerm,# ,RBDihedralTerm
+            'periodic': PeriodicDihedralTerm,
+            'cos_cube': CosCubeDihedralTerm,
+        },
         'inversion': InversionDihedralTerm,
         'pitorsion': PiTorsionDihedralTerm,
     }
