@@ -167,3 +167,4 @@ def calc_forces(coords, mol):
     for term in mol.terms:
         term.do_fitting(coords, energies, force)
 
+    return energies, force
