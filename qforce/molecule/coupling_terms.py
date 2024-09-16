@@ -283,8 +283,9 @@ class CrossDihedBondTerm(TermBase):
 
                     db_type = f'{d_type}-{b_type}-{n_shared}{connect}'
 
-                    cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 3, 0], db_type))
-                    # cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 1, 0], db_type))
+                    cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 3, 0], f'{db_type}-3'))
+                    cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 2, np.pi], f'{db_type}-2'))
+                    cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 1, 0], f'{db_type}-1'))
         return cross_dihed_bond_terms
 
     def write_forcefield(self, software, writer):
@@ -361,8 +362,9 @@ class CrossDihedAngleTerm(TermBase):
 
                     da_type = f'{d_type}-{a_type}-{n_shared}-{connect}'
 
-                    cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 3, 0], da_type))
-                    # cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 1, 0], da_type))
+                    cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 3, 0], f'{da_type}-3'))
+                    cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 2, np.pi], f'{da_type}-2'))
+                    cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 1, 0], f'{da_type}-1'))
 
         return cross_dihed_angle_terms
 
@@ -423,7 +425,7 @@ class CrossDihedAngleAngleTerm(TermBase):
                 theta1 = get_angle(topo.coords[[a1, a2, a3]])[0]
                 theta2 = get_angle(topo.coords[[a2, a3, a4]])[0]
 
-                cross_dihed_angle_angle_terms.append(cls([a1, a2, a3, a4], [theta1, theta2, 3, 0], d_type))
+                cross_dihed_angle_angle_terms.append(cls([a1, a2, a3, a4], [theta1, theta2, 1, 0], d_type))
 
         return cross_dihed_angle_angle_terms
 

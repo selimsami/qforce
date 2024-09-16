@@ -119,6 +119,7 @@ res_name = MOL :: str
         bde_dict = self._read_bond_dissociation_energy_csv(md_data)
 
         for a1, a2, props in self.topo.graph.edges(data=True):
+            print(a1, a2, props)
             if props['type'] not in bde_dict:
                 raise ValueError('Morse potential chosen, but dissociation energy not known for this atom number pair '
                                  f'with the bond order in parenthesis: {props["type"]}. '

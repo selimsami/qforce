@@ -261,7 +261,8 @@ class ReadABC(ABC):
             energy_list.append(energy)
         # convert to gromacs units
         energies = np.array(energy_list) * Hartree * mol / kJ
-        return n_atoms, coord_list, angle_list, energies, {}
+        dipoles = [[None, None, None] for _ in angle_list]
+        return n_atoms, coord_list, angle_list, energies, dipoles, {}
 
     @abstractmethod
     def opt(self, ):
@@ -337,7 +338,7 @@ class EnergyOutput:
 class GradientOutput:
 
     def __init__(self, energy, gradient, dipole, atomids, coords):
-        self.energy = np.array(energy, dtype=np.float64)
+        self.energy = energy
         self.gradient = np.array(gradient, dtype=np.float64)
         self.atomids = np.array(atomids)
         self.coords = np.array(coords, dtype=np.float64)

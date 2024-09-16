@@ -12,16 +12,18 @@ def do_nofrag_scanning(mol, qm, job, config):
     scans = []
     unique_dihedrals = {}
 
-    if 'dihedral/chosen' not in mol.terms or len(mol.terms['dihedral/chosen']) == 0 or not config.scan.do_scan:
+    print(mol.terms['dihedral/flexible'])
+
+    if 'dihedral/flexible' not in mol.terms or len(mol.terms['dihedral/flexible']) == 0 or not config.scan.do_scan:
         return scans
 
     os.makedirs(config.scan.frag_lib, exist_ok=True)
     scan_dir = job.pathways.getdir('fragments', create=True)
 
-    for term in mol.terms['dihedral/chosen']:
-        name = term.type.split('_')[1]
-        if name not in unique_dihedrals:
-            unique_dihedrals[name] = term.atomids
+    for term in mol.terms['dihedral/flexible']:
+        dih_type = mol.topo.edge(term.atomids[1], term.atomids[2])['vers']
+        if dih_type not in unique_dihedrals:
+            unique_dihedrals[dih_type] = term.atomids
 
     generated = []  # Number of fragments generated but not computed
     error = ''
@@ -100,7 +102,7 @@ class Scan():
         if files:
             self.has_data = True
             qm_out = qm.read_scan(self.folder, files)
-            qm_out = qm.do_scan_sp_calculations_v2(self.folder, self.hash, qm_out, mol.atomids)
+            qm_out = qm.do_scan_sp_calculations(self.folder, self.hash, qm_out, mol.atomids)
 
             self.energies = qm_out.energies
             self.forces = qm_out.forces

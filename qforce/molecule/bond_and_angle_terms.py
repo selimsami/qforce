@@ -19,6 +19,7 @@ class HarmonicBondTerm(TermBase):
             bond = topo.edge(a1, a2)
             dist = bond['length']
             bond_terms.append(cls([a1, a2], dist, bond['vers']))
+
         return bond_terms
 
     def write_forcefield(self, software, writer):

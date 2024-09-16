@@ -30,14 +30,20 @@ class QChem(QMInterface):
     # DFT Quadrature grid size
     xc_grid = 3 :: int ::
 
-    # SCF convergence criteria
-    scf_convergence = 8 :: int
+    # SCF convergence criteria for Hessian/Opt calculations
+    hessian_scf_convergence = 8 :: int
+    
+    # SCF convergence criteria for Energy/Force calculations
+    energy_scf_convergence = 6 :: int
 
     # Basis set linear dependence threshold
     basis_lin_dep_thresh = :: int, optional
 
-    # Threshold for two electron integrals
-    thresh = :: int, optional
+    # Threshold for two electron integrals for Hessian/Opt calculations
+    hessian_thresh = 11 :: int
+
+    # Threshold for two electron integrals for Hessian/Opt calculations
+    energy_thresh = 9 :: int
 
     # Number of CIS roots to ask
     cis_n_roots = :: int, optional
@@ -87,7 +93,7 @@ class QChemCalculator(Calculator):
 class ReadQChem(ReadABC):
 
     hessian_files = {'out_file': ['${base}.out', '${base}.log'],
-                     'fchk_file': ['${base}.fchk', '${base}.fck']}
+                     'fchk_file': ['${base}.fchk', '${base}.fck', '${base}.in.fchk', '${base}.inp.fchk']}
     opt_files = {'out_file': ['${base}.out', '${base}.log']}
     sp_files = {'out_file': ['${base}.out', '${base}.log']}
     sp_ec_files = {'out_file': ['${base}.out', '${base}.log']}
@@ -306,11 +312,11 @@ class WriteQChem(WriteABC):
     charges_rem = {'jobtype': 'sp', 'cm5': 'true', 'resp_charges': 'true'}
     hess_freq_rem = {'jobtype': 'freq', 'cm5': 'true', 'resp_charges': 'true', 'nbo': 2,
                      'iqmol_fchk': 'true', 'vibman_print': 6, 'molden_format': 'true'}
-    scan_rem = {'jobtype': 'pes_scan', 'cm5': 'true', 'resp_charges': 'true'}
+    scan_rem = {'jobtype': 'pes_scan', 'cm5': 'true', 'resp_charges': 'true', 'sym_ignore': 'true', 'symmetry': 'false'}
 
     def opt(self, file, job_name, settings, coords, atnums):
         self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity)
-        self._write_job_setting(file, job_name, settings, self.hess_opt_rem)
+        self._write_job_setting(file, job_name, settings, self.hess_opt_rem, is_opt=True)
         file.write('\n\n\n\n\n')
 
     def sp(self, file, job_name, settings, coords, atnums):
@@ -318,8 +324,8 @@ class WriteQChem(WriteABC):
         self._write_job_setting(file, job_name, settings, self.sp_rem)
         file.write('\n\n\n\n\n')
 
-    def gradient(self, file, job_name, settings, coords, atnums):
-        self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity)
+    def gradient(self, file, job_name, settings, coords, atnums, extra_info=False):
+        self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity, extra_info)
         self._write_job_setting(file, job_name, settings, self.grad_rem)
         file.write('\n\n\n\n\n')
 
@@ -330,10 +336,10 @@ class WriteQChem(WriteABC):
 
     def hessian(self, file, job_name, settings, coords, atnums):
         self._write_molecule(file, job_name, atnums, coords, settings.charge, settings.multiplicity)
-        self._write_job_setting(file, job_name, settings, self.hess_opt_rem)
+        self._write_job_setting(file, job_name, settings, self.hess_opt_rem, is_opt=True)
         file.write('\n\n@@@\n\n\n')
         file.write('$molecule\n  read\n$end\n\n')
-        self._write_job_setting(file, job_name, settings, self.hess_freq_rem)
+        self._write_job_setting(file, job_name, settings, self.hess_freq_rem, is_opt=True)
         file.write('\n$nbo\n  nbo\n  bndidx\n$end\n\n')
 
     def scan(self, file, job_name, settings, coords, atnums, scanned_atoms, start_angle, charge,
@@ -348,7 +354,7 @@ class WriteQChem(WriteABC):
             sys.exit('ERROR: Your scan step size is too large to perform a scan.\n')
 
         self._write_molecule(file, job_name, atnums, coords, charge, multiplicity)
-        self._write_job_setting(file, job_name, settings, self.scan_rem)
+        self._write_job_setting(file, job_name, settings, self.scan_rem, is_opt=True)
         self._write_scan_info(file, scanned_atoms, start_angle, direct[0]*180,
                               direct[0]*settings.scan_step_size)
 
@@ -373,9 +379,12 @@ class WriteQChem(WriteABC):
         file.write('$end\n\n')
 
     @staticmethod
-    def _write_molecule(file, job_name, atnums, coords, charge, multiplicity):
+    def _write_molecule(file, job_name, atnums, coords, charge, multiplicity, extra_info=False):
         file.write('$comment\n')
-        file.write(f'  Q-Force generated input for: {job_name}\n')
+        info_string = f'  Q-Force generated input for: {job_name}'
+        if extra_info:
+            info_string += extra_info
+        file.write(f'{info_string}\n')
         file.write('$end\n\n')
 
         file.write('$molecule\n')
@@ -385,7 +394,7 @@ class WriteQChem(WriteABC):
             file.write(f'{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n')
         file.write('$end\n\n')
 
-    def _write_job_setting(self, file, job_name, settings, job_rem):
+    def _write_job_setting(self, file, job_name, settings, job_rem, is_opt=False):
         file.write('$rem\n')
         file.write(f'  method = {self.config.method}\n')
         if self.config.basis is not None:
@@ -408,9 +417,12 @@ class WriteQChem(WriteABC):
         file.write(f'  geom_opt_max_cycles = {self.config.max_opt_cycles}\n')
         file.write(f'  max_scf_cycles = {self.config.max_scf_cycles}\n')
         file.write(f'  xc_grid = {self.config.xc_grid}\n')
-        file.write(f'  scf_convergence = {self.config.scf_convergence}\n')
+        if is_opt:
+            file.write(f'  scf_convergence = {self.config.hessian_scf_convergence}\n')
+            file.write(f'  thresh = {self.config.hessian_thresh}\n')
+        else:
+            file.write(f'  scf_convergence = {self.config.energy_scf_convergence}\n')
+            file.write(f'  thresh = {self.config.energy_thresh}\n')
         if self.config.basis_lin_dep_thresh is not None:
             file.write(f'  basis_lin_dep_thresh = {self.config.basis_lin_dep_thresh}\n')
-        if self.config.thresh is not None:
-            file.write(f'  thresh = {self.config.thresh}\n')
         file.write('$end\n')

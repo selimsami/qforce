@@ -295,7 +295,7 @@ def calc_cross_cos_cube_dihed_bond(coords, atoms, equ, fconst, force):
     phi = get_dihed(coords[atoms[:4]])[0]
     _, r = get_dist(coords[atoms[4]], coords[atoms[5]])
 
-    v_dihed = (np.cos(phi)+1)**3
+    v_dihed = (np.cos(phi)+1)**4
     v_bond = r - equ[0]
     energy = fconst * v_dihed * v_bond
 
@@ -308,14 +308,14 @@ def calc_cross_cos_cube_dihed_bond(coords, atoms, equ, fconst, force):
             c_new[a, j] += move
             phi = get_dihed(c_new[atoms[:4]])[0]
             _, r = get_dist(c_new[atoms[4]], c_new[atoms[5]])
-            v_dihed = (np.cos(phi)+1)**3
+            v_dihed = (np.cos(phi)+1)**4
             v_bond = r - equ[0]
             e_plus = fconst * v_dihed * v_bond
 
             c_new[a, j] -= 2*move
             phi = get_dihed(c_new[atoms[:4]])[0]
             _, r = get_dist(c_new[atoms[4]], c_new[atoms[5]])
-            v_dihed = (np.cos(phi)+1)**3
+            v_dihed = (np.cos(phi)+1)**4
             v_bond = r - equ[0]
             e_minus = fconst * v_dihed * v_bond
 
@@ -361,7 +361,7 @@ def calc_cross_cos_cube_dihed_angle(coords, atoms, equ, fconst, force):
     phi = get_dihed(coords[atoms[:4]])[0]
     theta = get_angle(coords[atoms[4:]])[0]
     v_angle = theta - equ[0]
-    v_dihed = (np.cos(phi)+1)**3
+    v_dihed = (np.cos(phi)+1)**4
     energy = fconst * v_dihed * v_angle
 
     unique_atoms = np.unique(atoms)
@@ -374,14 +374,14 @@ def calc_cross_cos_cube_dihed_angle(coords, atoms, equ, fconst, force):
             phi = get_dihed(c_new[atoms[:4]])[0]
             theta = get_angle(c_new[atoms[4:]])[0]
             v_angle = theta - equ[0]
-            v_dihed = (np.cos(phi)+1)**3
+            v_dihed = (np.cos(phi)+1)**4
             e_plus = fconst * v_dihed * v_angle
 
             c_new[a, j] -= 2*move
             phi = get_dihed(c_new[atoms[:4]])[0]
             theta = get_angle(c_new[atoms[4:]])[0]
             v_angle = theta - equ[0]
-            v_dihed = (np.cos(phi)+1)**3
+            v_dihed = (np.cos(phi)+1)**4
             e_minus = fconst * v_dihed * v_angle
 
             force[a, j] += (e_minus-e_plus)/(2*move)
@@ -434,7 +434,7 @@ def calc_cross_cos_cube_dihed_angle_angle(coords, atoms, equ, fconst, force):
 
     v_angle1 = theta1 - equ[0]
     v_angle2 = theta2 - equ[1]
-    v_dihed = (np.cos(phi)+1)**3
+    v_dihed = (np.cos(phi)+1)**4
     energy = fconst * v_dihed * v_angle1 * v_angle2
 
     unique_atoms = np.unique(atoms)
@@ -449,7 +449,7 @@ def calc_cross_cos_cube_dihed_angle_angle(coords, atoms, equ, fconst, force):
             theta2 = get_angle(c_new[atoms[1:]])[0]
             v_angle1 = theta1 - equ[0]
             v_angle2 = theta2 - equ[1]
-            v_dihed = (np.cos(phi)+1)**3
+            v_dihed = (np.cos(phi)+1)**4
             e_plus = fconst * v_dihed * v_angle1 * v_angle2
 
             c_new[a, j] -= 2*move
@@ -458,7 +458,7 @@ def calc_cross_cos_cube_dihed_angle_angle(coords, atoms, equ, fconst, force):
             theta2 = get_angle(c_new[atoms[1:]])[0]
             v_angle1 = theta1 - equ[0]
             v_angle2 = theta2 - equ[1]
-            v_dihed = (np.cos(phi)+1)**3
+            v_dihed = (np.cos(phi)+1)**4
             e_minus = fconst * v_dihed * v_angle1 * v_angle2
 
             force[a, j] += (e_minus-e_plus)/(2*move)
@@ -605,38 +605,39 @@ def convert_to_inversion_rb(fconst, phi0):
 def calc_cos_cube_diheds(coords, atoms, fconst, force):
     phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(coords[atoms])
 
-    cos_phi1 = np.cos(phi)+1
-    cos_phi2 = cos_phi1 * cos_phi1
-    cos_phi3 = cos_phi2 * cos_phi1
+    # cos_phi1 = np.cos(phi)+1
+    # cos_phi2 = cos_phi1 * cos_phi1
+    # cos_phi3 = cos_phi2 * cos_phi1
+    #
+    # # energy = fconst * cos_phi3
+    # # ddphi = - 3 * fconst * np.sin(phi) * cos_phi2
+    #
+    # cos_phi4 = cos_phi3 * cos_phi1
+    # cos_phi5 = cos_phi4 * cos_phi1
+    # cos_phi6 = cos_phi5 * cos_phi1
+    # energy = fconst * cos_phi6
+    # ddphi = - 6 * fconst * np.sin(phi) * cos_phi5
 
-    energy = fconst * cos_phi3
-    ddphi = - 3 * fconst * np.sin(phi) * cos_phi2
+    energy = fconst * (np.cos(phi)+1)**4
 
-    # unique_atoms = np.unique(atoms)
-    # move = 1e-8
-    # for a in unique_atoms:
-    #     for j in range(3):
-    #         c_new = np.copy(coords)
-    #
-    #         c_new[a, j] += move
-    #         phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(c_new[atoms])
-    #         cos_phi1 = np.cos(phi)+1
-    #         cos_phi2 = cos_phi1 * cos_phi1
-    #         cos_phi3 = cos_phi2 * cos_phi1
-    #         e_plus = fconst * cos_phi3
-    #
-    #         c_new[a, j] -= 2*move
-    #
-    #         phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(c_new[atoms])
-    #         cos_phi1 = np.cos(phi)+1
-    #         cos_phi2 = cos_phi1 * cos_phi1
-    #         cos_phi3 = cos_phi2 * cos_phi1
-    #         e_minus = fconst * cos_phi3
-    #
-    #         force[a, j] += (e_minus-e_plus) / (2*move)
+    unique_atoms = np.unique(atoms)
+    move = 1e-8
+    for a in unique_atoms:
+        for j in range(3):
+            c_new = np.copy(coords)
+
+            c_new[a, j] += move
+            phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(c_new[atoms])
+            e_plus = fconst * (np.cos(phi)+1)**4
+
+            c_new[a, j] -= 2*move
+            phi, vec_ij, vec_kj, vec_kl, cross1, cross2 = get_dihed(c_new[atoms])
+            e_minus = fconst * (np.cos(phi)+1)**4
+
+            force[a, j] += (e_minus-e_plus) / (2*move)
 
     # f2 = np.zeros(force.shape)
-    calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
+    # calc_dih_force(force, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
     # calc_dih_force(f2, atoms, vec_ij, vec_kj, vec_kl, cross1, cross2, ddphi)
     # print('NUM\n', f1)
     # print('ANAL\n', f2)

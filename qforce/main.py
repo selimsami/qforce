@@ -9,7 +9,7 @@ from .fragment import fragment
 from .no_fragment_scanning import do_nofrag_scanning
 from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
-from .hessian import multi_fit
+from .fit import multi_fit
 from .charge_flux import fit_charge_flux
 from .misc import LOGO
 from .logger import LoggerExit
@@ -34,7 +34,8 @@ def runjob(config, job, ext_q=None, ext_lj=None):
 
     scans = do_nofrag_scanning(mol, qm, job, config)
     structs.add_dihedrals(scans)
-    structs.normalize()
+
+    mol.qm_minimum_energy, mol.qm_minimum_coords = structs.normalize()
 
     md_hessian = multi_fit(job.logger, config.terms, mol, structs)
 
@@ -80,7 +81,7 @@ def save_jobs(config, job):
         fh.write(job.calkeeper.as_json())
 
     if config.logging.write_bash is True:
-        write_bashscript('run_qforce_jobs.sh', config, job)
+        write_bashscript(f'run_{job.name}_qforce.sh', config, job)
 
 
 def runspjob(config, job, ext_q=None, ext_lj=None):
@@ -113,25 +114,6 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, er
             return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
         except LoggerExit as err:
             print(str(err))
-
-
-def run_hessian_fitting_for_external(job_dir, qm_data, ext_q=None, ext_lj=None,
-                                     config=None, presets=None):
-    config, job = initialize(job_dir, config, presets)
-
-    qm_hessian_out = HessianOutput(config.qm.vib_scaling, **qm_data)
-
-    mol = Molecule(config, job, qm_hessian_out, ext_q, ext_lj)
-
-    md_hessian = fit_hessian(job.logger, config.terms, mol, qm_hessian_out)
-    calc_qm_vs_md_frequencies(job, qm_hessian_out, md_hessian)
-
-    ff = ForceField(config.ff.output_software, job.name, config, mol, mol.topo.neighbors)
-    ff.software.write(job.dir, qm_hessian_out.coords)
-
-    print_outcome(job.logger, job.dir, config.ff.output_software)
-
-    return mol.terms
 
 
 def print_outcome(logger, job_dir, output_software):

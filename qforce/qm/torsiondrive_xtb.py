@@ -49,7 +49,8 @@ class TorsiondrivexTB():
 
         point_charges = np.loadtxt(os.path.splitext(log_file)[0]+'.charges')
         energies = np.array(energy_list) * Hartree * mol / kJ
-        return n_atoms, coord_list, angle_list, energies, {'xtb': point_charges}
+        dipoles = [[None, None, None] for _ in angle_list]
+        return n_atoms, coord_list, angle_list, energies, dipoles, {'xtb': point_charges}
 
     @staticmethod
     def write(config, file, dir, scan_id, coords, atnums, scanned_atoms, charge, multiplicity):

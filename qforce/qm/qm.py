@@ -275,77 +275,6 @@ hess_struct = :: existing_file, optional
         # check if sp should be computed
         # do_sp = not (scan_software is software)
         do_sp = True
-        charge_software = self.softwares['charge_software']
-        charge_calc = None
-        #
-        if charge_software is None and do_sp is True:
-            charge_software = software
-
-        if charge_software is None and self.config.dihedral_scanner == 'torsiondrive':
-            # always do charge calculations in case of torsiondrive!
-            charge_software = software
-
-        # setup charge calculations
-        if charge_software is not None:
-            folder = f'{parent}/charge'
-            charge_calc = self.Calculation(self.charge_name(charge_software),
-                                           charge_software.read.charge_files, folder=folder,
-                                           software=charge_software.name)
-            os.makedirs(folder, exist_ok=True)
-            with open(charge_calc.inputfile, 'w') as file:
-                self.write_charge(file, charge_calc.base, scan_out.coords[0],
-                                  atnums, charge_software)
-        # setup sp calculations
-        if do_sp is True:
-            software = self.softwares['software']
-            folder = parent
-            os.makedirs(folder, exist_ok=True)
-            calculations = [self.Calculation(self.scan_sp_name(software, i),
-                                             software.read.sp_files,
-                                             folder=f'{folder}/step_{i}',
-                                             software=software.name)
-                            for i in range(scan_out.n_steps)]
-
-            # setup files
-            for i, calc in enumerate(calculations):
-                if not calc.input_exists():
-                    os.makedirs(calc.folder, exist_ok=True)
-                    with open(calc.inputfile, 'w') as file:
-                        self.write_scan_sp(file, calc.base, scan_out.coords[i], atnums)
-
-            try:
-                if charge_calc is not None:
-                    out_files = check(calculations + [charge_calc])[:-1]
-                else:
-                    out_files = check(calculations)
-            except CalculationIncompleteError:
-                self.logger.exit(f"Required output file(s) not found in '{parent}/step_XX'.\n"
-                                 'Creating the necessary input file and exiting...\n'
-                                 'Please run the calculation and put the output files in the '
-                                 'same directory.\nNecessary output files and the '
-                                 'corresponding extensions are:\n'
-                                 f"{calculations[0].missing_as_string()}")
-            energies = []
-            # do not do che charge
-            for files in out_files:
-                energies.append(charge_software.read.sp(self.config, **files))
-            energies = np.array(energies, dtype=np.float64)
-            scan_out.energies = energies - energies.min()
-
-        # check and read charge software
-        if charge_software is not None:
-            charge_files = charge_calc.check()
-            scan_out.point_charges = charge_software.read.charges(self.config, **charge_files)
-
-        return scan_out
-
-    def do_scan_sp_calculations_v2(self, parent, scan_id, scan_out, atnums):
-        """do scan sp calculations if necessary and update the scan out"""
-        software = self.softwares['software']
-        scan_software = self.softwares['scan_software']
-        # check if sp should be computed
-        # do_sp = not (scan_software is software)
-        do_sp = True
 
         # setup sp calculations
         if do_sp is True:
@@ -363,7 +292,8 @@ hess_struct = :: existing_file, optional
                 if not calc.input_exists():
                     os.makedirs(calc.folder, exist_ok=True)
                     with open(calc.inputfile, 'w') as file:
-                        self.write_gradient(file, calc.base, scan_out.coords[i], atnums)
+                        extra_info = f', scan angle: {scan_out.angles[i]}'
+                        self.write_gradient(file, calc.base, scan_out.coords[i], atnums, extra_info=extra_info)
 
             try:
                 out_files = check(calculations)
@@ -375,16 +305,18 @@ hess_struct = :: existing_file, optional
                                  'corresponding extensions are:\n'
                                  f"{calculations[0].missing_as_string()}")
 
-            energies, forces, dipoles = [], [], []
+            energies, forces, dipoles, coords = [], [], [], []
             for files in out_files:
-                energy, force, dipole, atomids, coords = software.read.gradient(self.config, **files)
+                energy, force, dipole, atomids, coord = software.read.gradient(self.config, **files)
                 energies.append(energy)
                 forces.append(force)
                 dipoles.append(dipole)
+                coords.append(coord)
 
             scan_out.energies = np.array(energies, dtype=np.float64)
             scan_out.forces = np.array(forces, dtype=np.float64)
             scan_out.dipoles = np.array(dipoles, dtype=np.float64)
+            scan_out.coords = np.array(coords, dtype=np.float64)
         return scan_out
 
     def xtb_md(self, folder, xtbinput):
@@ -431,9 +363,9 @@ hess_struct = :: existing_file, optional
         software.write.hessian(file, job_name, self.config, coords, atnums)
 
     @scriptify
-    def write_gradient(self, file, job_name, coords, atnums):
+    def write_gradient(self, file, job_name, coords, atnums, extra_info=False):
         software = self.softwares['software']
-        software.write.gradient(file, job_name, self.config, coords, atnums)
+        software.write.gradient(file, job_name, self.config, coords, atnums, extra_info)
 
     @scriptify
     def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge, multiplicity):

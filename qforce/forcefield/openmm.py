@@ -18,7 +18,11 @@ class OpenMM(ForcefieldSettings):
             'cross_dihed_angle': ('periodic', 'cos_cube', False),
             'cross_dihed_bond': ('periodic', 'cos_cube', False),
             'cross_dihed_angle_angle': ('periodic', 'cos_cube', False),
-            'dihedral/flexible': ('periodic', 'cos_cube', False),
+
+            # 'dihedral/flexible': ('periodic', 'cos_cube', False),
+            'dihedral/flexible': True,
+            'dihedral/cos_cube': True,
+
             'dihedral/rigid': True,
             'dihedral/improper': True,
             'dihedral/inversion': True,
@@ -313,7 +317,7 @@ class OpenMM(ForcefieldSettings):
                                        'param1': k, 'param2': equ, 'param3': n, 'param4': phi0})
 
     def write_cross_cos_cube_dihed_bond_header(self, forces):
-        db_cross_eq = 'k * (cos(dihedral(p1,p2,p3,p4))+1)^3 * (distance(p6,p5)-r0)'
+        db_cross_eq = 'k * (cos(dihedral(p1,p2,p3,p4))+1)^4 * (distance(p6,p5)-r0)'
         db_force = ET.SubElement(forces, 'Force', {'energy': db_cross_eq, 'name': 'DihedralBond', 'usesPeriodic': '0',
                                                    'type': 'CustomCompoundBondForce', 'forceGroup': '0',
                                                    'particles': '6', 'version': '3'})
@@ -369,7 +373,7 @@ class OpenMM(ForcefieldSettings):
                                        'param1': k, 'param2': equ, 'param3': n, 'param4': phi0})
 
     def write_cross_cos_cube_dihed_angle_header(self, forces):
-        da_cross_eq = 'k * (cos(dihedral(p1,p2,p3,p4))+1)^3 * (angle(p5,p6,p7)-theta0)'
+        da_cross_eq = 'k * (cos(dihedral(p1,p2,p3,p4))+1)^4 * (angle(p5,p6,p7)-theta0)'
         da_force = ET.SubElement(forces, 'Force', {'energy': da_cross_eq, 'name': 'DihedralAngle', 'usesPeriodic': '0',
                                                    'type': 'CustomCompoundBondForce', 'forceGroup': '0',
                                                    'particles': '7', 'version': '3'})
@@ -426,7 +430,7 @@ class OpenMM(ForcefieldSettings):
                                        'param1': k, 'param2': equ1, 'param3': equ2, 'param4': n, 'param5': phi0})
 
     def write_cross_cos_cube_dihed_angle_angle_header(self, forces):
-        da_cross_eq = 'k * (cos(dihedral(p1,p2,p3,p4))+1)^3 * (angle(p1,p2,p3)-theta0_1) * (angle(p2,p3,p4)-theta0_2)'
+        da_cross_eq = 'k * (cos(dihedral(p1,p2,p3,p4))+1)^4 * (angle(p1,p2,p3)-theta0_1) * (angle(p2,p3,p4)-theta0_2)'
         da_force = ET.SubElement(forces, 'Force', {'energy': da_cross_eq, 'name': 'DihedralAngle', 'usesPeriodic': '0',
                                                    'type': 'CustomCompoundBondForce', 'forceGroup': '0',
                                                    'particles': '4', 'version': '3'})
@@ -526,7 +530,7 @@ class OpenMM(ForcefieldSettings):
                                           'param1': equ, 'param2': k})
 
     def write_cos_cube_dihedral_header(self, forces):
-        inv_dih_eq = 'k*(cos(theta)+1)^3'
+        inv_dih_eq = 'k*(cos(theta)+1)^4'
         inv_dih_force = ET.SubElement(forces, 'Force', {'energy': inv_dih_eq, 'name': 'CosCubeDihedral', 'usesPeriodic': '0',
                                                         'type': 'CustomTorsionForce', 'forceGroup': '0', 'version': '3',
                                                         })

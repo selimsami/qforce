@@ -6,6 +6,8 @@ from ..forces import get_dist, get_angle
 
 
 class ChargeFluxBaseTerm(TermABC):
+    def _calc_forces(self, crd, force, fconst):
+        return 0.
 
     def do_flux(self, crd, q_flux):
         self._calc_flux(crd, q_flux, self.fconst)
@@ -26,9 +28,6 @@ class ChargeFluxBaseTerm(TermABC):
 class BondChargeFluxTerm(ChargeFluxBaseTerm):
     name = 'BondChargeFluxTerm'
 
-    def _calc_forces(self, crd, force, fconst):
-        return 0.
-
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a1, a3 = self.atomids
         r = get_dist(crd[a1], crd[a3])[1]
@@ -48,9 +47,6 @@ class BondChargeFluxTerm(ChargeFluxBaseTerm):
 class AngleChargeFluxTerm(ChargeFluxBaseTerm):
     name = 'AngleChargeFluxTerm'
 
-    def _calc_forces(self, crd, force, fconst):
-        return 0.
-
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a3, a1, a4 = self.atomids
         theta = get_angle([crd[a3], crd[a1], crd[a4]])[0]
@@ -68,9 +64,6 @@ class AngleChargeFluxTerm(ChargeFluxBaseTerm):
 
 class BondBondChargeFluxTerm(ChargeFluxBaseTerm):
     name = 'BondBondChargeFluxTerm'
-
-    def _calc_forces(self, crd, force, fconst):
-        return 0.
 
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a1, a3 = self.atomids
@@ -93,9 +86,6 @@ class BondBondChargeFluxTerm(ChargeFluxBaseTerm):
 class BondAngleChargeFluxTerm(ChargeFluxBaseTerm):
     name = 'BondAngleChargeFluxTerm'
 
-    def _calc_forces(self, crd, force, fconst):
-        return 0.
-
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a3, a1, a4 = self.atomids
         theta = get_angle([crd[a3], crd[a1], crd[a4]])[0]
@@ -117,9 +107,6 @@ class BondAngleChargeFluxTerm(ChargeFluxBaseTerm):
 
 class AngleAngleChargeFluxTerm(ChargeFluxBaseTerm):
     name = 'AngleAngleChargeFluxTerm'
-
-    def _calc_forces(self, crd, force, fconst):
-        return 0.
 
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a1, a3, a4, a1, a5 = self.atomids

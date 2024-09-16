@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from copy import deepcopy
+import numpy as np
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
@@ -79,6 +80,23 @@ class Terms(MappingIterator):
         self.n_fitted_terms, self.n_fitted_flux_terms = self._set_fit_term_idx(not_fit_terms)
         self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
         self._term_paths = self._get_term_paths(terms)
+
+        self.average_equivalent_terms()
+
+    def average_equivalent_terms(self):
+        equ_list = [[] for _ in range(self.n_fitted_terms)]
+
+        for term in self:
+            equ_list[term.idx].append(term.equ)
+
+        for i in range(self.n_fitted_terms):
+            if equ_list[i][0] is not None:
+                equ_list[i] = np.mean(equ_list[i], axis=0)
+            else:
+                equ_list[i] = None
+
+        for term in self:
+            term.equ = equ_list[term.idx]
 
     @classmethod
     def add_terms(cls, terms, name, termcase, topo, non_bonded, settings=None):

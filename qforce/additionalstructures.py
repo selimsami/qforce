@@ -1,6 +1,7 @@
 import os
 from shutil import copy2 as copy
 from itertools import chain
+import numpy as np
 #
 from colt import Colt
 from ase.io import read
@@ -19,7 +20,7 @@ class AdditionalStructureCreator(Colt):
         super().__init_subclass__(**kwargs)
         cls.__classes[cls.name] = cls
         cls._user_input += ("\n# Weight of the structures in the forcefield fit"
-                            "\n weight = 1 :: int :: >1 \n")
+                            "\n weight = 1 :: float \n")
 
     @classmethod
     def classes(cls):
@@ -151,24 +152,35 @@ class MetaDynamics(AdditionalStructureCreator):
 
     _user_input = """
     compute = none :: str :: [none, en, grad]
-
+    
+    # Number of frames used for fitting
+    n_fit = 100 :: int
+    # Number of frames used for validation
+    n_valid = 0 :: int 
     # temperature (K)
     temp = 800 :: float :: >0
-    # total simulation time (ps)
-    time = 50.0 :: float :: >0
     # interval for trajectory printout (fs)
     dump = 500.0 :: float :: >0
     # time step for propagation (fs)
     step = 2.0 :: float :: >0
     # Bond constraints (0: none, 1: H-only, 2: all)
     shake = 0
+
     """
 
     def __init__(self, weight, compute, config):
         self.compute = compute
         self.weight = weight
-        self.xtbinput = {key: value for key, value in config.items()
-                         if key not in ('weight', 'compute')}
+        self.n_fit = config['n_fit']
+        self.n_valid = config['n_valid']
+        self.total_frames = self.n_fit + self.n_valid
+
+        time = config['dump'] * self.total_frames / 1e3
+
+        self.xtbinput = {'time': time}
+        for item in ['temp', 'dump', 'step', 'shake']:
+            self.xtbinput[item] = config[item]
+
         self._data = {
                 'en':  {'calculations': [], 'results': []},
                 'grad':  {'calculations': [], 'results': []},
@@ -232,14 +244,16 @@ class MetaDynamics(AdditionalStructureCreator):
         grad = self._data['grad']
 
         en_results = []
-        for calculation in en['calculations']:
+        for i, calculation in enumerate(en['calculations']):
             files = calculation.check()
-            en_results.append(qm._read_energy(files))
+            if i < self.n_fit:
+                en_results.append(qm._read_energy(files))
 
         grad_results = []
-        for calculation in grad['calculations']:
+        for i, calculation in enumerate(grad['calculations']):
             files = calculation.check()
-            grad_results.append(qm._read_gradient(files))
+            if i < self.n_fit:
+                grad_results.append(qm._read_gradient(files))
 
         en['results'] = en_results
         grad['results'] = grad_results
@@ -316,12 +330,12 @@ def minval(itr, value=None):
 class AdditionalStructures(Colt):
 
     _user_input = """
-    energy_element_weights = 1 :: int :: >1
-    gradient_element_weights = 1 :: int :: >1
-    hessian_element_weights = 1 :: int :: >1
+    energy_element_weights = 1 :: float
+    gradient_element_weights = 1 :: float
+    hessian_element_weights = 1 :: float
 
-    hessian_weight = 1 :: int :: >1
-    dihedral_weight = 1 :: int :: >1
+    hessian_weight = 1 :: float
+    dihedral_weight = 1 :: float
 
     """
 
@@ -377,30 +391,24 @@ class AdditionalStructures(Colt):
         for name, creator in self.creators.items():
             creator.parse(qm)
 
-    def lowest_energy(self, only_hessian=True):
-        minimum = 10000.0
-        if only_hessian is True:
-            for creator in self.creators.values():
-                min_h = minval((out.energy for out in creator.hessouts()), minimum)
-                if min_h < minimum:
-                    minimum = min_h
-            return minimum
+    def get_lowest_energy_and_coords(self):
+        minimum = np.inf
+        coords = None
 
         for creator in self.creators.values():
-            min_e = minval((out.energy for out in creator.enouts()), minimum)
-            if min_e < minimum:
-                minimum = min_e
-            min_g = minval((out.energy for out in creator.gradouts()), minimum)
-            if min_g < minimum:
-                minimum = min_g
-            min_h = minval((out.energy for out in creator.hessouts()), minimum)
-            if min_h < minimum:
-                minimum = min_h
-        return minimum
+            for calctype in [creator.enouts(), creator.gradouts(), creator.hessouts()]:
+                if calctype:
+                    argmin = np.argmin((out.energy for out in calctype))
+                    lowest = calctype[argmin].energy
+                    if lowest < minimum:
+                        minimum = lowest
+                        coords = calctype[argmin].coords
+        return minimum, coords
 
     def normalize(self):
-        emin = self.lowest_energy(only_hessian=True)
+        emin, coords = self.get_lowest_energy_and_coords()
         self.subtract_energy(emin)
+        return emin, coords
 
     def subtract_energy(self, energy):
         for creator in self.creators.values():

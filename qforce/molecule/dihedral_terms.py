@@ -188,10 +188,15 @@ class DihedralTerms(TermFactory):
     _term_types = {
         'rigid': RigidDihedralTerm,
         'improper': ImproperDihedralTerm,
-        'flexible': { # PeriodicDihedralTerm, # CosCubeDihedralTerm,# ,RBDihedralTerm
-            'periodic': PeriodicDihedralTerm,
-            'cos_cube': CosCubeDihedralTerm,
-        },
+
+        # 'flexible': { # PeriodicDihedralTerm, # CosCubeDihedralTerm,# ,RBDihedralTerm
+        #     'periodic': PeriodicDihedralTerm,
+        #     'cos_cube': CosCubeDihedralTerm,
+        # },
+
+        'flexible': PeriodicDihedralTerm,  # CosCubeDihedralTerm,# ,RBDihedralTerm
+        'cos_cube': CosCubeDihedralTerm,
+
         'inversion': InversionDihedralTerm,
         'pitorsion': PiTorsionDihedralTerm,
     }
@@ -237,8 +242,8 @@ class DihedralTerms(TermFactory):
 
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
-                    # add_term('rigid', topo, atoms, d_type)
-                    add_term('rigid', topo, atoms, 2., np.pi, d_type+'_mult2')
+                    add_term('rigid', topo, atoms, d_type)
+                    # add_term('rigid', topo, atoms, 2., np.pi, d_type+'_mult2')
 
             elif central['in_ring']:
                 atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
@@ -256,9 +261,10 @@ class DihedralTerms(TermFactory):
             else:
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
-                    # add_term('flexible', topo, atoms, d_type)
+                    add_term('cos_cube', topo, atoms, d_type)
                     add_term('flexible', topo, atoms, 3, 0, d_type+'_mult3')
-                    # add_term('flexible', topo, atoms, 1, 0, d_type+'_mult1')
+                    add_term('flexible', topo, atoms, 2, np.pi, d_type+'_mult2')
+                    add_term('flexible', topo, atoms, 1, 0, d_type+'_mult1')
 
         # improper dihedrals
         for i in range(topo.n_atoms):
