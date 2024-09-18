@@ -13,7 +13,7 @@ from .qchem import QChem, QChemCalculator
 from .orca import Orca
 from .crest import Crest, CrestCalculator
 from .xtb import xTB, XTBGaussian, xTBCalculator
-from .qm_base import scriptify, HessianOutput, ScanOutput, Calculator
+from .qm_base import HessianOutput, ScanOutput, Calculator
 from .qm_base import EnergyOutput, GradientOutput
 
 
@@ -216,7 +216,7 @@ hess_struct = :: existing_file, optional
         results = []
         for calculation in hessians:
             hessian_files = calculation.check()
-            results.append(self._read_hessian(hessian_files))
+            results.append(self.read_hessian(hessian_files))
 
         # update output with charge calculation if necessary
         charge_software = self.softwares['charge_software']
@@ -336,38 +336,31 @@ hess_struct = :: existing_file, optional
                                 software='xtb')
         return calc
 
-    @scriptify
     def write_preopt(self, file, job_name, coords, atnums):
         software = self.softwares['preopt']
         software.write.opt(file, job_name, self.config, coords, atnums)
 
-    @scriptify
     def write_sp(self, file, job_name, coords, atnums):
         software = self.softwares['software']
         software.write.sp(file, job_name, self.config, coords, atnums)
 
-    @scriptify
     def write_scan_sp(self, file, job_name, coords, atnums):
         software = self.softwares['software']
         software.write.sp(file, job_name, self.config, coords, atnums)
 
-    @scriptify
     def write_charge(self, file, job_name, coords, atnums, software=None):
         if software is None:
             software = self.softwares['charge_software']
         software.write.charges(file, job_name, self.config, coords, atnums)
 
-    @scriptify
     def write_hessian(self, file, job_name, coords, atnums):
         software = self.softwares['software']
         software.write.hessian(file, job_name, self.config, coords, atnums)
 
-    @scriptify
     def write_gradient(self, file, job_name, coords, atnums, extra_info=False):
         software = self.softwares['software']
         software.write.gradient(file, job_name, self.config, coords, atnums, extra_info)
 
-    @scriptify
     def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge, multiplicity):
         """
         Generate the input file for the dihedral scan.
@@ -405,17 +398,17 @@ hess_struct = :: existing_file, optional
                                              atnums, scanned_atoms, start_angle,
                                              charge, multiplicity)
 
-    def _read_energy(self, gradient_files):
+    def read_energy(self, gradient_files):
         software = self.softwares['software']
         en, dipole, atids, coords = software.read.sp_ec(self.config, **gradient_files)
         return EnergyOutput(en, dipole, atids, coords)
 
-    def _read_gradient(self, gradient_files):
+    def read_gradient(self, gradient_files):
         software = self.softwares['software']
         en, grad, dipole, atids, coords = software.read.gradient(self.config, **gradient_files)
         return GradientOutput(en, grad, dipole, atids, coords)
 
-    def _read_hessian(self, hessian_files):
+    def read_hessian(self, hessian_files):
         software = self.softwares['software']
         qm_out = software.read.hessian(self.config, **hessian_files)
         if 'fchk_file' in hessian_files:
@@ -424,7 +417,7 @@ hess_struct = :: existing_file, optional
             fchk_file = None
         return HessianOutput(self.config.vib_scaling, fchk_file, *qm_out)
 
-    def _read_opt(self, opt_files):
+    def read_opt(self, opt_files):
         software = self.softwares['preopt']
         return software.read.opt(self.config, **opt_files)
 
