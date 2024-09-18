@@ -5,7 +5,7 @@ from colt.validator import Validator
 from calkeeper import CalculationIncompleteError
 #
 from .initialize import initialize as _initialize
-from .main import runjob, save_jobs, runspjob, runjob_v2
+from .main import runjob, save_jobs, runspjob
 from .main import load_keeper, write_bashscript
 from .misc import check_if_file_exists, LOGO
 from .logger import LoggerExit
