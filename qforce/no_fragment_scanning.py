@@ -12,8 +12,6 @@ def do_nofrag_scanning(mol, qm, job, config):
     scans = []
     unique_dihedrals = {}
 
-    print(mol.terms['dihedral/flexible'])
-
     if 'dihedral/flexible' not in mol.terms or len(mol.terms['dihedral/flexible']) == 0 or not config.scan.do_scan:
         return scans
 

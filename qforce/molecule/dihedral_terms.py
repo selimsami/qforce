@@ -176,10 +176,10 @@ class PiTorsionDihedralTerm(DihedralBaseTerm):
         return cls(atomids, phi, d_type)
 
     def write_forcefield(self, software, writer):
-        software.write_pitorsion_dihed_term(self, writer)
+        software.write_pitorsion_dihedral_term(self, writer)
 
     def write_ff_header(self, software, writer):
-        return software.write_pitorsion_dihed_header(writer)
+        return software.write_pitorsion_dihedral_header(writer)
 
 
 class DihedralTerms(TermFactory):
@@ -313,6 +313,7 @@ class DihedralTerms(TermFactory):
 
         # add_term('pitorsion', topo, [1, 0, 3, 2, 4, 5], 0, 'test')
         # add_term('pitorsion', topo, [0, 2, 3, 1, 4, 5], 0, 'test')
+
         return terms
 
 

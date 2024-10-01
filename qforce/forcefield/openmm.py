@@ -26,7 +26,8 @@ class OpenMM(ForcefieldSettings):
             'dihedral/rigid': True,
             'dihedral/improper': True,
             'dihedral/inversion': True,
-            # 'dihedral/pitorsion': False,
+            'dihedral/pitorsion': True,
+
             'non_bonded': False,
             'local_frame': False,
     }
@@ -550,7 +551,6 @@ class OpenMM(ForcefieldSettings):
 
         ET.SubElement(writer, 'Torsion', {'p1': str(ids[0]), 'p2': str(ids[1]), 'p3': str(ids[2]), 'p4': str(ids[3]),
                                           'param1': k})
-
 
     def write_pitorsion_dihedral_header(self, forces):
         # eq = """k*sin(phi-phi0)^2;
