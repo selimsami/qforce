@@ -95,7 +95,7 @@ en_struct = :: existing_file, optional
 grad_struct = :: existing_file, optional
 hess_struct = :: existing_file, optional
 """
-    _method = ['scan_step_size', 'dihedral_scanner']
+    _method = ['charge', 'multiplicity', 'scan_step_size', 'dihedral_scanner']
 
     def __init__(self, job, config):
         self.job = job
