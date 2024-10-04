@@ -1,30 +1,47 @@
+from io import StringIO
+#
+from ase.io import read, write
 from calkeeper import CalculationKeeper, CalculationIncompleteError
-
+#
 from .initialize import initialize
 from .qm.qm import QM
-from .qm.qm_base import HessianOutput
 from .forcefield.forcefield import ForceField
 from .molecule import Molecule
-from .fragment import fragment
-from .no_fragment_scanning import do_nofrag_scanning
-from .dihedral_scan import DihedralScan
 from .frequencies import calc_qm_vs_md_frequencies
 from .fit import multi_fit
 from .charge_flux import fit_charge_flux
 from .misc import LOGO
 from .logger import LoggerExit
-from .additionalstructures import AdditionalStructures
+#
+from .schemes import Computations, HessianCreator, PreoptCreator, DihedralCreator
 
 
-def runjob(config, job, ext_q=None, ext_lj=None):
-    qm = QM(job, config.qm)
-    qm.preopt()
-    qm_hessian_out = qm.get_hessian()
-    main_hessian = qm_hessian_out[0]
+CRESTPREOPT = StringIO('''
+preopt = crest
+software = xtb
+''')
 
-    structs = AdditionalStructures.from_config(config.addstructs)
-    structs.create(qm)
-    structs.add_hessians(qm_hessian_out)
+
+def save_molecule(filename, molecule, comment=None):
+    write(filename, molecule, plain=True, comment=comment)
+
+
+def runjob2(config, job, ext_q=None, ext_lj=None):
+    # setup the xtb preopt using crest
+    xtb = QM.from_questions(job, config=CRESTPREOPT, check_only=True)
+    # read initial structure, ase molecule structure
+    molecule = read(job.coord_file)
+    # run preopt
+    preopt = PreoptCreator(molecule)
+    preopt.run(xtb)
+    molecule = preopt.molecule()
+    # setup hessian calculation
+    save_molecule(xtb.pathways.get('init.xyz'), molecule,
+                  comment=f'{job.name} - input geometry for hessian')
+    # get main hessian
+    hessian = HessianCreator(molecule)
+    hessian.run(xtb)
+    main_hessian = hessian.main_hessian()
 
     ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
     if ffcls is None:
@@ -32,9 +49,52 @@ def runjob(config, job, ext_q=None, ext_lj=None):
 
     mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj)
 
-    scans = do_nofrag_scanning(mol, qm, job, config)
-    structs.add_dihedrals(scans)
+    structs = Computations.from_config(config.addstructs)
+    structs.register('dihedrals', DihedralCreator(mol, job, config))
+    # setup the actual qm calculations
+    qm = QM(job, config.qm)
+    # do all additional calculations
+    structs.run(qm)
+    #  register hessian after structs were run!
+    structs.register('hessian', hessian)
+    #
+    mol.qm_minimum_energy, mol.qm_minimum_coords = structs.normalize()
 
+    md_hessian = multi_fit(job.logger, config.terms, mol, structs)
+
+    return mol, structs
+
+
+def runjob(config, job, ext_q=None, ext_lj=None):
+    # setup qm calculation
+    qm = QM(job, config.qm)
+    # read initial structure, ase molecule structure
+    molecule = read(job.coord_file)
+    # run preopt
+    preopt = PreoptCreator(molecule)
+    preopt.run(qm)
+    molecule = preopt.molecule()
+    # setup hessian calculation
+    save_molecule(qm.pathways.get('init.xyz'), molecule,
+                  comment=f'{job.name} - input geometry for hessian')
+    # get main hessian
+    hessian = HessianCreator(molecule)
+    hessian.run(qm)
+    main_hessian = hessian.main_hessian()
+
+    ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
+    if ffcls is None:
+        raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
+
+    mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj)
+
+    structs = AdditionalStructures.from_config(config.addstructs)
+    structs.register('dihedrals', DihedralCreator(mol, job, config))
+    # do all additional calculations
+    structs.run(qm)
+    #  register hessian after structs were run!
+    structs.register('hessian', hessian)
+    #
     mol.qm_minimum_energy, mol.qm_minimum_coords = structs.normalize()
 
     md_hessian = multi_fit(job.logger, config.terms, mol, structs)

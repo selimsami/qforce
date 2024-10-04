@@ -110,6 +110,7 @@ class Pathways:
         'preopt': '0_preopt',
         'hessian': '1_hessian',
         'addstruct': '5_additional',
+        'hessian_new': 'hessian_new',
         'hessian_charge': ['hessian', 'charge'],
         'hessian_energy': ['hessian', '${idx}_en_conformer'],
         'hessian_gradient': ['hessian', '${idx}_grad_conformer'],
@@ -172,6 +173,10 @@ class Pathways:
     def charge_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
         return f'{base}_charge.{ending}'
+
+    def scan_filename(self, software, charge, mult):
+        base, ending = self.basename(software, charge, mult)
+        return f'{base}_sp.{ending}'
 
     def scan_sp_filename(self, software, charge, mult, i):
         base, ending = self.basename(software, charge, mult)

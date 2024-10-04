@@ -67,6 +67,7 @@ class RunQforce(Option):
 
     @classmethod
     def from_config(cls, _config):
+        print("config = ", _config)
         config, job = initialize(_config)
         return cls(config, job)
 

@@ -186,7 +186,7 @@ class xTBCalculator(Calculator):
 
 class WritexTB(WriteABC):
 
-    def gradient(self, file, job_name, settings, coords, atnums):
+    def gradient(self, file, job_name, settings, coords, atnums, extra_info=False):
         """ Write the input file for sp gradient
 
         Parameters
@@ -428,7 +428,11 @@ class ReadxTB(ReadABC):
 
     charge_files = {'pc_file': ['${base}.charges']}
 
-    scan_files = {'file_name': ['${base}.xtbscan.log']}
+    scan_files = {
+            'charge_file': ['${base}.charges'],
+            'scan_log':  ['${base}.xtbscan.log'],
+            'input_dat':  ['${base}.dat'],
+            }
 
     def opt(self, config, coord_file):
         _, elements, coords = self._read_xtb_xyz(coord_file)
@@ -551,6 +555,51 @@ class ReadxTB(ReadABC):
         grad = np.array(grad) * Hartree * mol / kJ / Bohr
         dipol = None
         return energy, grad, dipol, molecule.get_atomic_numbers(), molecule.get_positions()
+
+    def scan_new(self, config, charge_file, scan_log, input_dat):
+        """ Read data from the scan file.
+
+        Parameters
+        ----------
+        config : config
+            A configparser object with all the parameters.
+
+        charge_file : string
+            File name of the xTB charges.
+
+        scan_log : string
+            File name of the xTB scan log
+
+        input_dat : string
+            input of the dihedral scan
+
+        Returns
+        -------
+        n_atoms : int
+            The number of atoms in the molecule.
+        coords : list
+            A list of array of float. The list has the length of the number
+            of steps and the array has the shape of (n_atoms, 3).
+        angles : list
+            A list (length: steps) of the angles that is being scanned.
+        energies : list
+            A list (length: steps) of the energy.
+        point_charges : dict
+            A dictionary with key in charge_method and the value to be a
+            list of float of the size of n_atoms.
+        """
+        point_charges = {}
+        n_atoms, charges = self._read_xtb_charge(charge_file)
+        point_charges["xtb"] = charges
+
+        elements, energies, coords = self._read_xtb_scan_log(scan_log)
+
+        angles = self._read_xtb_input_angle(input_dat)
+
+        energies = np.array(energies) * Hartree * mol / kJ
+        dipoles = [[None, None, None] for _ in angles]
+
+        return n_atoms, coords, angles, energies, dipoles, point_charges
 
     def scan(self, config, file_name):
         """ Read data from the scan file.

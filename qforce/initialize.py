@@ -6,8 +6,8 @@ import pkg_resources
 from colt import Colt
 from calkeeper import CalculationKeeper
 #
-from .additionalstructures import AdditionalStructures
-from .qm.qm import QM, implemented_qm_software, calculators
+from .schemes import Computations
+from .qm.qm import QM, calculators
 from .forcefield.forcefield import ForceField
 from .dihedral_scan import DihedralScan
 from .pathkeeper import Pathways
@@ -36,19 +36,7 @@ write_bash = True :: bool
         questions.generate_block("qm", QM.colt_user_input)
         questions.generate_block("ff", ForceField.colt_user_input)
         questions.generate_block("scan", DihedralScan.colt_user_input)
-        questions.generate_cases("software", {key: software.colt_user_input for key, software in
-                                              implemented_qm_software.items()}, block='qm')
-        questions.generate_cases("preopt", {key: software.colt_user_input for key, software in
-                                            implemented_qm_software.items()}, block='qm')
-        questions.generate_cases("scan_software", {key: software.colt_user_input
-                                                   for key, software in
-                                                   implemented_qm_software.items()},
-                                 block='qm')
-        questions.generate_cases("charge_software", {key: software.colt_user_input
-                                                     for key, software
-                                                     in implemented_qm_software.items()},
-                                 block='qm')
-        questions.generate_block("addstructs", AdditionalStructures.colt_user_input)
+        questions.generate_block("addstructs", Computations.colt_user_input)
         # ff terms
         for name, ffcls in ForceField.implemented_md_software.items():
             questions.generate_block(name, ffcls.get_questions(), block='ff')
