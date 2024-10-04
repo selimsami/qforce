@@ -70,7 +70,19 @@ def multi_fit(logger, config, mol, structs):
     # scale for energy structs, grad structs only have weight_f stored, but the ratio is constant!
     factor_e = structs.energy_weight / structs.gradient_weight
 
+    from ase.units import kB as KB
+    from ase.units import kJ as KJ
+    from ase.units import mol as MOL
+
+    t = 500
+    kbt = KB / KJ * MOL * t
+    e_avg = (3*mol.n_atoms-6)*kbt/2
+
     for weight_f, qmgrad in structs.graditr():
+        scale_weight = min(np.exp((e_avg-qmgrad.energy)/e_avg), 1)
+        print(qmgrad.energy, scale_weight)
+        weight_f *= scale_weight
+
         weight_e = factor_e * weight_f
         mm_energy, mm_force = calc_forces(qmgrad.coords, mol)
         mm_force *= -1  # convert from force to gradient

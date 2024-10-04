@@ -78,8 +78,13 @@ class PeriodicDihedralTerm(DihedralBaseTerm):
         return software.write_periodic_dihedral_header(writer)
 
 
-class RigidDihedralTerm(DihedralBaseTerm):
-    name = 'RigidDihedralTerm'
+class HarmonicDihedralTerm(DihedralBaseTerm):
+    name = 'HarmonicDihedralTerm'
+
+    @classmethod
+    def get_term(cls, topo, atomids, phi, d_type):
+        phi = DihedralBaseTerm.check_angle(phi)
+        return cls(atomids, phi, d_type)
 
     def _calc_forces(self, crd, force, fconst):
         return calc_harmonic_diheds(crd, self.atomids, self.equ, fconst, force)
@@ -90,15 +95,6 @@ class RigidDihedralTerm(DihedralBaseTerm):
 
     def write_ff_header(self, software, writer):
         return software.write_harmonic_dihedral_header(writer)
-
-
-class ImproperDihedralTerm(RigidDihedralTerm):
-    name = 'ImproperDihedralTerm'
-
-    @classmethod
-    def get_term(cls, topo, atomids, phi, d_type):
-        phi = DihedralBaseTerm.check_angle(phi)
-        return cls(atomids, phi, d_type)
 
 
 class RBDihedralTerm(DihedralBaseTerm):
@@ -186,8 +182,8 @@ class DihedralTerms(TermFactory):
     name = 'DihedralTerms'
 
     _term_types = {
-        'rigid': RigidDihedralTerm,
-        'improper': ImproperDihedralTerm,
+        'rigid': PeriodicDihedralTerm,
+        'improper': HarmonicDihedralTerm,
 
         # 'flexible': { # PeriodicDihedralTerm, # CosCubeDihedralTerm,# ,RBDihedralTerm
         #     'periodic': PeriodicDihedralTerm,
@@ -242,8 +238,9 @@ class DihedralTerms(TermFactory):
 
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
-                    add_term('rigid', topo, atoms, d_type)
-                    # add_term('rigid', topo, atoms, 2., np.pi, d_type+'_mult2')
+                    phi = get_dihed(topo.coords[atoms])[0]
+                    # add_term('rigid', topo, atoms, phi, d_type)
+                    add_term('rigid', topo, atoms, 2., np.pi, d_type+'_mult2')
 
             elif central['in_ring']:
                 atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
@@ -254,7 +251,7 @@ class DihedralTerms(TermFactory):
                     d_type = get_dtype(topo, *atoms)
 
                     if abs(phi) < 0.43625:  # check planarity < 25 degrees
-                        add_term('rigid', topo, atoms, d_type)
+                        add_term('rigid', topo, atoms, phi, d_type)
                     else:
                         add_term('inversion', topo, atoms, phi, d_type)
 

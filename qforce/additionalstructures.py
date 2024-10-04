@@ -158,7 +158,7 @@ class MetaDynamics(AdditionalStructureCreator):
     # Number of frames used for validation
     n_valid = 0 :: int 
     # temperature (K)
-    temp = 800 :: float :: >0
+    temp = 298 :: float :: >0
     # interval for trajectory printout (fs)
     dump = 500.0 :: float :: >0
     # time step for propagation (fs)
