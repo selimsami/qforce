@@ -316,7 +316,7 @@ class Fitter:
         for terms in self.parameters.values():
             start_values.append(terms[0].equ)
         #
-        multi_fit(logger, mol, structs)
+        multi_fit(logger, self.mol, structs)
 
         print("equilibrium values = ", start_values)
 
@@ -330,7 +330,7 @@ class Fitter:
             # do first multi_fit
             res = minimize(_helper, start_values) #  method='Powell')
             start_values = res.x
-            multi_fit(logger, mol, structs)
+            multi_fit(logger, self.mol, structs)
         return res
 
     def gradient(self, logger, structs, diff):
