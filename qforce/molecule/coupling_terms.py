@@ -10,10 +10,26 @@ from ..forces import (calc_cross_bond_bond, calc_cross_bond_angle, calc_cross_bo
 
 
 class CrossBondBondTerm(TermBase):
+
     name = 'CrossBondBondTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_bond_bond(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.bondname(i, j), self.bondname(k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        b1, b2 = self.constants()
+        b1 = dct.get(b1, None)
+        if b1 is not None:
+            self.equ[0] = b1
+        b2 = dct.get(b2, None)
+        if b2 is not None:
+            self.equ[1] = b2
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
@@ -64,6 +80,21 @@ class CrossBondAngleTerm(TermBase):
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l, m = self.atomids
+        return [self.anglename(i, j, k), self.bondname(l, m)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        a1, b1 = self.constants()
+        a1 = dct.get(a1, None)
+        if a1 is not None:
+            self.equ[0] = a1
+        b1 = dct.get(b1, None)
+        if b1 is not None:
+            self.equ[1] = b1
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
@@ -120,6 +151,21 @@ class CrossBondCosineAngleTerm(CrossBondAngleTerm):
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_bond_cos_angle(crd, self.atomids, self.equ, fconst, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l, m = self.atomids
+        return [self.anglename(i, j, k), self.bondname(l, m)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        a1, b1 = self.constants()
+        a1 = dct.get(a1, None)
+        if a1 is not None:
+            self.equ[0] = a1
+        b1 = dct.get(b1, None)
+        if b1 is not None:
+            self.equ[1] = b1
+
     def write_forcefield(self, software, writer):
         software.write_cross_bond_cos_angle_term(self, writer)
 
@@ -132,6 +178,21 @@ class CrossAngleAngleTerm(TermBase):
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_angle_angle(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l, m, n = self.atomids
+        return [self.anglename(i, j, k), self.anglename(l, m, n)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        a1, a2 = self.constants()
+        a1 = dct.get(a1, None)
+        if a1 is not None:
+            self.equ[0] = a1
+        a2 = dct.get(a2, None)
+        if a2 is not None:
+            self.equ[1] = a2
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
@@ -214,6 +275,21 @@ class CrossCosineAngleAngleTerm(CrossAngleAngleTerm):
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_cos_angle_angle(crd, self.atomids, self.equ, fconst, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l, m, n = self.atomids
+        return [self.anglename(i, j, k), self.anglename(l, m, n)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        a1, a2  = self.constants()
+        a1 = dct.get(a1, None)
+        if a1 is not None:
+            self.equ[0] = a1
+        a2 = dct.get(a1, None)
+        if a2 is not None:
+            self.equ[1] = a2
+
     def write_forcefield(self, software, writer):
         software.write_cross_cos_angle_angle_term(self, writer)
 
@@ -226,6 +302,21 @@ class CrossDihedBondTerm(TermBase):
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_dihed_bond(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l, m, n = self.atomids
+        return [self.torsionname(i, j, k, l), self.bondname(m, n)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        # do not know if the torsion is updated or not???
+        # currently its not
+        t1, b1  = self.constants()
+        # update only bond term
+        b1 = dct.get(a1, None)
+        if b1 is not None:
+            self.equ[0] = b1
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
@@ -301,6 +392,19 @@ class CrossCosCubeDihedBondTerm(CrossDihedBondTerm):
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_cos_cube_dihed_bond(crd, self.atomids, self.equ, fconst, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l, m, n = self.atomids
+        return [self.torsionname(i, j, k, l), self.bondname(m, n)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1, b1  = self.constants()
+        b1 = dct.get(b1, None)
+        if b1 is not None:
+            self.equ[0] = b1
+        # torsion is also in this case not updated!
+
     def write_forcefield(self, software, writer):
         software.write_cross_cos_cube_dihed_bond_term(self, writer)
 
@@ -313,6 +417,19 @@ class CrossDihedAngleTerm(TermBase):
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_dihed_angle(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l, m, n, o = self.atomids
+        return [self.torsionname(i, j, k, l), self.anglename(m, n, o)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1, a1  = self.constants()
+        a1 = dct.get(a1, None)
+        if a1 is not None:
+            self.equ[0] = a1
+        # torsion is also in this case not updated!
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
@@ -381,6 +498,19 @@ class CrossCosCubeDihedAngleTerm(CrossDihedAngleTerm):
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_cos_cube_dihed_angle(crd, self.atomids, self.equ, fconst, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l, m, n, o = self.atomids
+        return [self.torsionname(i, j, k, l), self.anglename(m, n, o)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1, a1  = self.constants()
+        # torsion is also in this case not updated!
+        a1 = dct.get(a1, None)
+        if a1 is not None:
+            self.equ[0] = a1
+
     def write_forcefield(self, software, writer):
         software.write_cross_cos_cube_dihed_angle_term(self, writer)
 
@@ -393,6 +523,21 @@ class CrossDihedAngleAngleTerm(TermBase):
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_dihed_angle_angle(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.anglename(i, j, k), self.anglename(j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        a1, a2  = self.constants()
+        a1 = dct.get(a1, None)
+        if a1 is not None:
+            self.equ[0] = a1
+        a2 = dct.get(a2, None)
+        if a2 is not None:
+            self.equ[1] = a2
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
@@ -441,6 +586,21 @@ class CrossCosCubeDihedAngleAngleTerm(CrossDihedAngleAngleTerm):
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_cos_cube_dihed_angle_angle(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.anglename(i, j, k), self.anglename(j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        a1, a2  = self.constants()
+        a1 = dct.get(a1, None)
+        if a1 is not None:
+            self.equ[0] = a1
+        a2 = dct.get(a2, None)
+        if a2 is not None:
+            self.equ[1] = a2
 
     def write_forcefield(self, software, writer):
         software.write_cross_cos_cube_dihed_angle_angle_term(self, writer)

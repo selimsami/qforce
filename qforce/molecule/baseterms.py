@@ -47,6 +47,30 @@ class TermABC(ABC):
         """set the parameters after fitting"""
         self.fconst = parameters[self.idx]
 
+    @staticmethod
+    def bondname(i, j):
+        return f"Bond_{i}_{j}"
+
+    @staticmethod
+    def anglename(i, j, k):
+        if i > k:
+            i, k = k, i
+        return f"Angle_{i}_{j}_{k}"
+
+    @staticmethod
+    def torsionname(i, j, k, l):
+        if j > k:
+            i, j, k, l = l, k, j, i
+        return f"Tors_{i}_{j}_{k}_{l}"
+
+    @abstractmethod
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+
+    @abstractmethod
+    def update_constants(self, dct):
+        """update constants for the class"""
+
     @abstractmethod
     def _calc_forces(self, crd, force, fconst):
         """Perform actual force computation"""

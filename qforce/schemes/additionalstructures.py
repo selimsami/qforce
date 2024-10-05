@@ -210,10 +210,10 @@ class MetaDynamics(AdditionalStructureCreator):
             fh.write("xtb xtb.xyz --input md.inp --md")
 
         #
-        calc = self.Calculation('xtb.inp',
-                                {'traj': ['xtb.trj']},
-                                folder=folder,
-                                software='xtb')
+        calc = qm.Calculation('xtb.inp',
+                              {'traj': ['xtb.trj']},
+                              folder=folder,
+                              software='xtb')
         self._md.calculations = [calc]
 
     def check_pre(self):

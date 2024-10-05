@@ -9,6 +9,7 @@ from ..forces import lsq_rb_diheds
 
 
 class DihedralBaseTerm(TermABC):
+
     @staticmethod
     def get_type(topo, a1, a2, a3, a4):
         # Use this only for rigid dihedral - to be moved
@@ -68,6 +69,18 @@ class PeriodicDihedralTerm(DihedralBaseTerm):
     def get_term(cls, topo, atomids, multiplicity, phi0, d_type):
         return cls(atomids, [multiplicity, phi0], d_type)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1 = self.constants()[0]
+        t1 = dct.get(t1, None)
+        if t1 is not None:
+            self.equ[1] = t1
+
     def _calc_forces(self, crd, force, fconst):
         return calc_periodic_dihed(crd, self.atomids, self.equ, fconst, force)
 
@@ -84,6 +97,18 @@ class RigidDihedralTerm(DihedralBaseTerm):
     def _calc_forces(self, crd, force, fconst):
         return calc_harmonic_diheds(crd, self.atomids, self.equ, fconst, force)
         # return calc_periodic_dihed(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1 = self.constants()[0]
+        t1 = dct.get(t1, None)
+        if t1 is not None:
+            self.equ = t1
 
     def write_forcefield(self, software, writer):
         software.write_harmonic_dihedral_term(self, writer)
@@ -108,6 +133,15 @@ class RBDihedralTerm(DihedralBaseTerm):
     def _calc_forces(self, crd, force, fconst):
         """fconst is not used for this term"""
         return calc_rb_diheds(crd, self.atomids, self.equ, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        # no clue how to update rbdihedrals
 
     def do_fitting(self, crd, energies, forces):
         """compute fitting contributions"""
@@ -136,6 +170,18 @@ class InversionDihedralTerm(DihedralBaseTerm):
     def _calc_forces(self, crd, force, fconst):
         return calc_inversion(crd, self.atomids, self.equ, fconst, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1 = self.constants()[0]
+        t1 = dct.get(t1, None)
+        if t1 is not None:
+            self.equ = t1
+
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
         return cls(atomids, phi, d_type)
@@ -153,6 +199,15 @@ class CosCubeDihedralTerm(DihedralBaseTerm):
     def _calc_forces(self, crd, force, fconst):
         return calc_cos_cube_diheds(crd, self.atomids, fconst, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        pass
+
     @classmethod
     def get_term(cls, topo, atomids, d_type):
         return cls(atomids, None, d_type)
@@ -169,6 +224,18 @@ class PiTorsionDihedralTerm(DihedralBaseTerm):
 
     def _calc_forces(self, crd, force, fconst):
         return calc_pitorsion_diheds(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1 = self.constants()[0]
+        t1 = dct.get(t1, None)
+        if t1 is not None:
+            self.equ = t1
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):

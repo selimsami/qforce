@@ -11,6 +11,17 @@ class HarmonicBondTerm(TermBase):
     def _calc_forces(self, crd, force, fconst):
         return calc_bonds(crd, self.atomids, self.equ, fconst, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        return [self.bondname(*self.atomids)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        name = self.constants()[0]
+        value = dct.get(name, None)
+        if value is not None:
+            self.equ = value
+
     @classmethod
     def _get_terms(cls, topo, non_bonded):
         bond_terms = cls.get_terms_container()
@@ -35,6 +46,17 @@ class MorseBondTerm(TermBase):
     def _calc_forces(self, crd, force, fconst):
         return calc_morse_bonds(crd, self.atomids, self.equ, fconst, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        return [self.bondname(*self.atomids)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        name = self.constants()[0]
+        value = dct.get(name, None)
+        if value is not None:
+            self.equ[0] = value
+
     @classmethod
     def _get_terms(cls, topo, non_bonded):
         bond_terms = cls.get_terms_container()
@@ -58,6 +80,17 @@ class HarmonicAngleTerm(TermBase):
 
     def _calc_forces(self, crd, force, fconst):
         return calc_angles(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        return [self.anglename(*self.atomids)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        name = self.constants()[0]
+        value = dct.get(name, None)
+        if value is not None:
+            self.equ = value
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
@@ -98,12 +131,34 @@ class CosineAngleTerm(HarmonicAngleTerm):
     def write_ff_header(self, software, writer):
         return software.write_cosine_angle_header(writer)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        return [self.anglename(*self.atomids)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        name = self.constants()[0]
+        value = dct.get(name, None)
+        if value is not None:
+            self.equ = value
+
 
 class UreyBradleyTerm(TermBase):
     name = 'UreyBradleyTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_bonds(crd, self.atomids[::2], self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        return [self.bondname(*self.atomids[::2])]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        name = self.constants()[0]
+        value = dct.get(name, None)
+        if value is not None:
+            self.equ = value
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
