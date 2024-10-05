@@ -240,6 +240,7 @@ def compute_rmsd(logger, mol, structs):
 class Fitter:
 
     def __init__(self, mol, equfits=['bond']):
+        self.equfits = equfits
         self.mol = deepcopy(mol)
         self.parameters = self._get_fitparameters(equfits)
 
@@ -266,7 +267,38 @@ class Fitter:
                     if values is not None:
                         values.append(term)
 
+
+        for terms in self.averagize_parameters(equfits).values():
+            if len(terms) == 1:
+                continue
+
+            # assume that its just one constant!!!!
+            constants = [term.constants()[0] for term in terms]
+            start = constants[0]
+
+            values = []
+            for constant in constants:
+                values += parameters[constant]
+                del parameters[constant]
+
+            parameters[start] = values
+
         return parameters
+
+    def averagize_parameters(self, equfits):
+        # not sure if it should be done or not
+        sorted_terms = {}
+
+        for termcls in equfits:
+            for term in self.mol.terms[termcls]:
+                name = str(term)
+                values = sorted_terms.get(name)
+                if values is None:
+                    sorted_terms[name] = [term]
+                else:
+                    values.append(term)
+
+        return sorted_terms
 
     def optimize(self, logger, structs):
 
@@ -295,7 +327,7 @@ class Fitter:
         print("start_values = ", start_values)
 
         for _ in range(20):
-            # do first multi_fit 
+            # do first multi_fit
             res = minimize(_helper, start_values) #  method='Powell')
             start_values = res.x
             multi_fit(logger, mol, structs)
