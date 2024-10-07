@@ -200,6 +200,7 @@ hess_struct = :: existing_file, optional
                 with open(calculation.inputfile, 'w') as file:
                     self.write_hessian(file, calculation.base, coords, atnums)
             hessians.append(calculation)
+            break
 
         folder = self.pathways.getdir("hessian")
         #
