@@ -24,7 +24,8 @@ class QMInterface(Colt):
     fileending = 'inp'
 
     def __init__(self, config, read, write):
-        self._setup(config, read, write)
+        self._setup(read, write)
+        self.config = config
 
     def hash(self, charge, mult):
         """Returns a unique hash for the given interface"""
@@ -47,7 +48,7 @@ class QMInterface(Colt):
                                    for key, value in settings.items()
                                    ).encode()).hexdigest()
 
-    def _setup(self, config, read, write):
+    def _setup(self, read, write):
         """Setup qm interface"""
         self.write = write
         self.read = read
@@ -58,8 +59,6 @@ class QMInterface(Colt):
         self.required_charge_files = read.charge_files
         self.required_scan_files = read.scan_files
         self.required_scan_torsiondrive_files = read.scan_torsiondrive_files
-        #
-        self.config = config
 
 
 class Calculator(Colt):

@@ -166,9 +166,9 @@ class Pathways:
         base, ending = self.basename(software, charge, mult)
         return f'{base}_hessian.{ending}'
 
-    def hessian_charge_filename(self, software, charge, mult):
+    def grad_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_hessian_charge.{ending}'
+        return f'{base}_grad.{ending}'
 
     def charge_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
@@ -176,15 +176,19 @@ class Pathways:
 
     def scan_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_sp.{ending}'
+        return f'{base}_scan.{ending}'
 
     def scan_sp_filename(self, software, charge, mult, i):
         base, ending = self.basename(software, charge, mult)
         return f'{base}_sp_step_{i:02d}.{ending}'
 
-    def preopt_filename(self, software, charge, mult):
+    def sp_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_preopt.{ending}'
+        return f'{base}_sp.{ending}'
+
+    def opt_filename(self, software, charge, mult):
+        base, ending = self.basename(software, charge, mult)
+        return f'{base}_opt.{ending}'
 
     def _path(self, path, only, **kwargs):
         """Path to the folder"""

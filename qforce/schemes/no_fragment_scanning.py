@@ -1,14 +1,10 @@
-from calkeeper import CalculationIncompleteError
-#
-from .creator import CostumStructureCreator, CalculationStorage
+from .creator import CustomStructureCreator, CalculationStorage
 
 
-class DihedralCreator(CostumStructureCreator):
-
-    name = 'no_frag_dihedrals'
+class NoFragmentationDihedralsCreator(CustomStructureCreator):
 
     def __init__(self, mol, job, config):
-        # set weight to 0, it has to be set later one
+        # set weight to 0, it has to be set later on
         super().__init__(0)
         self.atomids = mol.atomids
         self.coords = mol.coords
@@ -46,19 +42,14 @@ class DihedralCreator(CostumStructureCreator):
 
     def setup_pre(self, qm):
         """setup scans"""
-        software = qm.get_scan_software()
+        software = qm.get_software('scan_software')
         scans = {}
         for name, scanned_atomids in self._unique_dihedrals.items():
             scans[name] = self._scan(qm, software, scanned_atomids)
         self._scans.calculations = scans
 
     def check_pre(self):
-        for calc in self._scans.calculations.values():
-            try:
-                _ = calc.check()
-            except CalculationIncompleteError:
-                return calc
-        return None
+        return self._check(self._scans.calculations.values())
 
     def parse_pre(self, qm):
         results = {}
@@ -76,11 +67,9 @@ class DihedralCreator(CostumStructureCreator):
 
     def check_main(self):
         for scan in self._dihedrals.values():
-            for calc in scan.calculations:
-                try:
-                    _ = calc.check()
-                except CalculationIncompleteError:
-                    return calc
+            res = self._check(scan.calculations)
+            if res is not None:
+                return res
         return None
 
     def parse_main(self, qm):
@@ -93,12 +82,14 @@ class DihedralCreator(CostumStructureCreator):
 
 
 def get_unique_dihedrals(mol, do_scan):
-    scans = []
     unique_dihedrals = {}
 
     print(mol.terms['dihedral/flexible'])
 
-    if 'dihedral/flexible' not in mol.terms or len(mol.terms['dihedral/flexible']) == 0 or not do_scan:
+    if not do_scan:
+        return {}
+
+    if 'dihedral/flexible' not in mol.terms or len(mol.terms['dihedral/flexible']) == 0:
         return {}
 
     for term in mol.terms['dihedral/flexible']:

@@ -1,3 +1,4 @@
+from calkeeper import CalculationIncompleteError
 from colt import Colt
 
 
@@ -27,19 +28,14 @@ class CalculationStorage:
         return self._meta[arg]
 
 
-class CostumStructureCreator(Colt):
+class CustomStructureCreator(Colt):
     """Creator class to generate structures for the fitting procedure
     Basic idea to call the creator in this way:
-
-    pre: optional
-    main: main step, needs to be implemented
-
     """
 
-    def __init__(self, weight):
+    def __init__(self, weight, folder=None):
         self.weight = weight
-        # will be overwritten!
-        self._folder = None
+        self._folder = folder
 
     @property
     def folder(self):
@@ -47,21 +43,49 @@ class CostumStructureCreator(Colt):
             raise ValueError("Please setup main folder")
         return self._folder
 
+    @staticmethod
+    def _check(calculations):
+        for calc in calculations:
+            try:
+                _ = calc.check()
+            except CalculationIncompleteError:
+                return calc
+        return None
+
     @folder.setter
     def folder(self, value):
         self._folder = value
 
     def run(self, qm):
+        # pre calculations
         self.setup_pre(qm)
-        self.check_pre()
+        cal = self.check_pre()
+        if cal is not None:
+            qm.logger.exit(f"Required output file(s) not found in '{cal.folder}' .\n"
+                           'Creating the necessary input file and exiting...\nPlease run the '
+                           'calculation and put the output files in the same directory.\n'
+                           'Necessary output files and the corresponding extensions '
+                           f"are:\n{cal.missing_as_string()}\n\n\n")
         self.parse_pre(qm)
-        #
+        # main calculations
         self.setup_main(qm)
-        self.check_main()
+        cal = self.check_main()
+        if cal is not None:
+            qm.logger.exit(f"Required output file(s) not found in '{cal.folder}' .\n"
+                           'Creating the necessary input file and exiting...\nPlease run the '
+                           'calculation and put the output files in the same directory.\n'
+                           'Necessary output files and the corresponding extensions '
+                           f"are:\n{cal.missing_as_string()}\n\n\n")
         self.parse_main(qm)
-        #
+        # post calculations
         self.setup_post(qm)
-        self.check_post()
+        cal = self.check_post()
+        if cal is not None:
+            qm.logger.exit(f"Required output file(s) not found in '{cal.folder}' .\n"
+                           'Creating the necessary input file and exiting...\nPlease run the '
+                           'calculation and put the output files in the same directory.\n'
+                           'Necessary output files and the corresponding extensions '
+                           f"are:\n{cal.missing_as_string()}\n\n\n")
         self.parse_post(qm)
 
     def setup_pre(self, qm):

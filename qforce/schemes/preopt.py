@@ -1,6 +1,7 @@
+from copy import deepcopy
 from calkeeper import CalculationIncompleteError
 #
-from .creator import CostumStructureCreator, CalculationStorage
+from .creator import CustomStructureCreator, CalculationStorage
 
 
 class OptimizationOutput:
@@ -24,11 +25,10 @@ class OptimizationOutput:
         return molecules
 
 
-class PreoptCreator(CostumStructureCreator):
-
-    name = 'preopt'
+class PreoptCreator(CustomStructureCreator):
 
     def __init__(self, molecule):
+        super().__init__(0)
         self._init_molecule = molecule
         self.atnums = molecule.get_atomic_numbers()
         self._init_coords = molecule.get_positions()
@@ -58,10 +58,10 @@ class PreoptCreator(CostumStructureCreator):
         return []
 
     def setup_main(self, qm):
-        if qm.softwares['preopt'] is None:
+        if qm.softwares[self.software] is None:
             return
         folder = qm.pathways.getdir("preopt", create=True)
-        calc = qm.setup_preopt(folder, self._init_coords, self.atnums)
+        calc = qm.setup_opt(folder, self._init_coords, self.atnums, preopt=True)
         self._preopt.calculations.append(calc)
 
     def check_main(self):
@@ -76,5 +76,6 @@ class PreoptCreator(CostumStructureCreator):
         results = []
         for calculation in self._preopt.calculations:
             files = calculation.check()
-            results.append(OptimizationOutput(self._init_molecule, qm.read_opt(files)))
+            results.append(OptimizationOutput(self._init_molecule,
+                                              qm.read_opt(files, software='preopt')))
         self._preopt.results = results

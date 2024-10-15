@@ -1,12 +1,9 @@
 import os
 from types import SimpleNamespace
-from copy import deepcopy
-from shutil import copy2 as copy
 
 from ase.io import read, write
 import numpy as np
 from colt import Colt
-from calkeeper import check, CalculationIncompleteError
 
 from .gaussian import Gaussian, GaussianCalculator
 from .qchem import QChem, QChemCalculator
@@ -36,7 +33,6 @@ implemented_qm_software = {'gaussian': Gaussian,
                            'orca': Orca,
                            'xtb': xTB,
                            'xtb-gaussian': XTBGaussian,
-                           'crest': Crest,
                            }
 
 
@@ -53,12 +49,12 @@ class QM(Colt):
 
     _user_input = """
 
+# software to use in preoptimization
+preopt = xtb :: str
+
 # QM software to use for the hessian calculation
 # and all other energy data (e.g. scan energies)
 software = gaussian :: str
-
-# software to use in preoptimization
-preopt = :: str, optional
 
 # software to use for the scan optimizations, energies still computed
 # at the same level as the hessian
@@ -108,13 +104,12 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         res = SimpleNamespace(**{key: value for key, value in config.items()})
         return cls(job, res)
 
-
     @classmethod
     def _extend_user_input(cls, questions):
-        questions.generate_cases("software", {key: software.colt_user_input for key, software in
-                                              implemented_qm_software.items()})
         questions.generate_cases("preopt", {key: software.colt_user_input for key, software in
                                             implemented_qm_software.items()})
+        questions.generate_cases("software", {key: software.colt_user_input for key, software in
+                                              implemented_qm_software.items()})
         questions.generate_cases("scan_software", {key: software.colt_user_input
                                                    for key, software in
                                                    implemented_qm_software.items()},
@@ -123,112 +118,52 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                                                      for key, software
                                                      in implemented_qm_software.items()},
                                  )
+        questions.generate_block("crest", Crest.colt_user_input)
 
-    def get_scan_software(self):
-        return self.softwares['scan_software']
+    def get_software(self, name):
+        return self.softwares[name]
+
+    @property
+    def scan_software_is_defined(self):
+        return not (self.softwares['scan_software'] is self.softwares['software'])
+
+    @property
+    def charge_software_is_defined(self):
+        return not (self.softwares['charge_software'] is self.softwares['software'])
 
     def hessian_name(self, software):
         return self.pathways.hessian_filename(software, self.config.charge,
                                               self.config.multiplicity)
 
-    def hessian_charge_name(self, software):
-        return self.pathways.hessian_charge_filename(software, self.config.charge,
-                                                     self.config.multiplicity)
+    def grad_name(self, software):
+        return self.pathways.grad_filename(software, self.config.charge, self.config.multiplicity)
 
     def charge_name(self, software):
         return self.pathways.charge_filename(software, self.config.charge,
                                              self.config.multiplicity)
+
     def scan_name(self, software):
-        return self.pathways.scan_filename(software, self.config.charge,
-                                           self.config.multiplicity)
+        return self.pathways.scan_filename(software, self.config.charge, self.config.multiplicity)
 
     def scan_sp_name(self, software, i):
         return self.pathways.scan_sp_filename(software, self.config.charge,
                                               self.config.multiplicity, i)
 
-    def preopt_name(self, software):
-        return self.pathways.preopt_filename(software, self.config.charge,
-                                             self.config.multiplicity)
+    def sp_name(self, software, i):
+        return self.pathways.sp_filename(software, self.config.charge, self.config.multiplicity)
+
+    def opt_name(self, software):
+        return self.pathways.opt_filename(software, self.config.charge, self.config.multiplicity)
 
     def Calculation(self, filename, required_files, *, folder=None, software=None):
         return self.job.Calculation(filename, required_files, folder=folder, software=software)
 
-    def do_hessian_calculations(self, parent, iterator):
-        software = self.softwares['software']
-        hess_calcs = []
-        for i, (coords, atnums) in iterator:
-            folder = parent / f'{i}_conformer'
-            os.makedirs(folder, exist_ok=True)
-            calculation = self.Calculation(self.hessian_name(software),
-                                           software.read.hessian_files,
-                                           folder=folder,
-                                           software=software.name)
-            if not calculation.input_exists():
-                with open(calculation.inputfile, 'w') as file:
-                    self.write_hessian(file, calculation.base, coords, atnums)
-
-            hess_calcs.append(calculation)
-        return hess_calcs
-
-    def do_grad_calculations(self, parent, iterator):
-        software = self.softwares['software']
-        grad_calcs = []
-        for i, (coords, atnums) in iterator:
-            folder = parent / f'{i}_conformer'
-            os.makedirs(folder, exist_ok=True)
-            calculation = self.Calculation(self.hessian_name(software),
-                                           software.read.gradient_files,
-                                           folder=folder,
-                                           software=software.name)
-            if not calculation.input_exists():
-                with open(calculation.inputfile, 'w') as file:
-                    self.write_gradient(file, calculation.base, coords, atnums)
-
-            grad_calcs.append(calculation)
-        return grad_calcs
-
-    def do_sp_calculations(self, parent, iterator):
-        software = self.softwares['software']
-        en_calcs = []
-        for i, (coords, atnums) in iterator:
-            folder = parent / f'{i}_conformer'
-            os.makedirs(folder, exist_ok=True)
-            calculation = self.Calculation(self.hessian_name(software),
-                                           software.read.sp_ec_files,
-                                           folder=folder,
-                                           software=software.name)
-            if not calculation.input_exists():
-                with open(calculation.inputfile, 'w') as file:
-                    self.write_sp(file, calculation.base, coords, atnums)
-
-            en_calcs.append(calculation)
-        return en_calcs
-
-    def charge_software(self):
-        software = self.softwares['charge_software']
-        if software is None:
-            software = self.softwares['software']
-        return software
-
-    def setup_charge_calculation(self, folder, coords, atnums):
-        """Setup charge calculation"""
-        software = self.charge_software()
-
-        calculation = self.Calculation(self.hessian_charge_name(software),
-                                       software.read.charge_files,
-                                       folder=folder,
-                                       software=software.name)
-
-        if not calculation.input_exists():
-            with open(calculation.inputfile, 'w') as file:
-                self.write_charge(file, calculation.base, output.coords,
-                                  output.atomids, charge_software)
-        return calculation
-
-    def setup_hessian(self, folder, coords, atnums):
+    def setup_hessian_calculation(self, folder, coords, atnums, preopt=False):
         """Setup hessian calculation"""
-
-        software = self.softwares['software']
+        if preopt is True:
+            software = self.softwares['software']
+        else:
+            software = self.softwares['preopt']
 
         calculation = self.Calculation(self.hessian_name(software),
                                        software.read.hessian_files,
@@ -236,79 +171,34 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                                        software=software.name)
         if not calculation.input_exists():
             with open(calculation.inputfile, 'w') as file:
-                self.write_hessian(file, calculation.base, coords, atnums)
+                self._write_hessian(software, file, calculation.base, coords, atnums)
         return calculation
 
-    def get_hessian(self):
-        """Setup hessian files, and if present read the hessian information"""
-
+    def setup_grad_calculation(self, folder, coords, atnums):
         software = self.softwares['software']
-        folder = self.pathways.getdir("hessian", create=True)
-
-        hessians = []
-        for i, (coords, atnums) in enumerate(self._read_init_file(self.pathways['init.xyz'])):
-            folder = self.pathways.getdir("hessian_step", i, create=True)
-            calculation = self.Calculation(self.hessian_name(software),
-                                           software.read.hessian_files,
-                                           folder=folder,
-                                           software=software.name)
-            if not calculation.input_exists():
-                with open(calculation.inputfile, 'w') as file:
-                    self.write_hessian(file, calculation.base, coords, atnums)
-            hessians.append(calculation)
-
-        folder = self.pathways.getdir("hessian")
-        #
-        for calculation in hessians:
-            try:
-                hessian_files = calculation.check()
-            except CalculationIncompleteError:
-                self.logger.exit(f"Required Hessian output file(s) not found in '{folder}' .\n"
-                                 'Creating the necessary input file and exiting...\nPlease run the '
-                                 'calculation and put the output files in the same directory.\n'
-                                 'Necessary Hessian output files and the corresponding extensions '
-                                 f"are:\n{calculation.missing_as_string()}\n\n\n")
-        #
-        results = []
-        for calculation in hessians:
-            hessian_files = calculation.check()
-            results.append(self.read_hessian(hessian_files))
-
-        # update output with charge calculation if necessary
-        charge_software = self.softwares['charge_software']
-        if charge_software is None:
-            return results
-        #
-        output = results[0]
-
-        folder = self.pathways.getdir("hessian_charge", create=True)
-
-        calculation = self.Calculation(self.hessian_charge_name(charge_software),
-                                       charge_software.read.charge_files,
+        calculation = self.Calculation(self.grad_name(software),
+                                       software.read.gradient_files,
                                        folder=folder,
-                                       software=charge_software.name)
+                                       software=software.name)
 
         if not calculation.input_exists():
             with open(calculation.inputfile, 'w') as file:
-                self.write_charge(file, calculation.base, output.coords,
-                                  output.atomids, charge_software)
-        # if files exist
-        try:
-            charge_files = calculation.check()
-        except CalculationIncompleteError:
-            self.logger.exit(f"Required Hessian Charge output file(s) not found in '{folder}' .\n"
-                             'Creating the necessary input file and exiting...\nPlease run the '
-                             'calculation and put the output files in the same directory.\n'
-                             'Necessary Hessian output files and the corresponding extensions '
-                             f"are:\n{calculation.missing_as_string()}\n\n\n")
-        #
-        point_charges = charge_software.read.charges(self.config, **charge_files)
-        #
-        output.point_charges = output.check_type_and_shape(
-                    point_charges[charge_software.config.charge_method], 'point_charges', float,
-                    (output.n_atoms,))
-        #
-        return results
+                self._write_gradient(software, file, calculation.base, coords, atnums)
+        return calculation
+
+    def setup_charge_calculation(self, folder, coords, atnums):
+        """Setup charge calculation"""
+        software = self.softwares['charge_software']
+
+        calculation = self.Calculation(self.charge_name(software),
+                                       software.read.charge_files,
+                                       folder=folder,
+                                       software=software.name)
+
+        if not calculation.input_exists():
+            with open(calculation.inputfile, 'w') as file:
+                self._write_charge(software, file, calculation.base, coords, atnums)
+        return calculation
 
     def setup_scan_calculation(self, folder, scan_hash, scanned_atomids, coords, atomids):
         software = self.softwares['scan_software']
@@ -329,7 +219,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         else:
             raise ValueError("scanner can only be 'torsiondrive' or 'relaxed_scan'")
 
-
         if not calc.input_exists():
             equil_angle = np.degrees(get_dihed(coords[scanned_atomids])[0])
             with open(calc.inputfile, 'w') as file:
@@ -337,19 +226,136 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                                 equil_angle, charge, mult)
         return calc
 
+    def setup_opt(self, folder, coords, atnums, preopt=False):
+        if preopt is True:
+            software = self.softwares['preopt']
+        else:
+            software = self.softwares['software']
+        # setup calculation
+        calculation = self.Calculation(self.preopt_name(software),
+                                       software.read.opt_files,
+                                       folder=folder,
+                                       software=software.name)
+        if not calculation.input_exists():
+            with open(calculation.inputfile, 'w') as file:
+                self._write_opt(software, file, calculation.base, coords, atnums)
+        return calculation
+
+    def setup_crest(self, folder, coords, atnums):
+        software = self.softwares['crest']
+        #
+        calculation = self.Calculation(self.opt_name(software),
+                                       software.read.opt_files, folder=folder,
+                                       software=software.name)
+        if not calculation.input_exists():
+            with open(calculation.inputfile, 'w') as file:
+                self._write_opt(software, file, calculation.base, coords, atnums)
+        return calculation
+
+    def setup_hessian_calculations(self, parent, iterator):
+        software = self.softwares['software']
+        hess_calcs = []
+        for i, (coords, atnums) in iterator:
+            folder = parent / f'{i}_conformer'
+            os.makedirs(folder, exist_ok=True)
+            calculation = self.Calculation(self.hessian_name(software),
+                                           software.read.hessian_files,
+                                           folder=folder,
+                                           software=software.name)
+            if not calculation.input_exists():
+                with open(calculation.inputfile, 'w') as file:
+                    self._write_hessian(software, file, calculation.base, coords, atnums)
+
+            hess_calcs.append(calculation)
+        return hess_calcs
+
+    def setup_grad_calculations(self, parent, iterator):
+        software = self.softwares['software']
+        grad_calcs = []
+        for i, (coords, atnums) in iterator:
+            folder = parent / f'{i}_conformer'
+            os.makedirs(folder, exist_ok=True)
+            calculation = self.Calculation(self.grad_name(software),
+                                           software.read.gradient_files,
+                                           folder=folder,
+                                           software=software.name)
+            if not calculation.input_exists():
+                with open(calculation.inputfile, 'w') as file:
+                    self._write_gradient(software, file, calculation.base, coords, atnums)
+
+            grad_calcs.append(calculation)
+        return grad_calcs
+
+    def setup_energy_calculations(self, parent, iterator):
+        software = self.softwares['software']
+        en_calcs = []
+        for i, (coords, atnums) in iterator:
+            folder = parent / f'{i}_conformer'
+            os.makedirs(folder, exist_ok=True)
+            calculation = self.Calculation(self.sp(software),
+                                           software.read.sp_ec_files,
+                                           folder=folder,
+                                           software=software.name)
+            if not calculation.input_exists():
+                with open(calculation.inputfile, 'w') as file:
+                    self._write_sp(software, file, calculation.base, coords, atnums)
+
+            en_calcs.append(calculation)
+        return en_calcs
+
+    def setup_scan_sp_calculations(self, parent, scan_out, atnums):
+        """do scan sp calculations if necessary and update the scan out"""
+        software = self.softwares['software']
+
+        calculations = []
+        for i in range(scan_out.n_steps):
+            folder = parent / f'{i}_conformer'
+            os.makedirs(folder, exist_ok=True)
+            #
+            calc = self.Calculation(self.scan_name(software),
+                                    software.read.gradient_files,
+                                    folder=folder,
+                                    software=software.name)
+            #
+            if not calc.input_exists():
+                with open(calc.inputfile, 'w') as file:
+                    extra_info = f', scan angle: {scan_out.angles[i]}'
+                    self._write_gradient(software, file, calc.base, scan_out.coords[i], atnums,
+                                         extra_info=extra_info)
+            calculations.append(calc)
+
+        return calculations
+
     def read_charges(self, charge_files):
-        software = self.charge_software()
-        point_charges = charge_software.read.charges(self.config, **charge_files)
+        software = self.softwares['charge_software']
+        point_charges = software.read.charges(self.config, **charge_files)
         return point_charges[software.config.charge_method]
 
-    def read_hessian(self, hessian_files):
-        software = self.softwares['software']
+    def read_hessian(self, hessian_files, preopt=False):
+        if preopt is True:
+            software = self.softwares['preopt']
+        else:
+            software = self.softwares['software']
         qm_out = software.read.hessian(self.config, **hessian_files)
         if 'fchk_file' in hessian_files:
             fchk_file = hessian_files['fchk_file']
         else:
             fchk_file = None
         return HessianOutput(self.config.vib_scaling, fchk_file, *qm_out)
+
+    def read_energy(self, gradient_files):
+        software = self.softwares['software']
+        en, dipole, atids, coords = software.read.sp_ec(self.config, **gradient_files)
+        return EnergyOutput(en, dipole, atids, coords)
+
+    def read_gradient(self, gradient_files):
+        software = self.softwares['software']
+        en, grad, dipole, atids, coords = software.read.gradient(self.config, **gradient_files)
+        return GradientOutput(en, grad, dipole, atids, coords)
+
+    def read_opt(self, opt_files, software='software'):
+        software = self.softwares[software]
+        return software.read.opt(self.config, **opt_files)
 
     def read_scan_data(self, files):
         software = self.softwares['scan_software']
@@ -360,7 +366,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
             out = software.read.scan_torsiondrive(self.config, **files)
 
         qm_out = self._get_unique_scan_points([out])
-
 
         files = list(files.values())
         if len(files) == 0:
@@ -385,105 +390,23 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
 
         return ScanOutput(file, n_scan_steps, *qm_out)
 
-    def setup_scan_sp_calculations(self, parent, scan_out, atnums):
-        """do scan sp calculations if necessary and update the scan out"""
-        software = self.softwares['software']
-
-        calculations = []
-        for i in range(scan_out.n_steps):
-            folder = parent / f'{i}_conformer'
-            os.makedirs(folder, exist_ok=True)
-            #
-            calc = self.Calculation(self.scan_name(software),
-                                    software.read.gradient_files,
-                                    folder=folder,
-                                    software=software.name)
-            #
-            if not calc.input_exists():
-                with open(calc.inputfile, 'w') as file:
-                    extra_info = f', scan angle: {scan_out.angles[i]}'
-                    self.write_gradient(file, calc.base, scan_out.coords[i], atnums, extra_info=extra_info)
-            calculations.append(calc)
-
-        return calculations
-
-    def do_scan_sp_calculations(self, parent, scan_id, scan_out, atnums):
-        """do scan sp calculations if necessary and update the scan out"""
-        software = self.softwares['software']
-        scan_software = self.softwares['scan_software']
-        # check if sp should be computed
-        # do_sp = not (scan_software is software)
-        do_sp = True
-
-        # setup sp calculations
-        if do_sp is True:
-            software = self.softwares['software']
-            folder = parent
-            os.makedirs(folder, exist_ok=True)
-            calculations = [self.Calculation(self.scan_sp_name(software, i),
-                                             software.read.gradient_files,
-                                             folder=f'{folder}/step_{i}',
-                                             software=software.name)
-                            for i in range(scan_out.n_steps)]
-
-            # setup files
-            for i, calc in enumerate(calculations):
-                if not calc.input_exists():
-                    os.makedirs(calc.folder, exist_ok=True)
-                    with open(calc.inputfile, 'w') as file:
-                        extra_info = f', scan angle: {scan_out.angles[i]}'
-                        self.write_gradient(file, calc.base, scan_out.coords[i], atnums, extra_info=extra_info)
-
-            try:
-                out_files = check(calculations)
-            except CalculationIncompleteError:
-                self.logger.exit(f"Required output file(s) not found in '{parent}/step_XX'.\n"
-                                 'Creating the necessary input file and exiting...\n'
-                                 'Please run the calculation and put the output files in the '
-                                 'same directory.\nNecessary output files and the '
-                                 'corresponding extensions are:\n'
-                                 f"{calculations[0].missing_as_string()}")
-
-            energies, forces, dipoles, coords = [], [], [], []
-            for files in out_files:
-                energy, force, dipole, atomids, coord = software.read.gradient(self.config, **files)
-                energies.append(energy)
-                forces.append(force)
-                dipoles.append(dipole)
-                coords.append(coord)
-
-            scan_out.energies = np.array(energies, dtype=np.float64)
-            scan_out.forces = np.array(forces, dtype=np.float64)
-            scan_out.dipoles = np.array(dipoles, dtype=np.float64)
-            scan_out.coords = np.array(coords, dtype=np.float64)
-        return scan_out
-
-    def write_preopt(self, file, job_name, coords, atnums):
-        software = self.softwares['preopt']
+    def _write_opt(self, software, file, job_name, coords, atnums):
         software.write.opt(file, job_name, self.config, coords, atnums)
 
-    def write_sp(self, file, job_name, coords, atnums):
-        software = self.softwares['software']
+    def _write_sp(self, software, file, job_name, coords, atnums):
         software.write.sp(file, job_name, self.config, coords, atnums)
 
-    def write_scan_sp(self, file, job_name, coords, atnums):
-        software = self.softwares['software']
-        software.write.sp(file, job_name, self.config, coords, atnums)
-
-    def write_charge(self, file, job_name, coords, atnums, software=None):
-        if software is None:
-            software = self.softwares['charge_software']
+    def _write_charge(self, software, file, job_name, coords, atnums):
         software.write.charges(file, job_name, self.config, coords, atnums)
 
-    def write_hessian(self, file, job_name, coords, atnums):
-        software = self.softwares['software']
+    def _write_hessian(self, software, file, job_name, coords, atnums):
         software.write.hessian(file, job_name, self.config, coords, atnums)
 
-    def write_gradient(self, file, job_name, coords, atnums, extra_info=False):
-        software = self.softwares['software']
+    def _write_gradient(self, software, file, job_name, coords, atnums, extra_info=False):
         software.write.gradient(file, job_name, self.config, coords, atnums, extra_info)
 
-    def write_scan(self, file, scan_id, coords, atnums, scanned_atoms, start_angle, charge, multiplicity):
+    def write_scan(self, file, scan_id, coords, atnums, scanned_atoms,
+                   start_angle, charge, multiplicity):
         """
         Generate the input file for the dihedral scan.
         Parameters
@@ -520,31 +443,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                                              atnums, scanned_atoms, start_angle,
                                              charge, multiplicity)
 
-    def read_energy(self, gradient_files):
-        software = self.softwares['software']
-        en, dipole, atids, coords = software.read.sp_ec(self.config, **gradient_files)
-        return EnergyOutput(en, dipole, atids, coords)
-
-    def read_gradient(self, gradient_files):
-        software = self.softwares['software']
-        en, grad, dipole, atids, coords = software.read.gradient(self.config, **gradient_files)
-        return GradientOutput(en, grad, dipole, atids, coords)
-
-    def read_hessian(self, hessian_files):
-        software = self.softwares['software']
-        qm_out = software.read.hessian(self.config, **hessian_files)
-        if 'fchk_file' in hessian_files:
-            fchk_file = hessian_files['fchk_file']
-        else:
-            fchk_file = None
-        return HessianOutput(self.config.vib_scaling, fchk_file, *qm_out)
-
-    def read_opt(self, opt_files):
-        software = self.softwares['preopt']
-        return software.read.opt(self.config, **opt_files)
-
     def _get_unique_scan_points(self, qm_outs):
-        all_angles, all_energies, all_coords, all_dipoles, chosen_point_charges, final_e = [], [], [], [], {}, 0
+        all_angles, all_energies, all_coords, all_dipoles = [], [], [], []
         all_angles_rounded = []
 
         for n_atoms, coords, angles, energies, dipoles, point_charges in qm_outs:
@@ -566,60 +466,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                         all_dipoles[idx] = dipole
 
         return n_atoms, all_coords, all_angles, all_energies, all_dipoles, point_charges
-
-    def setup_preopt(self, folder, coords, atnums):
-        software = self.softwares['preopt']
-        # setup calculation
-        calculation = self.Calculation(self.preopt_name(software),
-                                       software.read.opt_files,
-                                       folder=folder,
-                                       software=software.name)
-        if not calculation.input_exists():
-            #
-            with open(calculation.inputfile, 'w') as file:
-                self.write_preopt(file, calculation.base, coords, atnums)
-        return calculation
-
-    def preopt(self):
-        molecule, coords, atnums = self._read_coord_file(self.job.coord_file)
-        software = self.softwares['preopt']
-
-        if self.softwares['preopt'] is None:
-            molecules = self._read_molecules(self.job.coord_file)
-            self._write_xyzfile(molecules, self.pathways['init.xyz'],
-                                comment=f'{self.job.name} - input geometry for hessian')
-            return
-        # create Preopt directory
-        folder = self.pathways.getdir("preopt", create=True)
-        self._write_xyzfile(molecule, self.pathways['preopt.xyz'],
-                            comment=f'{self.job.name} - input geometry for preopt')
-        # setup calculation
-        calculation = self.Calculation(self.preopt_name(software),
-                                       software.read.opt_files, folder=folder,
-                                       software=software.name)
-        #
-        if not calculation.input_exists():
-            _, coords, atnums = self._read_coord_file(self.pathways['preopt.xyz'])
-            #
-            with open(calculation.inputfile, 'w') as file:
-                self.write_preopt(file, calculation.base, coords, atnums)
-        # check_preopt_output
-        try:
-            preopt_files = calculation.check()
-        except CalculationIncompleteError:
-            self.logger.exit('Required Preopt output file(s) not found in the job directory.\n'
-                             'Creating the necessary input file and exiting...\nPlease run the '
-                             'calculation and put the output files in the same directory.\n')
-        #
-        coords = self.read_opt(preopt_files)
-        molecules = []
-        for coord in coords:
-            mol = deepcopy(molecule)
-            mol.set_positions(coord)
-            molecules.append(mol)
-
-        self._write_xyzfile(molecules, self.pathways['init.xyz'],
-                            comment=f'{self.job.name} - input geometry for hessian')
 
     def _read_coord_file(self, filename):
         molecule = read(filename)
@@ -643,23 +489,21 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         #
         softwares = {
                 'software': default,
+                'crest': Crest(SimpleNamespace(**config.crest)),
+                'preopt': self._set_qm_software(config.preopt),
         }
 
         defaults = {
-                'preopt': None,
-                'charge_software': None,
+                'charge_software': default,
                 'scan_software': default,
         }
         scanner = config.dihedral_scanner
         # do it twice, once load the settings, once set the defaults
         for option, default in defaults.items():
-            if getattr(config, option).value is None:
-                if isinstance(default, str):
-                    softwares[option] = softwares[default]
-                else:
-                    softwares[option] = default
-            else:
+            if getattr(config, option).value is not None:
                 softwares[option] = self._set_qm_software(getattr(config, option))
+            else:
+                softwares[option] = default
 
         if scanner == 'torsiondrive' and softwares['scan_software'] is default:
             selection = xTB.generate_user_input().get_answers()
@@ -678,6 +522,8 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
         txt = (delim + "    Selected Electronic Structure Softwares\n" + delim)
 
         for typ, software in softwares.items():
+            if typ == 'crest':
+                continue
             if software is not None:
                 txt += "    %15s | %15s\n" % (typ, software.name)
         txt += delim

@@ -1,5 +1,3 @@
-from io import StringIO
-#
 from ase.io import read, write
 from calkeeper import CalculationKeeper, CalculationIncompleteError
 #
@@ -9,101 +7,71 @@ from .forcefield.forcefield import ForceField
 from .molecule import Molecule
 from .frequencies import calc_qm_vs_md_frequencies
 from .fit import multi_fit
-from .charge_flux import fit_charge_flux
+# from .charge_flux import fit_charge_flux
 from .misc import LOGO
 from .logger import LoggerExit
 #
-from .schemes import Computations, HessianCreator, PreoptCreator, DihedralCreator
-
-
-CRESTPREOPT = StringIO('''
-preopt = crest
-software = xtb
-''')
+from .schemes import Computations, HessianCreator, CrestCreator
+from .schemes.bondorder import BondOrderCreator
+from .schemes import NoFragmentationDihedralsCreator
 
 
 def save_molecule(filename, molecule, comment=None):
     write(filename, molecule, plain=True, comment=comment)
 
 
-def runjob2(config, job, ext_q=None, ext_lj=None):
-    # setup the xtb preopt using crest
-    xtb = QM.from_questions(job, config=CRESTPREOPT, check_only=True)
-    # read initial structure, ase molecule structure
-    molecule = read(job.coord_file)
-    # run preopt
-    preopt = PreoptCreator(molecule)
-    preopt.run(xtb)
-    molecule = preopt.molecule()
-    # setup hessian calculation
-    save_molecule(xtb.pathways.get('init.xyz'), molecule,
-                  comment=f'{job.name} - input geometry for hessian')
-    # get main hessian
-    hessian = HessianCreator(molecule)
-    hessian.run(xtb)
-    main_hessian = hessian.main_hessian()
-
-    ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
-    if ffcls is None:
-        raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
-
-    mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj)
-
-    structs = Computations.from_config(config.addstructs)
-    structs.register('dihedrals', DihedralCreator(mol, job, config))
-    # setup the actual qm calculations
-    qm = QM(job, config.qm)
-    # do all additional calculations
-    structs.run(qm)
-    #  register hessian after structs were run!
-    structs.register('hessian', hessian)
-    #
-    mol.qm_minimum_energy, mol.qm_minimum_coords = structs.normalize()
-
-    md_hessian = multi_fit(job.logger, config.terms, mol, structs)
-
-    return mol, structs
-
-
-def runjob(config, job, ext_q=None, ext_lj=None):
-    # setup qm calculation
+def runjob_(config, job, ext_q=None, ext_lj=None):
+    # setup the qm interface
     qm = QM(job, config.qm)
     # read initial structure, ase molecule structure
     molecule = read(job.coord_file)
     # run preopt
-    preopt = PreoptCreator(molecule)
-    preopt.run(qm)
-    molecule = preopt.molecule()
+    folder = job.pathways.getdir('preopt', create=True)
+    crest = CrestCreator(folder, molecule)
+    crest.run(qm)
+    molecule.set_positions(crest.most_stable())
     # setup hessian calculation
     save_molecule(qm.pathways.get('init.xyz'), molecule,
                   comment=f'{job.name} - input geometry for hessian')
-    # get main hessian
-    hessian = HessianCreator(molecule)
-    hessian.run(qm)
-    main_hessian = hessian.main_hessian()
-
+    # get the bondorder to setup molecule
+    bo = BondOrderCreator(molecule)
+    bo.run(qm)
+    bondorder = bo.bondorder()
+    #
     ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
     if ffcls is None:
         raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
 
-    mol = Molecule(config, job, main_hessian, ffcls, ext_q, ext_lj)
-
-    structs = AdditionalStructures.from_config(config.addstructs)
-    structs.register('dihedrals', DihedralCreator(mol, job, config))
+    mol = Molecule(config, job, bondorder, ffcls, ext_q, ext_lj)
+    #
+    structs = Computations.from_config(config.addstructs)
+    structs.register('dihedrals', NoFragmentationDihedralsCreator(mol, job, config))
+    structs.register('hessian', HessianCreator(molecule))
+    #
+    structs.activate('fromfile')
+    structs.activate('xtbmd', crest.structures())
     # do all additional calculations
     structs.run(qm)
     #  register hessian after structs were run!
-    structs.register('hessian', hessian)
+    # structs.register('hessian', hessian)
     #
     mol.qm_minimum_energy, mol.qm_minimum_coords = structs.normalize()
-
+    #
     md_hessian = multi_fit(job.logger, config.terms, mol, structs)
+    #
+    return bondorder, md_hessian, mol, structs
+
+
+def runjob(config, job, ext_q=None, ext_lj=None):
+    main_hessian, md_hessian, mol, structs = runjob_(config, job, ext_q=ext_q, ext_lj=ext_lj)
 
     calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
 
-    if main_hessian.dipole_deriv is not None and 'charge_flux' in mol.terms and len(mol.terms['charge_flux']) > 0:
+    if (main_hessian.dipole_deriv is not None
+       and 'charge_flux' in mol.terms
+       and len(mol.terms['charge_flux']) > 0):
         raise NotImplementedError("Charge flux is not updated to new syntax")
-        fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
+        # fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
 
     ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
     ff.software.write(job.dir, main_hessian.coords)

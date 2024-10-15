@@ -1,14 +1,13 @@
 import os
 #
-from colt import Colt
 import numpy as np
 #
-from .creator import CostumStructureCreator
-from .additionalstructures import AdditionalStructureCreator
+from .creator import CustomStructureCreator
+from .xtbmd import XTBMolecularDynamics
+from .additionalstructures import StructuresFromFile
 
 
-
-class Computations(Colt):
+class Computations(CustomStructureCreator):
 
     _user_input = """
     energy_element_weights = 15000 :: float
@@ -19,15 +18,49 @@ class Computations(Colt):
     dihedral_weight = 1 :: float
     """
 
-    def __init__(self, creators, energy_ele_weight, gradient_ele_weight, hessian_ele_weight,
-                 hessian_weight, dihedral_weight):
-        self.creators = creators
+    classes = {
+            'xtbmd': XTBMolecularDynamics,
+            'fromfile': StructuresFromFile,
+    }
+
+    def __init__(self, folder, energy_ele_weight, gradient_ele_weight, hessian_ele_weight,
+                 hessian_weight, dihedral_weight, activatable=None):
+        self.folder = folder
+        self.creators = {}
         self.energy_weight = energy_ele_weight
         self.gradient_weight = gradient_ele_weight
         self.hessian_weight = hessian_ele_weight
         #
         self._hessian_weight = hessian_weight
         self._dihedral_weight = dihedral_weight
+        # classes that can be activated later on
+        if activatable is None:
+            activatable = {}
+        self._activatable = activatable
+
+    @classmethod
+    def from_config(cls, config):
+        activatable = {}
+        for name, cls_ in cls.classes.items():
+            settings = getattr(config, name)
+            activatable[name] = (cls_, settings)
+        return cls(config.energy_element_weights,
+                   config.gradient_element_weights, config.hessian_element_weights,
+                   config.hessian_weight, config.dihedral_weight, activatable)
+
+    @classmethod
+    def _extend_user_input(cls, questions):
+        for name, cls_ in cls.classes.items():
+            questions.generate_block(name, cls_.colt_user_input)
+
+    def activate(self, name, *args, **kwargs):
+        cls, settings = self._activatable.get(name, (None, None))
+        if cls is None:
+            raise ValueError(f"Class '{name}' is not activatable")
+        folder = self.folder / f'{name}'
+        creator = cls.from_config(settings, folder, *args, **kwargs)
+        if creator is not None:
+            self.register(name, creator)
 
     def add_hessians(self, hessout):
         """add hessian"""
@@ -39,70 +72,65 @@ class Computations(Colt):
 
     def register(self, name, creator):
         """add a new creator"""
-        if not isinstance(creator, CostumStructureCreator):
+        if not isinstance(creator, CustomStructureCreator):
             raise ValueError(f"Can not register '{type(creator)}' "
-                             "only register CostumStructureCreator instances")
+                             "only register CustomStructureCreator instances")
         if name == 'dihedrals':
             creator.weight = self._dihedral_weight
         elif name == 'hessian':
             creator.weight = self._hessian_weight
         self.creators[name] = creator
 
-    @classmethod
-    def from_config(cls, config):
-        creators = {}
-        for name, clss in AdditionalStructureCreator.classes().items():
-            _cls = clss.from_config(getattr(config, name))
-            if _cls is not None:
-                creators[name] = _cls
-        return cls(creators, config.energy_element_weights,
-                   config.gradient_element_weights, config.hessian_element_weights,
-                   config.hessian_weight, config.dihedral_weight)
-
-    @classmethod
-    def _extend_user_input(cls, questions):
-        for name, clss in AdditionalStructureCreator.classes().items():
-            questions.generate_block(name, clss.colt_user_input)
-
-    def run(self, qm):
-        parent = qm.pathways.getdir("addstruct", create=True)
-
+    def setup_pre(self, qm):
+        #
         for i, (name, creator) in enumerate(self.creators.items()):
-            folder = parent / f'{creator.name}'
+            folder = self.folder / f'{name}'
             os.makedirs(folder, exist_ok=True)
             creator.folder = folder
 
-        # prestep
-        for name, creator in self.creators.items():
+        for _, creator in self.creators.items():
             creator.setup_pre(qm)
 
-        for name, creator in self.creators.items():
+    def check_pre(self):
+        for _, creator in self.creators.items():
             cal = creator.check_pre()
             if cal is not None:
-                qm.logger.exit(f"Required output file(s) not found in '{cal.folder}' .\n"
-                               'Creating the necessary input file and exiting...\nPlease run the '
-                               'calculation and put the output files in the same directory.\n'
-                               'Necessary output files and the corresponding extensions '
-                               f"are:\n{cal.missing_as_string()}\n\n\n")
+                return cal
+        return None
 
-        for name, creator in self.creators.items():
+    def parse_pre(self, qm):
+        for _, creator in self.creators.items():
             creator.parse_pre(qm)
 
-        # mainstep
-        for name, creator in self.creators.items():
+    def setup_main(self, qm):
+        for _, creator in self.creators.items():
             creator.setup_main(qm)
 
-        for name, creator in self.creators.items():
+    def check_main(self):
+        for _, creator in self.creators.items():
             cal = creator.check_main()
             if cal is not None:
-                qm.logger.exit(f"Required output file(s) not found in '{cal.folder}' .\n"
-                               'Creating the necessary input file and exiting...\nPlease run the '
-                               'calculation and put the output files in the same directory.\n'
-                               'Necessary output files and the corresponding extensions '
-                               f"are:\n{cal.missing_as_string()}\n\n\n")
+                return cal
+        return None
 
-        for name, creator in self.creators.items():
+    def parse_main(self, qm):
+        for _, creator in self.creators.items():
             creator.parse_main(qm)
+
+    def setup_post(self, qm):
+        for _, creator in self.creators.items():
+            creator.setup_post(qm)
+
+    def check_post(self):
+        for _, creator in self.creators.items():
+            cal = creator.check_post()
+            if cal is not None:
+                return cal
+        return None
+
+    def parse_post(self, qm):
+        for _, creator in self.creators.items():
+            creator.parse_post(qm)
 
     def _get_lowest_energy_and_coords(self):
         minimum = np.inf
@@ -153,7 +181,7 @@ class Computations(Colt):
                 yield weight, out
 
 
-class HessianOutput(CostumStructureCreator):
+class HessianOutput(CustomStructureCreator):
 
     def __init__(self, weight, hessout):
         super().__init__(weight)
@@ -180,7 +208,7 @@ class HessianOutput(CostumStructureCreator):
         pass
 
 
-class DihedralOutput(CostumStructureCreator):
+class DihedralOutput(CustomStructureCreator):
 
     def __init__(self, weight, gradouts):
         super().__init__(weight)

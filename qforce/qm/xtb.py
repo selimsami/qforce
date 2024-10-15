@@ -417,6 +417,7 @@ class ReadxTB(ReadABC):
                      'pc_file': ['${base}.charges'],
                      'wbo_file': ['${base}.wbo'],
                      'coord_file': ['${base}.xtbopt.xyz'],
+                     'out_file': ['${base}.out'],
                      }
 
     opt_files = {'coord_file': ['${base}.xtbopt.xyz'], }
@@ -460,13 +461,15 @@ class ReadxTB(ReadABC):
         _, point_charges = self._read_xtb_charge(pc_file)
         return {'xtb': np.array(point_charges)}
 
-    def hessian(self, config, hess_file, pc_file, coord_file, wbo_file):
+    def hessian(self, config, out_file, hess_file, pc_file, coord_file, wbo_file):
         """ Extract hessian information from all the relevant files.
 
         Parameters
         ----------
         config : config
             A configparser object with all the parameters.
+        out_file: string
+            File name of the xTB standard output.
         hess_file : string
             File name of the xTB hess file for hessian information.
         pc_file : string
@@ -498,8 +501,7 @@ class ReadxTB(ReadABC):
         n_atoms, point_charges = self._read_xtb_charge(pc_file)
         n_atoms, elements, coords, energy = self._read_xtb_xyz_and_energy(coord_file)
         #
-        charge = config.charge
-        multiplicity = config.multiplicity
+        charge, multiplicity = self._read_xtb_charge_mult(out_file)
         b_orders = self._read_xtb_wbo_analysis(wbo_file, elements)
         hessian = self._read_xtb_hess(hess_file, n_atoms)
         # not defined
@@ -859,3 +861,28 @@ class ReadxTB(ReadABC):
         _, _, angle_range = angle_line.split()
         start, end, step_num = angle_range.split(',')
         return np.linspace(float(start), float(end), int(step_num))
+
+    @staticmethod
+    def _read_xtb_charge_mult(out_file):
+        charge = None
+        mult = None
+        with open(out_file, 'r') as fh:
+            for line in fh:
+                if 'Calculation Setup' in line:
+                    next(fh)
+                    next(fh)
+                    break
+            for line in fh:
+                if line.strip() == '':
+                    break
+                if 'charge' in line:
+                    charge = int(line.split()[-1])
+                if 'spin' in line:
+                    spin = float(line.split()[-1])
+                    mult = round(2.0*spin)+1
+
+        if charge is None:
+            raise ValueError("Could not find charge in xtb file")
+        if mult is None:
+            raise ValueError("Could not find spin in xtb file")
+        return charge, mult
