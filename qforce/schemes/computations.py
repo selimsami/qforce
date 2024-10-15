@@ -7,7 +7,7 @@ from .xtbmd import XTBMolecularDynamics
 from .additionalstructures import StructuresFromFile
 
 
-class Computations(CustomStructureCreator):
+class Computations_(CustomStructureCreator):
 
     _user_input = """
     energy_element_weights = 15000 :: float
@@ -39,14 +39,14 @@ class Computations(CustomStructureCreator):
         self._activatable = activatable
 
     @classmethod
-    def from_config(cls, config):
+    def from_config(cls, config, folder):
         activatable = {}
         for name, cls_ in cls.classes.items():
             settings = getattr(config, name)
             activatable[name] = (cls_, settings)
-        return cls(config.energy_element_weights,
+        return cls(folder, config.energy_element_weights,
                    config.gradient_element_weights, config.hessian_element_weights,
-                   config.hessian_weight, config.dihedral_weight, activatable)
+                   config.hessian_weight, config.dihedral_weight, activatable=activatable)
 
     @classmethod
     def _extend_user_input(cls, questions):
@@ -231,3 +231,7 @@ class DihedralOutput(CustomStructureCreator):
 
     def parse_main(self, qm):
         pass
+
+
+def Computations(config, folder):
+    return Computations_.from_config(config, folder)

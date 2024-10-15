@@ -6,7 +6,7 @@ import pkg_resources
 from colt import Colt
 from calkeeper import CalculationKeeper
 #
-from .schemes import Computations
+from .schemes import Computations_
 from .qm.qm import QM, calculators
 from .forcefield.forcefield import ForceField
 from .dihedral_scan import DihedralScan
@@ -36,7 +36,7 @@ write_bash = True :: bool
         questions.generate_block("qm", QM.colt_user_input)
         questions.generate_block("ff", ForceField.colt_user_input)
         questions.generate_block("scan", DihedralScan.colt_user_input)
-        questions.generate_block("addstructs", Computations.colt_user_input)
+        questions.generate_block("addstructs", Computations_.colt_user_input)
         # ff terms
         for name, ffcls in ForceField.implemented_md_software.items():
             questions.generate_block(name, ffcls.get_questions(), block='ff')

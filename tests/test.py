@@ -1,7 +1,7 @@
 from copy import deepcopy
 
 from qforce.cli import initialize
-from qforce.main import runjob2
+from qforce.main import runjob_
 from qforce.fit import *
 from scipy.optimize import minimize
 
@@ -357,13 +357,13 @@ class Fitter:
 
 
 config = {
-        'file': 'methanol.xyz',
+        'file': 'qchem.xyz',
         'options': 'settings.ini',
         }
 
 config, job = initialize(config)
 
-mol, structs = runjob2(config, job)
+qm_hessian, md_hessian, mol, structs = runjob_(config, job)
 fit = Fitter(mol, equfits=['bond'])
 
 

@@ -44,7 +44,8 @@ def runjob_(config, job, ext_q=None, ext_lj=None):
 
     mol = Molecule(config, job, bondorder, ffcls, ext_q, ext_lj)
     #
-    structs = Computations.from_config(config.addstructs)
+    folder = job.pathways.getdir('addstruct')
+    structs = Computations(config.addstructs, folder)
     structs.register('dihedrals', NoFragmentationDihedralsCreator(mol, job, config))
     structs.register('hessian', HessianCreator(molecule))
     #
