@@ -91,7 +91,7 @@ class Terms(MappingIterator):
 
         for i in range(self.n_fitted_terms):
             if equ_list[i][0] is not None:
-                equ_list[i] = np.mean(equ_list[i], axis=0)
+                equ_list[i] = np.min(equ_list[i], axis=0)
             else:
                 equ_list[i] = None
 

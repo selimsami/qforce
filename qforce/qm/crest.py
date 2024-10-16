@@ -15,7 +15,7 @@ class CrestCalculator(Calculator):
         return cls()
 
     def _commands(self, filename, basename, ncores):
-        return [f'bash {filename} > {filename}.shellout']
+        return [f'bash {filename} > {basename}.out']
 
 
 class Crest(QMInterface):
@@ -169,7 +169,9 @@ class WriteCrest(WriteABC):
         base, filename = os.path.split(name)
         # Given that the xTB input has to be given in the command line.
         # We create the xTB command template here.
-        cmd = f'crest {job_name}_input.xyz {self.config.xtb_command} -T {settings.n_proc} '\
+        cmd = f'crest {job_name}_input.xyz --chrg {settings.charge} ' \
+              f'--uhf {settings.multiplicity - 1} ' \
+              f'{self.config.xtb_command} -T {settings.n_proc} -alpb water\n'
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.

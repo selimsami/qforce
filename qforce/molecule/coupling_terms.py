@@ -362,18 +362,19 @@ class CrossDihedBondTerm(TermBase):
                     n_shared = sum([a5 in atoms, a6 in atoms])
 
                     connect = ''
-                    if n_shared < 2:
+                    if n_shared < 1:
                         continue
-                    # elif n_shared == 1 and topo.types[a1] != topo.types[a4]:
-                    #     if a5 in atoms:
-                    #         connection = atoms.index(a5)
-                    #     elif a6 in atoms:
-                    #         connection = atoms.index(a6)
-                    #
-                    #     connect = f'-asym_{connection}'
+                    elif n_shared == 1 and topo.types[a1] != topo.types[a4]:
+                        if a5 in atoms:
+                            connection = atoms.index(a5)
+                        elif a6 in atoms:
+                            connection = atoms.index(a6)
+
+                        connect = f'-asym_{connection}'
 
                     db_type = f'{d_type}-{b_type}-{n_shared}{connect}'
 
+                    cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 4, np.pi], f'{db_type}-4'))
                     cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 3, 0], f'{db_type}-3'))
                     cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 2, np.pi], f'{db_type}-2'))
                     cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 1, 0], f'{db_type}-1'))
@@ -471,14 +472,15 @@ class CrossDihedAngleTerm(TermBase):
                     n_shared = sum([a5 in atoms, a6 in atoms, a7 in atoms])
 
                     connect = ''
-                    if n_shared < 3:
+                    if n_shared < 2:
                         continue
-                    # elif n_shared == 2 and topo.types[a1] != topo.types[a4]:
-                    #     if a6 in atoms:
-                    #         connect += f'-center:{atoms.index(a6)}'
+                    elif n_shared == 2 and topo.types[a1] != topo.types[a4]:
+                        if a6 in atoms:
+                            connect += f'-center:{atoms.index(a6)}'
 
                     da_type = f'{d_type}-{a_type}-{n_shared}-{connect}'
 
+                    cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 4, np.pi], f'{da_type}-4'))
                     cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 3, 0], f'{da_type}-3'))
                     cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 2, np.pi], f'{da_type}-2'))
                     cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 1, 0], f'{da_type}-1'))

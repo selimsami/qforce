@@ -88,7 +88,7 @@ vib_scaling = 1.0 :: float
 dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
 
 """
-    _method = ['scan_step_size', 'dihedral_scanner']
+    _method = ['charge', 'multiplicity', 'scan_step_size', 'dihedral_scanner']
 
     def __init__(self, job, config):
         self.job = job
@@ -306,7 +306,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
     def setup_scan_sp_calculations(self, parent, scan_out, atnums):
         """do scan sp calculations if necessary and update the scan out"""
         software = self.softwares['software']
-
         calculations = []
         for i in range(scan_out.n_steps):
             folder = parent / f'{i}_conformer'
@@ -323,7 +322,6 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
                     self._write_gradient(software, file, calc.base, scan_out.coords[i], atnums,
                                          extra_info=extra_info)
             calculations.append(calc)
-
         return calculations
 
     def read_charges(self, charge_files):

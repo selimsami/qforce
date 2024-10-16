@@ -185,7 +185,6 @@ class xTBCalculator(Calculator):
 
 
 class WritexTB(WriteABC):
-
     def gradient(self, file, job_name, settings, coords, atnums, extra_info=False):
         """ Write the input file for sp gradient
 
