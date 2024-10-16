@@ -1,4 +1,4 @@
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import Ridge, Lasso
 import numpy as np
 #
 from .molecule.bond_and_angle_terms import MorseBondTerm
@@ -80,7 +80,6 @@ def multi_fit(logger, config, mol, structs):
 
     for weight_f, qmgrad in structs.graditr():
         scale_weight = min(np.exp((e_avg-qmgrad.energy)/e_avg), 1)
-        print(qmgrad.energy, scale_weight)
         weight_f *= scale_weight
 
         weight_e = factor_e * weight_f
@@ -102,8 +101,21 @@ def multi_fit(logger, config, mol, structs):
         weights.append(weight_e)
 
     logger.info("Fitting the force field parameters...")
+
+    # reg = Lasso(alpha=1e-4, fit_intercept=False).fit(A, B, sample_weight=weights)
+    # fit = reg.coef_
+    # with mol.terms.add_ignore('charge_flux'):
+    #     for name in mol.terms.keys():
+    #         for term in mol.terms[name]:
+    #             if term.idx < len(fit):
+    #                 term.set_fitparameters(fit)
+    #             if abs(term.fconst) < 1e-4:
+    #                 print('REMOVING:', term, term.fconst)
+    #                 mol.terms.remove_terms_by_name(str(term), term.atomids)
+
     reg = Ridge(alpha=1e-6, fit_intercept=False).fit(A, B, sample_weight=weights)
     fit = reg.coef_
+
     logger.info("Done!\n")
 
     with mol.terms.add_ignore('charge_flux'):
@@ -113,33 +125,33 @@ def multi_fit(logger, config, mol, structs):
 
     full_md_hessian_1d = np.sum(full_md_hessian_1d * fit, axis=1)
 
-    nqmgrads = sum(1 for _ in structs.graditr())
-
-    if nqmgrads > 0:
-        full_qm_energies = np.array(full_qm_energies)
-        print(full_qm_energies.shape)
-        full_mm_energies = np.array(full_mm_energies)
-        print(full_mm_energies.shape)
-        full_qm_forces = np.array(full_qm_forces)
-        print(full_qm_forces.shape)
-        full_mm_forces = np.array(full_mm_forces)
-        print(full_mm_forces.shape)
-        full_mm_forces = np.sum(full_mm_forces * fit, axis=2)
-        full_mm_energies = np.sum(full_mm_energies * fit, axis=1)
-
-        for struct in range(nqmgrads):
-            print('struct', struct)
-            print('QM:\n', full_qm_energies[struct], '\n', full_qm_forces[struct])
-            print('MM:\n', full_mm_energies[struct], '\n', full_mm_forces[struct].reshape((mol.n_atoms, 3)))
-            print('\n')
-
-    err = full_md_hessian_1d-qm.hessian
-    mae = np.abs(err).mean()
-    rmse = (err**2).mean()**0.5
-    max_err = np.max(np.abs(err))
-    print('mae:', mae*0.2390057361376673)
-    print('rmse:', rmse*0.2390057361376673)
-    print('max_err:', max_err*0.2390057361376673)
+    # nqmgrads = sum(1 for _ in structs.graditr())
+    #
+    # if nqmgrads > 0:
+    #     full_qm_energies = np.array(full_qm_energies)
+    #     print(full_qm_energies.shape)
+    #     full_mm_energies = np.array(full_mm_energies)
+    #     print(full_mm_energies.shape)
+    #     full_qm_forces = np.array(full_qm_forces)
+    #     print(full_qm_forces.shape)
+    #     full_mm_forces = np.array(full_mm_forces)
+    #     print(full_mm_forces.shape)
+    #     full_mm_forces = np.sum(full_mm_forces * fit, axis=2)
+    #     full_mm_energies = np.sum(full_mm_energies * fit, axis=1)
+    #
+    #     for struct in range(nqmgrads):
+    #         print('struct', struct)
+    #         print('QM:\n', full_qm_energies[struct], '\n', full_qm_forces[struct])
+    #         print('MM:\n', full_mm_energies[struct], '\n', full_mm_forces[struct].reshape((mol.n_atoms, 3)))
+    #         print('\n')
+    #
+    # err = full_md_hessian_1d-qm.hessian
+    # mae = np.abs(err).mean()
+    # rmse = (err**2).mean()**0.5
+    # max_err = np.max(np.abs(err))
+    # print('mae:', mae*0.2390057361376673)
+    # print('rmse:', rmse*0.2390057361376673)
+    # print('max_err:', max_err*0.2390057361376673)
 
     return full_md_hessian_1d
 

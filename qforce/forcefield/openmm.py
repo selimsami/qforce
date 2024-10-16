@@ -21,11 +21,11 @@ class OpenMM(ForcefieldSettings):
 
             # 'dihedral/flexible': ('periodic', 'cos_cube', False),
             'dihedral/flexible': True,
-            'dihedral/cos_cube': True,
+            'dihedral/cos_cube': False,
 
             'dihedral/rigid': True,
             'dihedral/improper': True,
-            'dihedral/inversion': True,
+            'dihedral/inversion': False,
             'dihedral/pitorsion': True,
 
             'non_bonded': False,
@@ -83,6 +83,7 @@ class OpenMM(ForcefieldSettings):
                 writer_dict[term.name] = writer
 
             term.write_forcefield(self, writer_dict[term.name])
+        print()
 
     def write_harmonic_bond_header(self, forces):
         bond_force = ET.SubElement(forces, 'Force', {'type': 'HarmonicBondForce', 'name': 'Bond', 'forceGroup': '0',

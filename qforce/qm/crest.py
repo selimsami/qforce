@@ -15,7 +15,6 @@ class CrestCalculator(Calculator):
         return cls()
 
     def _commands(self, filename, basename, ncores):
-        print(filename, basename)
         return [f'bash {filename} > {basename}.out']
 
 

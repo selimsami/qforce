@@ -137,10 +137,10 @@ class InversionDihedralTerm(DihedralBaseTerm):
         return cls(atomids, phi, d_type)
 
     def write_forcefield(self, software, writer):
-        software.write_inversion_dihed_term(self, writer)
+        software.write_inversion_dihedral_term(self, writer)
 
     def write_ff_header(self, software, writer):
-        return software.write_inversion_dihed_header(writer)
+        return software.write_inversion_dihedral_header(writer)
 
 
 class CosCubeDihedralTerm(DihedralBaseTerm):
@@ -261,11 +261,13 @@ class DihedralTerms(TermFactory):
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
                     add_term('cos_cube', topo, atoms, d_type)
+                    add_term('flexible', topo, atoms, 4, np.pi, d_type+'_mult4')
                     add_term('flexible', topo, atoms, 3, 0, d_type+'_mult3')
                     add_term('flexible', topo, atoms, 2, np.pi, d_type+'_mult2')
                     add_term('flexible', topo, atoms, 1, 0, d_type+'_mult1')
 
         # improper dihedrals
+        improper_centers = []
         for i in range(topo.n_atoms):
             bonds = list(topo.graph.neighbors(i))
             if len(bonds) != 3:
@@ -298,6 +300,7 @@ class DihedralTerms(TermFactory):
                 #     continue
                 imp_type = f"ki_{topo.types[i]}"
                 if abs(phi) < 0.43625:  # check planarity < 25 degrees
+                    improper_centers.append(i)
                     add_term('improper', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
                     add_term('improper', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
                     add_term('improper', topo, [atoms[0], atoms[2], atoms[3], atoms[1]], phi, imp_type)
@@ -309,8 +312,16 @@ class DihedralTerms(TermFactory):
                 #     add_term('inversion', topo, [atoms[0], atoms[3], atoms[1], atoms[2]], phi, imp_type)
                 #     add_term('inversion', topo, [atoms[0], atoms[3], atoms[2], atoms[1]], phi, imp_type)
 
-        # add_term('pitorsion', topo, [1, 0, 3, 2, 4, 5], 0, 'test')
-        # add_term('pitorsion', topo, [0, 2, 3, 1, 4, 5], 0, 'test')
+        for a1, a2 in combinations(improper_centers, 2):
+            if a2 in topo.neighbors[0][a1]:
+                a1_1, a1_2 = [n for n in topo.neighbors[0][a1] if n != a2]
+                a2_1, a2_2 = [n for n in topo.neighbors[0][a2] if n != a1]
+
+                pt_type = sorted([topo.types[a1], topo.types[2]])
+                pt_type = f'{pt_type[0]}_{pt_type[1]}'
+                print([a1, a1_1, a1_2, a2, a2_1, a2_2], pt_type)
+                add_term('pitorsion', topo, [a1, a1_1, a1_2, a2, a2_1, a2_2], 0, pt_type)
+
 
         return terms
 

@@ -258,8 +258,9 @@ def calc_cross_cos_angle_angle(coords, atoms, equ, fconst, force):
     return energy
 
 
+@jit(nopython=True)
 def calc_cross_dihed_bond(coords, atoms, equ, fconst, force):
-    phi0 = np.radians(equ[2])
+    phi0 = equ[2]
     phi = get_dihed(coords[atoms[:4]])[0]
     _, r = get_dist(coords[atoms[4]], coords[atoms[5]])
     v_dihed = 1 + np.cos(equ[1]*phi-phi0)
@@ -291,6 +292,7 @@ def calc_cross_dihed_bond(coords, atoms, equ, fconst, force):
     return energy
 
 
+@jit(nopython=True)
 def calc_cross_cos_cube_dihed_bond(coords, atoms, equ, fconst, force):
     phi = get_dihed(coords[atoms[:4]])[0]
     _, r = get_dist(coords[atoms[4]], coords[atoms[5]])
@@ -320,12 +322,12 @@ def calc_cross_cos_cube_dihed_bond(coords, atoms, equ, fconst, force):
             e_minus = fconst * v_dihed * v_bond
 
             force[a, j] += (e_minus-e_plus) / (2*move)
-
     return energy
 
 
+@jit(nopython=True)
 def calc_cross_dihed_angle(coords, atoms, equ, fconst, force):
-    phi0 = np.radians(equ[2])
+    phi0 = equ[2]
     phi = get_dihed(coords[atoms[:4]])[0]
     theta = get_angle(coords[atoms[4:]])[0]
     v_angle = theta - equ[0]
@@ -357,6 +359,7 @@ def calc_cross_dihed_angle(coords, atoms, equ, fconst, force):
     return energy
 
 
+@jit(nopython=True)
 def calc_cross_cos_cube_dihed_angle(coords, atoms, equ, fconst, force):
     phi = get_dihed(coords[atoms[:4]])[0]
     theta = get_angle(coords[atoms[4:]])[0]
@@ -388,6 +391,8 @@ def calc_cross_cos_cube_dihed_angle(coords, atoms, equ, fconst, force):
 
     return energy
 
+
+@jit(nopython=True)
 def calc_cross_dihed_angle_angle(coords, atoms, equ, fconst, force):
     phi = get_dihed(coords[atoms])[0]
     theta1 = get_angle(coords[atoms[:3]])[0]
@@ -427,6 +432,7 @@ def calc_cross_dihed_angle_angle(coords, atoms, equ, fconst, force):
     return energy
 
 
+@jit(nopython=True)
 def calc_cross_cos_cube_dihed_angle_angle(coords, atoms, equ, fconst, force):
     phi = get_dihed(coords[atoms])[0]
     theta1 = get_angle(coords[atoms[:3]])[0]

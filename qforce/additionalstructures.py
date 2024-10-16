@@ -330,12 +330,12 @@ def minval(itr, value=None):
 class AdditionalStructures(Colt):
 
     _user_input = """
-    energy_element_weights = 1 :: float
-    gradient_element_weights = 1 :: float
+    energy_element_weights = 15000 :: float
+    gradient_element_weights = 100 :: float
     hessian_element_weights = 1 :: float
 
     hessian_weight = 1 :: float
-    dihedral_weight = 1 :: float
+    dihedral_weight = 100 :: float
 
     """
 
