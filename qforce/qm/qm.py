@@ -161,9 +161,9 @@ dihedral_scanner = relaxed_scan :: str :: [relaxed_scan, torsiondrive]
     def setup_hessian_calculation(self, folder, coords, atnums, preopt=False):
         """Setup hessian calculation"""
         if preopt is True:
-            software = self.softwares['software']
-        else:
             software = self.softwares['preopt']
+        else:
+            software = self.softwares['software']
 
         calculation = self.Calculation(self.hessian_name(software),
                                        software.read.hessian_files,

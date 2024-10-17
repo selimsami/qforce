@@ -871,14 +871,19 @@ class ReadxTB(ReadABC):
                     next(fh)
                     next(fh)
                     break
+            #
             for line in fh:
                 if line.strip() == '':
                     break
-                if 'charge' in line:
-                    charge = int(line.split()[-1])
-                if 'spin' in line:
-                    spin = float(line.split()[-1])
-                    mult = round(2.0*spin)+1
+                if 'program call' in line:
+                    words = line.split()
+                    for i, word in enumerate(words):
+                        if word == '--chrg':
+                            charge = int(words[i+1])
+                        if word == '--uhf':
+                            spin = int(words[i+1])
+                            mult = round(2.0*spin)+1
+                    break
 
         if charge is None:
             raise ValueError("Could not find charge in xtb file")
