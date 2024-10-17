@@ -1,7 +1,8 @@
 import os.path
-
 from ase.io import read, write
 from ase import Atoms
+import numpy as np
+#
 from .qm_base import WriteABC, ReadABC, QMInterface, Calculator
 
 
@@ -39,7 +40,7 @@ class ReadCrest(ReadABC):
 
     hessian_files = {}
 
-    opt_files = {'coord_file': ['crest_conformers.xyz'], }
+    opt_files = {'coord_file': ['crest_conformers.xyz'], 'wbo_file': ['wbo']}
 
     sp_files = {}
 
@@ -47,8 +48,11 @@ class ReadCrest(ReadABC):
 
     scan_files = {}
 
-    def opt(self, config, coord_file):
-        return self._read_xyzs(coord_file)
+    def opt(self, config, coord_file, wbo_file):
+        coords = self._read_xyzs(coord_file)
+        n_atoms = len(coords[0])
+        bond_orders = self._read_crest_wbo_analysis(wbo_file, n_atoms)
+        return coords, np.array(bond_orders)
 
     def sp(self, config, sp_file):
         raise NotImplementedError
@@ -145,6 +149,34 @@ class ReadCrest(ReadABC):
         """
         mols = read(coord_file, index=':')
         return [mol.get_positions() for mol in mols]
+
+    @staticmethod
+    def _read_crest_wbo_analysis(out_file, n_atoms):
+        """ Read the wbo analysis from CREST.
+
+        Parameters
+        ----------
+        out_file : string
+            The name of the orca output file.
+        n_atoms : int
+            The number of atoms in the molecule.
+
+        Returns
+        -------
+        b_orders : list
+            A list (length: n_atoms) of list (length: n_atoms) of float.
+            representing the bond order between each atom pair.
+
+        """
+
+        b_orders = [[0 for _ in range(n_atoms)] for _ in range(n_atoms)]
+
+        file = np.loadtxt(out_file)
+        for x, y, bo in file:
+            b_orders[int(x) - 1][int(y) - 1] = bo
+            b_orders[int(y) - 1][int(x) - 1] = bo
+
+        return b_orders
 
 
 class WriteCrest(WriteABC):

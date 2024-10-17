@@ -10,12 +10,12 @@ class Topology(object):
     Contains all bonding etc. information of the system
     """
 
-    def __init__(self, config, qm_out):
+    def __init__(self, config, mol):
         self.n_equiv = config.n_equiv
-        self.atomids = qm_out.atomids
+        self.atomids = mol.atomids
         self.n_atoms = len(self.atomids)
-        self.coords = qm_out.coords
-        self.b_order_matrix = qm_out.b_orders
+        self.coords = mol.coords
+        self.bond_order_matrix = mol.bond_orders
         #
         self.n_types = 0
         self.n_terms = 0
@@ -29,25 +29,24 @@ class Topology(object):
         self.all_rigid = config.all_rigid
         self.ba_couple_1_shared = config.ba_couple_1_shared
         #
-        self._setup(qm_out)
+        self._setup()
 
-    def _setup(self, qm_out):
-        self._find_bonds_and_rings(qm_out)
+    def _setup(self):
+        self._find_bonds_and_rings()
         self._find_atom_types()
         self._find_neighbors()
         self._find_bonds_angles_dihedrals()
 
-    def _find_bonds_and_rings(self, qm_out):
+    def _find_bonds_and_rings(self):
         """Setup networkx graph """
         self.graph = nx.Graph()
         for i_idx, i_elem in enumerate(self.atomids):
-            self.graph.add_node(i_idx, idx=i_idx, elem=i_elem, n_bonds=qm_out.n_bonds[i_idx],
-                                q=qm_out.point_charges[i_idx], coords=self.coords[i_idx],
+            self.graph.add_node(i_idx, idx=i_idx, elem=i_elem, coords=self.coords[i_idx],
                                 neighs=[], unique_neighs=[], nonrepeat_neighs=[], hybrid=None,
                                 type=None, n_neighs=0, n_unique_neighs=0, n_nonrepeat_neighs=0)
             # add bonds
             for j_idx, j_elem in enumerate(self.atomids):
-                b_order = qm_out.b_orders[i_idx, j_idx]
+                b_order = self.bond_order_matrix[i_idx, j_idx]
                 if b_order > 0.3:
                     id1, id2 = sorted([i_elem, j_elem])
                     b_order_half_rounded = np.round(b_order*2)/2
@@ -58,10 +57,12 @@ class Topology(object):
                     self.graph.add_edge(i_idx, j_idx, vector=vec, length=dist, order=b_order, vers=None,
                                         type=f'{id1}({b_order_half_rounded}){id2}', n_rings=0)
 
-            if qm_out.n_bonds[i_idx] > ELE_MAXB[i_elem]:
+            n_bonds = self.bond_order_matrix[i_idx].sum().round()
+            self.node(i_idx)['n_bonds'] = n_bonds
+            if n_bonds > ELE_MAXB[i_elem]:
                 print(f'WARNING: Atom {i_idx+1} ({ATOM_SYM[i_elem]}) has too many',
-                      f' ({qm_out.n_bonds[i_idx]}) bonds?')
-            elif qm_out.n_bonds[i_idx] == 0:
+                      f' ({n_bonds}) bonds?')
+            elif n_bonds == 0:
                 print(f'WARNING: Atom {i_idx+1} ({ATOM_SYM[i_elem]}) has no bonds')
 
             if self.node(i_idx)['n_neighs'] == 1:

@@ -82,7 +82,6 @@ def _get_job_info(filename):
     job['dir'] = f'{path}{job["name"]}_qforce'
     pathways = Pathways(job['dir'], name=job['name'])
     job['pathways'] = pathways
-    job['frag_dir'] = str(pathways["fragments"])
     #
     if job['coord_file'] is False:
         init = pathways['init.xyz']

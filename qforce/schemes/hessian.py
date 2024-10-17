@@ -3,11 +3,11 @@ from .creator import CustomStructureCreator, CalculationStorage
 
 class HessianCreator(CustomStructureCreator):
 
-    def __init__(self, molecule, weight=0):
+    def __init__(self, mol, weight=0):
         super().__init__(weight)
         #
-        self.init_coords = molecule.get_positions()
-        self.atnums = molecule.get_atomic_numbers()
+        self.init_coords = mol.coords
+        self.atnums = mol.atomids
         #
         self._hessian = CalculationStorage()
         self._charges = CalculationStorage()

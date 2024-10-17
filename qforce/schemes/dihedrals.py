@@ -1,7 +1,7 @@
 from .creator import CustomStructureCreator, CalculationStorage
 
 
-class NoFragmentationDihedralsCreator(CustomStructureCreator):
+class DihedralCreator(CustomStructureCreator):
 
     def __init__(self, mol, job, config):
         # set weight to 0, it has to be set later on
@@ -83,8 +83,6 @@ class NoFragmentationDihedralsCreator(CustomStructureCreator):
 
 def get_unique_dihedrals(mol, do_scan):
     unique_dihedrals = {}
-
-    print(mol.terms['dihedral/flexible'])
 
     if not do_scan:
         return {}

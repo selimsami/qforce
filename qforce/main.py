@@ -12,74 +12,75 @@ from .misc import LOGO
 from .logger import LoggerExit
 #
 from .schemes import Computations, HessianCreator, CrestCreator
-from .schemes.bondorder import BondOrderCreator
-from .schemes import NoFragmentationDihedralsCreator
-
-
-def save_molecule(filename, molecule, comment=None):
-    write(filename, molecule, plain=True, comment=comment)
-
-
-def runjob_(config, job, ext_q=None, ext_lj=None):
-    # setup the qm interface
-    qm = QM(job, config.qm)
-    # read initial structure, ase molecule structure
-    molecule = read(job.coord_file)
-    # run preopt
-    folder = job.pathways.getdir('preopt', create=True)
-    crest = CrestCreator(folder, molecule)
-    crest.run(qm)
-    molecule.set_positions(crest.most_stable())
-    # setup hessian calculation
-    save_molecule(qm.pathways.get('init.xyz'), molecule,
-                  comment=f'{job.name} - input geometry for hessian')
-    # get the bondorder to setup molecule
-    bo = BondOrderCreator(molecule)
-    bo.run(qm)
-    bondorder = bo.bondorder()
-    #
-    ffcls = ForceField.implemented_md_software.get(config.ff.output_software, None)
-    if ffcls is None:
-        raise ValueError(f"Forcefield '{config.ff.output_software}' unknown!")
-
-    mol = Molecule(config, job, bondorder, ffcls, ext_q, ext_lj)
-    #
-    folder = job.pathways.getdir('addstruct')
-    structs = Computations(config.addstructs, folder)
-    structs.register('dihedrals', NoFragmentationDihedralsCreator(mol, job, config))
-    structs.register('hessian', HessianCreator(molecule))
-    #
-    structs.activate('fromfile')
-    structs.activate('xtbmd', crest.structures())
-    # do all additional calculations
-    structs.run(qm)
-    #  register hessian after structs were run!
-    # structs.register('hessian', hessian)
-    #
-    mol.qm_minimum_energy, mol.qm_minimum_coords = structs.normalize()
-    #
-    md_hessian = multi_fit(job.logger, config.terms, mol, structs)
-    #
-    return bondorder, md_hessian, mol, structs
+from .schemes import DihedralCreator
 
 
 def runjob(config, job, ext_q=None, ext_lj=None):
-    main_hessian, md_hessian, mol, structs = runjob_(config, job, ext_q=ext_q, ext_lj=ext_lj)
 
-    calc_qm_vs_md_frequencies(job, main_hessian, md_hessian)
+    qm_interface = QM(job, config.qm)
+    ff_interface = ForceField.implemented_md_software[config.ff.output_software]
 
-    if (main_hessian.dipole_deriv is not None
+    mol = Molecule(job, config)
+
+    do_crest(job, qm_interface, mol)
+
+    # This is ideally temporary if we can fix the global optimization
+    hessian_out = do_hessian(qm_interface, mol)
+
+    mol.setup(config, job, ff_interface, hessian_out, ext_q, ext_lj)
+
+    structs = do_all_structs(job, config, qm_interface, mol)
+
+    md_hessian = multi_fit(job.logger, config.terms, mol, structs)
+    calc_qm_vs_md_frequencies(job, hessian_out, md_hessian)
+
+    if (hessian_out.dipole_deriv is not None
        and 'charge_flux' in mol.terms
        and len(mol.terms['charge_flux']) > 0):
         raise NotImplementedError("Charge flux is not updated to new syntax")
         # fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
 
     ff = ForceField(config.ff.output_software, job, config, mol, mol.topo.neighbors)
-    ff.software.write(job.dir, main_hessian.coords)
+    ff.software.write(job.dir, mol.coords)
 
     print_outcome(job.logger, job.dir, config.ff.output_software)
 
     return mol
+
+
+def do_hessian(qm_interface, mol):
+    hessian = HessianCreator(mol)
+    hessian.run(qm_interface)
+    main_hessian = hessian.main_hessian()
+    mol.update_coords(main_hessian.coords, 'Structure optimized for Hessian calculation')
+    return main_hessian
+
+
+def do_crest(job, qm_interface, mol):
+    folder = job.pathways.getdir('preopt', create=True)
+    crest = CrestCreator(folder, mol)
+    crest.run(qm_interface)
+    mol.update_coords(crest.get_most_stable(), 'CREST lowest energy structure')
+    mol.all_coords = crest.get_structures()
+    mol.bond_orders = crest.get_bond_orders()
+
+
+def do_all_structs(job, config, qm_interface, mol):
+    folder = job.pathways.jobdir
+
+    structs = Computations(config.addstructs, folder)
+    structs.register('dihedrals', DihedralCreator(mol, job, config))
+    structs.register('hessian', HessianCreator(mol))
+    #
+    structs.activate('fromfile')
+    structs.activate('xtbmd', mol.all_coords)
+    # do all additional calculations
+    structs.run(qm_interface)
+    #  register hessian after structs were run!
+    # structs.register('hessian', hessian)
+    #
+    mol.qm_minimum_energy, mol.qm_minimum_coords = structs.normalize()
+    return structs
 
 
 def load_keeper(job):
