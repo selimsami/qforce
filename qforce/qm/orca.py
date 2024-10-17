@@ -46,15 +46,19 @@ class Orca(QMInterface):
 class OrcaCalculator(Calculator):
 
     name = 'orca'
-    _user_input = ""
+    _user_input = """
+    # name of the orca executable
+    orcaexe = orca :: str
+    """
+    def __init__(self, orcaexe):
+        self.orcaexe = orcaexe
     
     @classmethod
     def from_config(cls, config):
-        return cls()
+        return cls(config['orcaexe'])
 
     def _commands(self, filename, basename, ncores):
-        raise NotImplementedError
-
+        return [f'{self.orcaexe} {filename} > {basename}.out']
 
 
 class WriteORCA(WriteABC):

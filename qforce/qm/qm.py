@@ -7,7 +7,7 @@ from colt import Colt
 
 from .gaussian import Gaussian, GaussianCalculator
 from .qchem import QChem, QChemCalculator
-from .orca import Orca
+from .orca import Orca, OrcaCalculator
 from .crest import Crest, CrestCalculator
 from .xtb import xTB, XTBGaussian, xTBCalculator
 from .qm_base import HessianOutput, ScanOutput, Calculator
@@ -39,6 +39,7 @@ implemented_qm_software = {'gaussian': Gaussian,
 calculators = {
         'gaussian': GaussianCalculator,
         'xtb': xTBCalculator,
+        'orca': OrcaCalculator,
         'qchem': QChemCalculator,
         'torsiondrive': TorsiondriveCalculator,
         'crest': CrestCalculator,
