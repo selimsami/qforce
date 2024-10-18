@@ -27,17 +27,17 @@ class DihedralCreator(CustomStructureCreator):
         calc.scan_hash = scan_hash
         return calc
 
-    def enouts(self):
+    def enouts(self, select='all'):
         return []
 
-    def gradouts(self):
+    def gradouts(self, select='all'):
         results = []
         for dihedral in self._dihedrals.values():
             for res in dihedral.results:
                 results.append(res)
         return results
 
-    def hessouts(self):
+    def hessouts(self, select='all'):
         return []
 
     def setup_pre(self, qm):

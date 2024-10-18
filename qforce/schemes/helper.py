@@ -1,10 +1,10 @@
 from ase.io import read
 
 
-def coords_ids_iter(filename):
+def coords_ids_iter(filename, index=':'):
     if filename is None:
         return
-    molecules = read(filename, index=':')
+    molecules = read(filename, index=index)
     for molecule in molecules:
         yield molecule.get_positions(), molecule.get_atomic_numbers()
 

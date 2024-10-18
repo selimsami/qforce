@@ -12,13 +12,13 @@ class HessianCreator(CustomStructureCreator):
         self._hessian = CalculationStorage()
         self._charges = CalculationStorage()
 
-    def enouts(self):
+    def enouts(self, select='all'):
         return []
 
-    def gradouts(self):
+    def gradouts(self, select='all'):
         return []
 
-    def hessouts(self):
+    def hessouts(self, select='all'):
         return self._hessian.results
 
     def main_hessian(self):

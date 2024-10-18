@@ -181,7 +181,7 @@ class xTBCalculator(Calculator):
         return cls()
 
     def _commands(self, filename, basename, ncores):
-        return [f'bash {filename} > {filename}.shellout']
+        return [f'bash {filename} > {basename}.out']
 
 
 class WritexTB(WriteABC):

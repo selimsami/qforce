@@ -78,7 +78,7 @@ def multi_fit(logger, config, mol, structs):
     kbt = KB / KJ * MOL * t
     e_avg = (3*mol.n_atoms-6)*kbt/2
 
-    for weight_f, qmgrad in structs.graditr():
+    for weight_f, qmgrad in structs.graditr(select='fit'):
         scale_weight = min(np.exp((e_avg-qmgrad.energy)/e_avg), 1)
         weight_f *= scale_weight
 

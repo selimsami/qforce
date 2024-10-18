@@ -168,10 +168,10 @@ class Computations_(CustomStructureCreator):
             for out in creator.enouts():
                 yield weight, out
 
-    def graditr(self):
+    def graditr(self, select='all'):
         for creator in self.creators.values():
             weight = creator.weight * self.gradient_weight
-            for out in creator.gradouts():
+            for out in creator.gradouts(select=select):
                 yield weight, out
 
     def hessitr(self):
